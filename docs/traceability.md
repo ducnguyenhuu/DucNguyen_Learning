@@ -38,7 +38,7 @@ The 12 unresolved items are the substance of this audit. Everything else traces 
 | §8 §9 §9a §10 §11 AI platform and model strategy | **Principles VIII, IX**, **ADR-008**, **ADR-009** |
 | §13 §17 technology stack and Azure topology | **Constraints**, **ADR-001**, **ADR-002**, **ADR-007**, **ADR-012** |
 | §29 §30 §47 §51 vertical slices | **Principle X**, `roadmap.md` |
-| §25 §36 §37 §40 §41 skills and workflow | **ADR-016**, installed `agent-skills` plugin |
+| §25 §36 §37 §40 §41 skills and workflow | **ADR-016**, installed `superpowers` plugin |
 | §26 §31 §32 §33 §34 §50 Spec Kit lifecycle | `.specify/`, spec 001 as the worked example |
 | §46 §46a §59 horizons, gates, MVP cut line | `roadmap.md` |
 

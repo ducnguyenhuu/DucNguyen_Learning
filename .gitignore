@@ -46,6 +46,7 @@ BenchmarkDotNet.Artifacts/
 .vs/
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json
 .idea/
 *.swp
 .DS_Store

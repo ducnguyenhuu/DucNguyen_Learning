@@ -74,7 +74,7 @@ authoritative; `docs/constitution.md` may be a pointer, never a second copy.
   agent-specific formats even where that would be convenient.
 - Workflow skills — the "HOW we work" layer of §25 and §36 — are **not** covered by
   this ADR. Those are supplied globally by the agent's own skill ecosystem (currently
-  the installed `agent-skills` plugin) and are deliberately not vendored into the
+  the `superpowers` plugin) and are deliberately not vendored into the
   repository. Only the project-specific knowledge skills of §37 and §40 live in
   `.agent/skills/`.
 
