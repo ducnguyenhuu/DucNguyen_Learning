@@ -88,6 +88,10 @@ Human-approved Actions
 
 # 4. Personas
 
+> **Scope note (v0.6):** this section is the full persona inventory, not the MVP scope.
+> **§46a cuts the MVP to the Delivery Manager only.** The other four shape the
+> architecture so nothing blocks them later, but no MVP feature exists for them.
+
 ## Delivery Manager
 
 Primary question:
@@ -503,6 +507,7 @@ Azure Service Bus is the default asynchronous messaging mechanism.
 Potential events:
 
 ```text
+TenantCreated
 ProjectCreated
 ProjectUpdated
 SprintCompleted
@@ -745,7 +750,12 @@ Approval
 Production
 ```
 
-AI evaluation will eventually become part of the pipeline.
+AI evaluation will eventually become part of the pipeline (roadmap S15).
+
+> **Scope note (v0.6):** roadmap S7 builds **Dev only**. QA and Production environments
+> are post-Gate-1 — a QA environment with no users and no release process is cost without
+> function. The *human approval gate* before Production is built in S7; the environment
+> is not. See `docs/traceability.md` U7.
 
 ---
 

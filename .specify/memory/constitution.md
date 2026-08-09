@@ -40,18 +40,25 @@ Templates requiring updates:
 - .specify/templates/checklist-template.md: ✅ Compatible — no constitution
   references.
 - .specify/templates/commands/: N/A — directory does not exist in this repo.
-- README.md: ⚠ Pending — currently a single title line with no content. Should
-  state the project's purpose and link to this constitution and idea.md.
+- README.md: ✅ Updated (2026-08-08) — states the project's purpose and links here.
+- AGENTS.md: ✅ Created — condenses Principles I, II, IV, VIII for agent consumption.
+- docs/constitution.md: ✅ Created as a pointer to this file, never a copy.
 - specs/001-auth-tenant-management/spec.md: ✅ Compatible — verified against all
   11 principles; no conflicts. FR-027/FR-028 satisfy Principles III and VII,
   FR-007/FR-008/FR-009 satisfy Principle IV, FR-023..FR-026 satisfy Principle VI,
   and the spec's "no AI in slice one" stance satisfies Principle VIII.
 
 Follow-up TODOs:
-- TODO(ADR_BACKLOG): Principles III, VIII, and IX assert positions that idea.md
-  §45 expects to be recorded as ADR-003, ADR-008, and ADR-009. Those ADRs do not
-  exist yet. Write them before /speckit.plan on feature 001, per idea.md §58.
-- TODO(README): see ⚠ above.
+- ✅ RESOLVED (2026-08-08) TODO(ADR_BACKLOG): 10 ADRs written — 001, 002, 003, 007,
+  008, 009, 011, 012, 013, 016 — plus framework and template at docs/adr/. Every
+  Technology Constraint and Principles III, IV, VI, VIII, IX now have a recorded
+  decision. ADRs 004, 005, 010, 014 are deliberately deferred with reasons in the
+  index; 006 is folded into ADR-003; 015 is superseded by this document.
+- ✅ RESOLVED TODO(README).
+- OPEN: six decisions in docs/traceability.md require a human, not an agent. The
+  most consequential is U12 — no automated gate currently prevents a background job
+  or raw SQL from bypassing the tenant filter, which is the likeliest route to a
+  Principle IV violation. Assigned to roadmap S3.
 -->
 
 # Constitution: AI Engineering & Delivery Intelligence Platform

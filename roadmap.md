@@ -1,47 +1,117 @@
-# Roadmap — Execution Order
+# Roadmap
 
-**Companion to:** [idea.md](idea.md) v0.6 §46 · [Constitution](.specify/memory/constitution.md) v1.0.0
-**Orientation:** Research-first (idea.md §59.2) · Full-time (~40 hrs/week)
-**Committed plan:** 15 slices across 2 horizons, ~7 months
-**Last updated:** 2026-08-08
+**Read page 1 only.** Everything after the line marked `REFERENCE` is detail you open
+when you start a slice — not reading material.
 
 ---
 
-## How to use this document
+# ▶ PAGE 1 — START HERE
 
-Work **one slice at a time, in order**. Do not start a slice until the previous
-one's *Proof* checklist is complete. Each slice is a `/speckit.specify` →
-`/speckit.plan` → `/speckit.tasks` → implement → verify cycle.
+## The whole project is 15 pieces of work, done one at a time
 
-Every slice below states four things:
+### Foundation — 8 pieces (~3–4 months)
+
+| # | Work | Done when |
+|---|------|-----------|
+| 1 | Constitution + ADRs | Architecture decisions written down |
+| 2 | Login + tenant + database | Works on your machine |
+| 3 | Architecture tests | Breaking a boundary fails the build |
+| 4 | Logging + tracing | You can find a failure without reproducing it |
+| 5 | Docker | `docker compose up` runs everything |
+| 6 | Terraform + Azure | It runs in the cloud |
+| 7 | CI/CD | Commit deploys itself |
+| 8 | Service Bus | Duplicate messages don't break it |
+
+**→ GATE 1:** Can you deploy to Azure in under 20 minutes with no manual step?
+**If no — do not start piece 9.**
+
+### Real data + AI — 7 pieces (~3 months)
+
+| # | Work | Done when |
+|---|------|-----------|
+| 9 | Connect Jira (read-only) | Real data is in the system |
+| 10 | Sync engine | Survives rate limits and mid-sync failure |
+| 11 | Normalize the data | Queryable, and you know how fresh it is |
+| 12 | Project health score | **No AI** — plain arithmetic |
+| 13 | AI abstraction layer | All AI goes through one door |
+| 14 | AI answers "why is my project yellow?" | The product's core value |
+| 15 | Measure AI quality | You have numbers to defend it |
+
+**→ GATE 2:** Does a real Delivery Manager say *"yes — and I didn't know that"*?
+If they say *"I already knew that"*, the product idea is wrong. Fix it before continuing.
+
+### After that
+
+Undecided, on purpose. Piece 14 tells you what to build next.
+
+---
+
+## Where you are right now
+
+```text
+  1  Constitution + ADRs               DONE
+       Constitution v1.0.0 · 10 ADRs + framework
+       Repo skeleton · AGENTS.md · 7 skills · domain model
+▶ 2  Login + tenant + database         NEXT — spec ready
+  3  Architecture tests                not started
+```
+
+**This week:** run `/speckit.plan` on piece 2, then `/speckit.tasks`, then write code.
+
+Six open decisions sit in [docs/traceability.md](docs/traceability.md#open-decisions).
+None blocks piece 2.
+
+---
+
+## How this maps to idea.md
+
+Same plan, different words. idea.md calls them *Phases*; here they are numbered pieces
+of work.
+
+| idea.md | = pieces |
+|---------|----------|
+| Phase 0 + 1 — Foundation | 1–8 |
+| Phase 2 — Integration | 9–11 |
+| Phase 3 — AI Gateway | 13 |
+| Phase 5 — Delivery Intelligence | 12, 14, 15 |
+| Phase 4, 6, 7 | Undecided (after Gate 2) |
+
+Below, each piece is called a **slice** (idea.md §29's word) and numbered **S1–S15**.
+The two groups are called **Horizons** because each ends in a gate that can be failed.
+
+## The other files
+
+Open these only when you need them. None is reading material.
+
+| File | When to open it |
+|------|-----------------|
+| [idea.md](idea.md) | The vision and the why. Your document. |
+| [docs/adr/](docs/adr/) | "Why did we choose this?" |
+| [docs/traceability.md](docs/traceability.md) | "Did we forget anything from idea.md?" — 6 open decisions |
+| [specs/001-*](specs/001-auth-tenant-management/spec.md) | Piece 2's requirements |
+| [Constitution](.specify/memory/constitution.md) | The 11 rules all work must follow |
+
+---
+---
+
+# REFERENCE
+
+Detail for each slice. **Open the one you are starting; skip the rest.**
+
+Each slice states four things:
 
 | Field | Purpose |
 |-------|---------|
 | **Scope** | What is in. If it is not listed, it is not in the slice. |
 | **Not in scope** | What will feel tempting and must be deferred. This field is the point. |
-| **Outcome** | What becomes true. Written as an observable fact, not an activity. |
-| **Proof** | How you know it is done. If you cannot check every box, the slice is not done. |
+| **Outcome** | What becomes true. An observable fact, not an activity. |
+| **Proof** | How you know it is done. Cannot check every box → not done. |
 
-**Research targets** are listed because this project is research-first. A slice
-is not complete until its technology has been driven under *failure* conditions,
-not just demonstrated on the happy path (idea.md §59.2).
+**Research targets** appear because this project is research-first (idea.md §59.2): a
+slice is not complete until its technology has been driven under *failure* conditions,
+not just demonstrated working.
 
----
-
-## Current position
-
-```text
-▶ S1  Engineering System Foundation      IN PROGRESS
-        ✓ Constitution v1.0.0
-        ☐ ADR framework + ADR-001,002,003,007,008,009   ← blocking S2 planning
-        ☐ Repository skeleton · AGENTS.md · 7 skills · domain model
-  S2  Auth + Tenant + Persistence        spec ready (narrowed 2026-08-08)
-  S3  Architecture Tests                 not started
-```
-
-**Spec status:** `specs/001-auth-tenant-management/` is narrowed to S2 only.
-Its Deferred Requirements table maps every removed requirement to S3–S7, so those
-specs can adopt them verbatim when their turn comes.
+**Working assumption:** full-time, 1–2 weeks per slice.
 
 ---
 
@@ -68,7 +138,10 @@ Establishes the architectural authority everything else must cite. No product co
 - ADR-008 AI Gateway staged, seam-first · ADR-009 Capability-based model abstraction
 - Repository skeleton: `src/ tests/ infrastructure/ deployment/ docs/ specs/ .agent/`
 - `AGENTS.md` + the 7 initial skills (idea.md §55 Step 8) — no more
-- Domain model and bounded contexts at `docs/architecture/domain-model.md`
+- Domain model and bounded contexts at `docs/architecture/domain-model.md`, which must
+  classify all 14 of `idea.md` §6's delivery concepts as projection / native / not-in-MVP
+  ([traceability U8](docs/traceability.md#u8--6s-14-delivery-entities-vs-46as-projections-not-native-entities))
+- Resolve the six open decisions in [docs/traceability.md](docs/traceability.md#open-decisions)
 
 **Not in scope**
 - Any application code · any Azure resource · the remaining ADRs 004–006, 010–015
@@ -142,6 +215,10 @@ retrofitting boundaries after violations accumulate is far more expensive.
 - Architecture tests: domain cannot depend on infrastructure; no cross-service data
   access; layering respected; AI calls must route through the abstraction (assert
   the rule now, even though the seam arrives in S13)
+- **Close the four enforcement gaps the ADRs acknowledge**
+  ([traceability U12](docs/traceability.md#u12--enforcement-gaps-acknowledged-in-the-adrs)) —
+  most importantly, a test preventing raw SQL or a background job from bypassing the
+  tenant filter, which is the likeliest route to a cross-tenant leak under ADR-013
 - Test data builders and fixtures
 - All suites runnable by one command and CI-ready
 
@@ -241,6 +318,9 @@ research-first orientation (idea.md §59.2). Budget for it honestly.
 **Not in scope**
 - Pipeline automation of this deployment — that is S7 and must stay separate
 - Service Bus — S8 · Production or QA environments · Autoscaling, multi-region
+- **Azure AI Search** — listed in `idea.md` §17 but has no consumer until Horizon 3
+  Track B. Provisioning it here would pay for an idle service for months and violates
+  Principle X. See [traceability U2](docs/traceability.md#u2--17-provisions-ai-search-which-nothing-uses-until-horizon-3).
 
 **Outcome**
 The whole environment provisions into an empty Azure subscription from code alone,
