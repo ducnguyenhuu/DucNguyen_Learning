@@ -1,0 +1,61 @@
+# ---- Secrets: nothing here may ever be committed (Constitution Principle V, spec 001 FR-026)
+*.env
+.env.*
+!.env.example
+appsettings.Development.json
+appsettings.Local.json
+appsettings.*.local.json
+secrets.json
+*.pfx
+*.p12
+*.key
+*.pem
+*.publishsettings
+
+# ---- Terraform (state can contain secrets)
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform/
+.terraform.lock.hcl
+crash.log
+override.tf
+override.tf.json
+
+# ---- .NET
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+*.user
+*.suo
+*.userprefs
+project.lock.json
+artifacts/
+TestResults/
+coverage*.xml
+coverage*.json
+*.coverage
+*.trx
+BenchmarkDotNet.Artifacts/
+
+# ---- Tooling
+.vs/
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ---- Containers
+docker-compose.override.yml
+
+# ---- Kubernetes / Helm
+deployment/helm/**/charts/
+*.tgz
+kubeconfig
+*.kubeconfig
