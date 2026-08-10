@@ -36,14 +36,22 @@ Full reasoning in [idea.md §46](idea.md) · rules in the
 
 ### → Next steps
 
-1. `/speckit.plan` on [specs/001-auth-tenant-management](specs/001-auth-tenant-management/spec.md)
-2. `/speckit.tasks`
-3. Implement S2, checking off its *Done when* list
-4. Optional: merge this branch to `main` — constitution and ADRs are project-level, not
+1. ✅ `/speckit.plan` — done 2026-08-09. Produced
+   [plan](specs/001-auth-tenant-management/plan.md),
+   [research](specs/001-auth-tenant-management/research.md),
+   [data model](specs/001-auth-tenant-management/data-model.md),
+   [contracts](specs/001-auth-tenant-management/contracts/openapi.yaml),
+   [quickstart](specs/001-auth-tenant-management/quickstart.md), and
+   [ADR-017](docs/adr/ADR-017-tenant-context-resolution.md) (Accepted)
+2. ⬜ Create the Entra app registrations ([quickstart](specs/001-auth-tenant-management/quickstart.md) §1)
+   — the only remaining blocker, and it needs a human
+3. ⬜ `/speckit.tasks`
+4. ⬜ Implement S2, checking off its *Done when* list
+5. Optional: merge this branch to `main` — constitution and ADRs are project-level, not
    feature-level
 
-6 open decisions in [docs/traceability.md](docs/traceability.md#open-decisions). None
-blocks S2. **U12 must be done in S3.**
+Open decisions in [docs/traceability.md](docs/traceability.md#open-decisions). None blocks
+S2. **U12 must be done in S3.** U6's performance gap was closed into S7 during S2 planning.
 
 ---
 
@@ -113,18 +121,31 @@ infrastructure · no cross-service data access · no provider SDK outside AI Pla
 
 ## S4 — Observability · 1.5–2 w
 
-**Build:** OpenTelemetry traces/metrics/logs · correlation ID propagated across every
-boundary · tenant + user enrichment · health checks (self + dependencies) · immutable
-audit log · local collector
+Backend is **New Relic** over OTLP ([ADR-018](docs/adr/ADR-018-new-relic-telemetry-backend.md)).
+Its free tier means this slice runs against a **real** backend with no Azure subscription —
+ADR-011 had assumed a local collector until S6, so this is a gain.
 
-**Not:** Azure Monitor wiring (S6) · dashboards · alerting · SLOs
+**Build:** OpenTelemetry traces/metrics/logs · OTel Collector exporting to New Relic ·
+correlation ID propagated across every boundary · tenant + user enrichment **on spans and logs
+only** · health checks (self + dependencies) · immutable audit log · sampling / drop rules ·
+local collector for offline work
+
+**Not:** App Insights as secondary exporter (S6, optional) · dashboards · alerting · SLOs ·
+New Relic APM agent — **ever** (ADR-011, ADR-018: OTLP only, no vendor SDK)
 
 **Done when**
-- [ ] One operation = one correlated trace, entry → database
+- [ ] One operation = one correlated trace, entry → database, **visible in New Relic**
 - [ ] **An induced failure is diagnosed from telemetry alone in under 10 min, no local repro**
 - [ ] Health reports a stopped database as unhealthy
 - [ ] Audit entries exist for auth, tenant mutation, and authorization refusal
 - [ ] No secret and no unnecessary personal data anywhere in telemetry
+- [ ] **`tenant.id` appears on spans and logs but on no metric dimension** — New Relic's
+      cardinality limit is per metric, per day, and this is cheap now and costly to unpick later
+- [ ] **`NrIntegrationError` is empty** — OTLP validation is asynchronous, so a 2xx does not
+      mean the data was accepted. A backend that silently discards part of your telemetry is
+      worse than one that rejects it
+- [ ] Sampling or drop rules in place — the free tier **stops ingest** at 100 GB/month rather
+      than billing over, so a log flood costs days of observability
 
 ---
 
@@ -148,19 +169,31 @@ SQL + collector · health check · graceful shutdown · image size and startup b
 The main cost of going research-first ([ADR-007](docs/adr/ADR-007-aks-in-horizon-1.md)).
 **~$700–1,500/month.** Use dev/test SKUs and `terraform destroy` between sessions.
 
+**Open, deliberately deferred to this slice (2026-08-09): which subscription funds it.**
+Candidates are the existing sandbox and Azure for Students (~$100 credit, no card). Note that
+$100 does not cover this footprint — it reduces the bill, it does not solve it. Deciding at S6
+rather than now avoids burning credit four slices before it is needed. The Entra tenant used
+for authentication is a **separate** choice and is already settled: a subscription in one
+tenant can serve an app registered in another.
+
 **Build:** Terraform + remote state · one `dev` environment · ACR · AKS · APIM · Front
-Door · Azure SQL · Key Vault · Log Analytics + App Insights · managed + workload identity
-· private endpoints · Helm chart · first deploy done by hand, to learn the path
+Door · Azure SQL · Key Vault (**holds the New Relic ingest licence key**) · OTel Collector on
+AKS · managed + workload identity · private endpoints · Helm chart · first deploy done by hand,
+to learn the path
 
 **Not:** pipeline automation (S7) · Service Bus (S8) · QA or production ·
 **Azure AI Search** — no consumer until after Gate 2
-([U2](docs/traceability.md#u2--17-provisions-ai-search-which-nothing-uses-until-horizon-3))
+([U2](docs/traceability.md#u2--17-provisions-ai-search-which-nothing-uses-until-horizon-3)) ·
+**Log Analytics + App Insights** — the telemetry backend is New Relic
+([ADR-018](docs/adr/ADR-018-new-relic-telemetry-backend.md)); App Insights is an optional
+second collector exporter, and only if something needs it
 
 **Done when**
 - [ ] `terraform apply` into an **empty** subscription works — zero portal clicks
 - [ ] App reachable through Front Door → APIM → AKS, health passing
 - [ ] SQL and Key Vault reached by managed identity — **no connection-string secret**
-- [ ] Traces from Azure appear in App Insights, correlated
+- [ ] Traces from Azure appear in **New Relic**, correlated, with the licence key read from
+      Key Vault by workload identity — never from a manifest
 - [ ] **A rollout is deliberately broken and recovered** — AKS is not learned until this
 - [ ] `terraform destroy` removes everything cleanly
 
@@ -173,7 +206,8 @@ the unknown-unknowns live.*
 
 **Build:** build → unit → integration → architecture → secret scan → dependency scan →
 container build → image scan → push ACR → deploy dev · conventional-commit validation ·
-branch protection · human approval gate before anything above dev
+branch protection · human approval gate before anything above dev · **a load test against
+the deployed dev environment** ([U6](docs/traceability.md#u6--22-lists-eight-test-types-only-four-are-scheduled))
 
 **Not:** production environment · AI evaluation in the pipeline (S15) · blue/green
 
@@ -184,6 +218,9 @@ branch protection · human approval gate before anything above dev
 - [ ] **A known-vulnerable dependency fails the build**
 - [ ] Production is impossible without explicit human approval
 - [ ] A non-conforming commit message fails the build
+- [ ] **Spec 001 SC-003 verified** — 95% of tenant reads under 1s at 50 concurrent users
+      across 20 tenants. Deferred here from S2 because this is the first slice with both a
+      pipeline to run the test and a real environment to run it against.
 
 ---
 
