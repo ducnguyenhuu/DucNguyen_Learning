@@ -1,0 +1,526 @@
+openapi: 3.1.0
+info:
+  title: Tenancy API
+  version: 0.1.0
+  description: |
+    Tenancy context for the AI Engineering & Delivery Intelligence Platform (roadmap S2).
+
+    ## Tenant context
+
+    Tenant-scoped operations live under `/tenants/{tenantId}`. Per ADR-017 the path segment
+    is a **candidate selector, never a grant**: it is validated against an active membership
+    for the authenticated principal on every request, and the request fails closed if none
+    matches.
+
+    ## Status code contract
+
+    These distinctions are security requirements, not style choices:
+
+    | Code | Meaning |
+    |------|---------|
+    | 401 | Unauthenticated. No token, or a token that fails validation (FR-002, FR-004). |
+    | 403 | Authenticated **and an active member**, but the role does not permit it (FR-018). |
+    | 404 | Tenant does not exist **OR** the caller is not an active member. Deliberately indistinguishable (FR-009) — a 403 here would confirm existence. |
+    | 409 | Concurrency race detected at save, or an idempotent request still in flight. |
+    | 412 | `If-Match` supplied but stale. |
+    | 428 | `If-Match` required and absent. |
+    | 422 | `Idempotency-Key` reused with a different request body. |
+
+    All errors are `application/problem+json` (RFC 9457) and disclose no internal detail
+    (FR-022).
+
+    ## Operations without tenant context
+
+    Exactly three, enumerated in ADR-017 and each individually tested:
+    `POST /tenants`, `GET /tenants`, `POST /invitations/{token}/accept`.
+
+servers:
+  - url: https://localhost:7001
+    description: Local development
+
+security:
+  - entraBearer: []
+
+tags:
+  - name: Tenants
+  - name: Members
+  - name: Invitations
+
+paths:
+  /tenants:
+    post:
+      tags: [Tenants]
+      summary: Create a tenant
+      description: |
+        FR-005. Creator becomes the tenant's first Administrator in the same transaction.
+        Not tenant-scoped — no tenant exists yet (ADR-017 exception 1).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [displayName]
+              properties:
+                displayName:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                  description: Not globally unique. Two unrelated organisations may share one.
+      responses:
+        '201':
+          description: |
+            Created. On idempotent replay, returns 201 with the stored body verbatim and
+            `Idempotency-Replayed: true` — never 200.
+          headers:
+            Location: { schema: { type: string, format: uri } }
+            ETag: { $ref: '#/components/headers/ETag' }
+            Idempotency-Replayed:
+              schema: { type: boolean }
+              description: Present and true when this response was replayed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tenant' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '409':
+          description: An identical idempotent request is still in flight.
+          headers:
+            Retry-After: { schema: { type: integer } }
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+        '422': { $ref: '#/components/responses/IdempotencyKeyReuse' }
+
+    get:
+      tags: [Tenants]
+      summary: List the caller's tenants
+      description: |
+        FR-010, Story 1 scenario 5. Returns only tenants the caller is an **active** member of.
+
+        Not tenant-scoped (ADR-017 exception 2) — this query spans tenants by definition.
+        Served by a single audited helper that queries `Membership` by `UserId` and bypasses
+        only the named `TenantFilter`. `UserId == caller` is not optional.
+      responses:
+        '200':
+          description: OK. Empty array if the caller belongs to no tenant.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TenantSummary' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+
+  /tenants/{tenantId}:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    get:
+      tags: [Tenants]
+      summary: Read a tenant
+      description: FR-006. Any active member, any role (Story 3 scenario 2).
+      responses:
+        '200':
+          description: OK
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tenant' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '404': { $ref: '#/components/responses/NotFoundOrInaccessible' }
+    patch:
+      tags: [Tenants]
+      summary: Update tenant display name or settings
+      description: FR-006, FR-019. **Administrator only.**
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              type: object
+              properties:
+                displayName: { type: string, minLength: 1, maxLength: 200 }
+      responses:
+        '200':
+          description: OK
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tenant' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFoundOrInaccessible' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+
+  /tenants/{tenantId}/members:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    get:
+      tags: [Members]
+      summary: List members
+      description: FR-014. **Administrator only** — the spec grants listing to administrators
+        alone, so least privilege applies.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Member' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFoundOrInaccessible' }
+
+  /tenants/{tenantId}/members/{userId}:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - name: userId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [Members]
+      summary: Change a member's role
+      description: |
+        FR-014, FR-019. **Administrator only.**
+        Refused with 409 if it would demote the last remaining Administrator (FR-015).
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { $ref: '#/components/schemas/Role' }
+      responses:
+        '200':
+          description: OK
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Member' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFoundOrInaccessible' }
+        '409':
+          description: |
+            Concurrency race, **or** the change would leave the tenant with no Administrator
+            (FR-015).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+    delete:
+      tags: [Members]
+      summary: Remove a member
+      description: |
+        FR-014. **Administrator only.** Effective access ends within the documented staleness
+        window of one hour (FR-016, Assumption 7) — a previously issued token remains
+        cryptographically valid until it expires.
+
+        Refused with 409 if it would remove the last remaining Administrator (FR-015).
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204': { description: Removed }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFoundOrInaccessible' }
+        '409':
+          description: Concurrency race, or would leave the tenant with no Administrator.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+
+  /tenants/{tenantId}/invitations:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    post:
+      tags: [Invitations]
+      summary: Invite a person by email address
+      description: |
+        FR-011. **Administrator only.** Expires 7 days after creation (Assumption 6).
+
+        The invitation token is returned **once, here**, and is never stored — only its
+        SHA-256 hash is persisted (Principle V).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, role]
+              properties:
+                email: { type: string, format: email }
+                role: { $ref: '#/components/schemas/Role' }
+      responses:
+        '201':
+          description: Created
+          headers:
+            Location: { schema: { type: string, format: uri } }
+            Idempotency-Replayed: { schema: { type: boolean } }
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Invitation'
+                  - type: object
+                    properties:
+                      token:
+                        type: string
+                        description: Returned once and never again. Not persisted in plaintext.
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFoundOrInaccessible' }
+        '409':
+          description: |
+            The address is already an active member, or already has a pending invitation
+            (spec edge case — a conflict, not a duplicate).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+        '422': { $ref: '#/components/responses/IdempotencyKeyReuse' }
+    get:
+      tags: [Invitations]
+      summary: List pending invitations
+      description: FR-014. **Administrator only.**
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Invitation' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFoundOrInaccessible' }
+
+  /tenants/{tenantId}/invitations/{invitationId}:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - name: invitationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Invitations]
+      summary: Revoke a pending invitation
+      description: FR-014. **Administrator only.** A revoked invitation can never be accepted.
+      responses:
+        '204': { description: Revoked }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFoundOrInaccessible' }
+        '409':
+          description: Already accepted, so no longer revocable.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+
+  /invitations/{token}/accept:
+    post:
+      tags: [Invitations]
+      summary: Accept an invitation
+      description: |
+        FR-012, FR-013.
+
+        Not tenant-scoped (ADR-017 exception 3) — the caller has no membership yet; creating
+        one is the point. Authorization is the token **plus** an identity match: the
+        authenticated principal's email must equal the invited address. An invitation issued
+        to one address cannot be accepted by another (Story 2 scenario 4).
+
+        Refused when expired, already accepted, or revoked (FR-013). All refusals return 404
+        so a token cannot be probed for validity.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+          description: Opaque single-use token. Matched by SHA-256 hash.
+      responses:
+        '200':
+          description: Accepted. The caller is now an active member.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Member' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403':
+          description: |
+            Authenticated as a different identity than the one invited. Distinct from 404
+            because the token was valid — the caller simply is not its subject.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+        '404':
+          description: |
+            Unknown, expired, revoked, or already-accepted token — all indistinguishable, so
+            token validity cannot be probed.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+
+components:
+  securitySchemes:
+    entraBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Microsoft Entra ID access token. Expiry, signature, issuer, and audience are all
+        validated (FR-004). Stable identity is the composite `(tid, oid)` — never `sub`,
+        never `email` (research R2).
+
+  parameters:
+    TenantId:
+      name: tenantId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+      description: |
+        A **candidate** tenant selector (ADR-017). Validated against an active membership for
+        the authenticated principal; unmatched selectors yield 404, never 403.
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, maxLength: 255 }
+      description: |
+        FR-020. Opaque client-generated key; UUIDv4/v7 recommended. Retained 24 hours.
+        Semantics follow IETF draft-ietf-httpapi-idempotency-key-header-07.
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      schema: { type: string }
+      description: FR-021. The `ETag` from a prior read. Absent → 428, stale → 412.
+
+  headers:
+    ETag:
+      schema: { type: string }
+      description: Base64 `rowversion`. Supply as `If-Match` on the next mutation.
+
+  responses:
+    BadRequest:
+      description: Validation failure. Rejected rather than coerced.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+    Unauthenticated:
+      description: FR-002. No tenant or user data is disclosed.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+    Forbidden:
+      description: |
+        FR-018. Authenticated **and an active member of this tenant**, but the role does not
+        permit the operation. Never returned for non-members — that case is 404.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+    NotFoundOrInaccessible:
+      description: |
+        FR-009. The tenant does not exist, **or** the caller is not an active member.
+        Deliberately indistinguishable so tenant existence cannot be probed.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+    Conflict:
+      description: Concurrent modification detected at save (FR-021).
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+    PreconditionFailed:
+      description: The supplied `If-Match` is stale.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+    PreconditionRequired:
+      description: This operation requires `If-Match` and none was supplied.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+    IdempotencyKeyReuse:
+      description: |
+        The same `Idempotency-Key` was reused with a different request body
+        (`idempotency-key-reuse`).
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+
+  schemas:
+    Role:
+      type: string
+      enum: [Administrator, Member, Reader]
+      description: FR-017. Exactly one per membership.
+
+    Tenant:
+      type: object
+      required: [id, displayName, status, createdAtUtc]
+      properties:
+        id: { type: string, format: uuid }
+        displayName: { type: string }
+        status: { type: string, enum: [Active, Suspended] }
+        createdAtUtc: { type: string, format: date-time }
+
+    TenantSummary:
+      type: object
+      required: [id, displayName, role]
+      properties:
+        id: { type: string, format: uuid }
+        displayName: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+          # The caller's own role in this tenant.
+
+    Member:
+      type: object
+      required: [userId, email, displayName, role, status]
+      properties:
+        userId: { type: string, format: uuid }
+        email: { type: string, format: email }
+        displayName: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+        status: { type: string, enum: [Active, Removed] }
+        createdAtUtc: { type: string, format: date-time }
+
+    Invitation:
+      type: object
+      required: [id, email, role, status, expiresAtUtc]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        role: { $ref: '#/components/schemas/Role' }
+        status: { type: string, enum: [Pending, Accepted, Revoked, Expired] }
+        expiresAtUtc: { type: string, format: date-time }
+        createdAtUtc: { type: string, format: date-time }
+
+    ProblemDetails:
+      type: object
+      description: |
+        RFC 9457. FR-022 — identifies the problem without disclosing internal detail, stack
+        traces, or the existence of another tenant's data.
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
