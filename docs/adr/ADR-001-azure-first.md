@@ -30,10 +30,18 @@ infrastructure is provisioned in Azure unless a specific ADR grants an exception
 
 Concretely this settles: AKS for orchestration, Azure SQL for relational data,
 Azure Service Bus for messaging, Microsoft Entra ID for identity, Azure Key Vault
-for secrets, and Azure Monitor / Application Insights as the telemetry backend.
+for secrets, and ~~Azure Monitor / Application Insights as the telemetry backend~~.
 
 Adopting a non-Azure service requires its own ADR stating why the Azure equivalent
 is insufficient.
+
+> **Exception granted 2026-08-09 — telemetry backend.**
+> [ADR-018](ADR-018-new-relic-telemetry-backend.md) makes **New Relic** the default telemetry
+> backend over OTLP, with Azure Monitor / Application Insights as an optional secondary
+> exporter. Reasons recorded there: ingest cost at this project's scale, S4 becoming verifiable
+> against a real backend without a subscription, and exercising the vendor neutrality ADR-011
+> paid for. This is the first and so far only exception to Azure-first; everything else in the
+> list above stands.
 
 ## Consequences
 

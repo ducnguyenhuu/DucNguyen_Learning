@@ -34,7 +34,13 @@ ones with long-term value; a decision recorded without its cost and its rejected
 options is barely recorded at all.
 
 Number allocation follows `idea.md` §45, which pre-assigns ADR-001 through ADR-015.
-Numbers above 015 are allocated as needed.
+Numbers above 015 are allocated as needed — 016 onward were raised by the work rather
+than pre-assigned, which is the expected pattern from here on.
+
+**Refinement over rewriting.** Where a later decision changes part of an earlier one
+(018 changes 011's backend but not its instrumentation rule), the earlier ADR is
+annotated in place and marked *refined*, not deleted or silently edited. The history of
+what was decided and why it changed is the point of the record.
 
 ## Index
 
@@ -50,12 +56,14 @@ Numbers above 015 are allocated as needed.
 | [008](ADR-008-ai-gateway-staged.md) | AI Gateway built in stages, seam first | Accepted | Principle IX |
 | [009](ADR-009-capability-based-model-abstraction.md) | Capability-based model abstraction | Accepted | Principle IX |
 | 010 | RAG | *Not yet written* — Horizon 3, Track B |  |
-| [011](ADR-011-opentelemetry.md) | OpenTelemetry as the instrumentation standard | Accepted | Principle VI |
+| [011](ADR-011-opentelemetry.md) | OpenTelemetry as the instrumentation standard | Accepted — backend clause refined by 018 | Principle VI |
 | [012](ADR-012-terraform.md) | Terraform for all infrastructure | Accepted | Constraints |
 | [013](ADR-013-multi-tenancy-model.md) | Shared infrastructure with logical tenant isolation | Accepted | Principle IV |
 | 014 | AI governance | *Not yet written* — Horizon 2, alongside roadmap S13–S15 |  |
 | 015 | AI-assisted development methodology | Superseded in advance by the Constitution, which is the operative document |  |
 | [016](ADR-016-agent-neutral-skill-location.md) | Agent-neutral skill location | Accepted | idea.md §38 |
+| [017](ADR-017-tenant-context-resolution.md) | Tenant context from a validated route selector | Accepted | Principle IV |
+| [018](ADR-018-new-relic-telemetry-backend.md) | New Relic as the default telemetry backend | Accepted | Principle VI |
 
 ### Deliberately unwritten
 

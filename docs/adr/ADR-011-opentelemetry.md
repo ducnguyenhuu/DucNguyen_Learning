@@ -4,6 +4,9 @@
 **Date**: 2026-08-08
 **Deciders**: Project owner
 **Relates to**: Constitution → Principle VI · `idea.md` §20, §21, §44 item 6 · roadmap S4
+**Refined by**: [ADR-018](ADR-018-new-relic-telemetry-backend.md) (2026-08-09) — the **backend**
+is now New Relic, with Application Insights as an optional secondary. The instrumentation
+decision below is unchanged and remains load-bearing.
 
 ## Context
 
@@ -25,8 +28,14 @@ Insights and its own SDK. Using it directly would be the path of least resistanc
 We use **OpenTelemetry** as the instrumentation API and SDK for all traces, metrics,
 and logs, across every service.
 
-Azure Monitor / Application Insights is the **backend**, reached via the OpenTelemetry
-exporter — not via the Application Insights SDK.
+~~Azure Monitor / Application Insights is the **backend**~~, reached via the OpenTelemetry
+exporter — not via a vendor SDK.
+
+> **Amended 2026-08-09 by [ADR-018](ADR-018-new-relic-telemetry-backend.md):** the default
+> backend is **New Relic** over OTLP; Azure Monitor / Application Insights is an optional
+> secondary exporter. The rule that matters here is unchanged — the backend is reached through
+> the OpenTelemetry exporter, **never** through a vendor SDK or agent. This is the change this
+> ADR's *Revisit When* anticipated: the exporter is repointed, the code is not rewritten.
 
 Requirements that follow:
 
@@ -95,12 +104,19 @@ Strong tooling, minimal instrumentation effort. Rejected for Horizon 1 on cost a
 coupling. All three accept OTel data anyway, so this ADR does not preclude adopting
 one as a backend later — which is precisely the optionality being bought.
 
+> **Outcome (2026-08-09):** this is exactly what happened, and the distinction held.
+> [ADR-018](ADR-018-new-relic-telemetry-backend.md) adopts New Relic as the OTLP **backend**
+> while the **agent** remains rejected for the reason stated here. The optionality was real:
+> repointing the backend required no change to any instrumentation, plan, or data model.
+
 ## Revisit When
 
-- Application Insights proves inadequate for AI-specific observability in roadmap
-  S13–S15, in which case the exporter is repointed rather than the code rewritten.
-- Log Analytics cost becomes significant, which is the trigger to design sampling
-  deliberately.
+- ~~Application Insights proves inadequate for AI-specific observability~~ — the backend
+  question is now ADR-018's. AI-specific observability over OTLP remains the open risk, to be
+  re-verified before S13.
+- ~~Log Analytics cost~~ — ingest cost is now New Relic's 100 GB/month free tier, which fails
+  hard rather than billing over. Sampling therefore moves *into* S4 rather than waiting for a
+  cost signal (ADR-018).
 - The .NET OTel logging API changes materially.
 
 ## Compliance
