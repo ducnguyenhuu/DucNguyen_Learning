@@ -19,9 +19,10 @@ blueprint contradicts itself or the roadmap.
 | **SCHEDULED** | Assigned to a named roadmap slice (S1–S15) | ~120 |
 | **DEFERRED** | Post-MVP by explicit decision — Horizon 3 track or §46a non-goal | ~330 |
 | **SUPERSEDED** | Deliberately changed by v0.5/v0.6; the blueprint text is historical | ~40 |
-| **⚠ UNRESOLVED** | Genuine conflict or gap needing a decision | **12** |
+| **⚠ UNRESOLVED** | Genuine conflict or gap needing a decision | **13** |
 
-The 12 unresolved items are the substance of this audit. Everything else traces cleanly.
+The 13 unresolved items are the substance of this audit. Everything else traces cleanly.
+U6 is partially resolved and U13 was added on 2026-08-09; both are dated in place.
 
 ---
 
@@ -138,13 +139,28 @@ event available in Horizon 1.
 | Unit, Integration, Architecture | roadmap S3 ✓ |
 | Contract | project created in S3, first real contract test at S9 |
 | **End-to-End** | **unscheduled** |
-| **Performance** | **unscheduled** (spec 001 SC-003 implies some load testing at S2) |
+| **Performance** | **roadmap S7** ✓ — resolved 2026-08-09, see below |
 | **Security** | **unscheduled** (secret + dependency scanning is S7, but not security *tests*) |
 | AI Evaluation | roadmap S15 ✓ |
 
-**Recommendation:** E2E belongs in S7 once a deployed environment exists. Performance
-and security testing are legitimately post-Gate-1. Worth stating explicitly rather than
-leaving as an implied gap. **Decision needed.**
+**Recommendation:** E2E belongs in S7 once a deployed environment exists. Security
+testing is legitimately post-Gate-1. Worth stating explicitly rather than leaving as an
+implied gap. **Decision still needed for E2E and Security.**
+
+**✅ RESOLVED (2026-08-09) — Performance / spec 001 SC-003.** Raised during
+`/speckit.plan` for S2: SC-003 (95% of tenant reads under 1s at 50 concurrent users
+across 20 tenants) has no verification anywhere, and roadmap S2's *Done when* does not
+list it — so it was on course to pass unverified and unmarked.
+
+**Decision: SC-003 verification is deferred to roadmap S7**, recorded in spec 001's
+[Deferred Requirements](../specs/001-auth-tenant-management/spec.md#deferred-requirements)
+and added to S7's *Done when*.
+
+Rationale: S7 is the earliest slice with both a pipeline to run a load test *and* a
+deployed environment to run it against. Measuring in S2 was rejected because the number
+would be meaningless — S2's database is SQL Server under x86 emulation on an ARM
+development machine, which tells you nothing about Azure SQL. S7 is also still before
+**Gate 1**, so spec 001 remains fully verified before Horizon 2 begins.
 
 ### U7 — §23's pipeline includes a QA environment; roadmap S7 has only dev
 
@@ -222,6 +238,37 @@ gate. Each is recorded in its ADR's Compliance section:
 most plausible route to a cross-tenant leak under ADR-013's model, and it is currently
 unguarded. **Assign to S3.**
 
+### U13 — §17 and §20 name Azure Monitor / App Insights; the telemetry backend is now New Relic
+
+`idea.md` §17 lists Azure Monitor, Application Insights, and Log Analytics as provisioned
+infrastructure, and §20's trace diagram is framed around them.
+[ADR-018](adr/ADR-018-new-relic-telemetry-backend.md) (2026-08-09) makes **New Relic** the
+default telemetry backend over OTLP, with Application Insights as an optional secondary
+exporter.
+
+**Assessment: applied, blueprint unamended** — the same disposition as U2. The change was
+directed by the project owner, who owns product direction, and it is recorded in ADR-018 with
+the exception ADR-001 requires for a non-Azure service. But `idea.md` is *higher authority than
+an ADR* under Principle II, so an agent does not edit it: it proposes.
+
+Worth noting that **nothing downstream broke.** ADR-011's instrumentation decision, spec 001,
+its plan, research, and data model all required no change — the vendor-neutrality ADR-011 paid
+configuration cost for turned out to be real. That is a finding, not a formality.
+
+**Recommendation:** amend §17 to name the telemetry backend as a *decision recorded in an ADR*
+rather than a fixed Azure service, and add a sentence to §20 clarifying that the trace
+requirement is backend-independent — which is what OpenTelemetry is for. Low risk, and it stops
+the blueprint from quietly contradicting the running system. **Not yet applied.**
+
+Two consequences to carry forward rather than rediscover:
+
+- **Cardinality:** New Relic's limits apply to metrics, not spans. `tenant.id` belongs on spans
+  and logs, **never as a metric dimension** — otherwise Principle VI's tenant-annotation
+  requirement collides with a hard per-day limit as tenant count grows.
+- **S4 gains, not loses.** App Insights needed an Azure subscription, so ADR-011 had accepted a
+  local collector for S4's proof. New Relic's free tier means S4 can run against a real backend
+  two slices earlier than planned.
+
 ---
 
 ## Superseded blueprint text
@@ -244,9 +291,17 @@ idea.md §57 or §59.
 
 ## Open decisions
 
-Six items need a human decision. Five are recommendations awaiting confirmation
-(**U1, U4, U6, U11**, and the amendments in **U5, U7, U9**); one is applied but leaves
-the blueprint unamended (**U2**).
+**Seven** items need a human decision (was six; **U13** added 2026-08-09). Five are
+recommendations awaiting confirmation (**U1, U4, U6, U11**, and the amendments in
+**U5, U7, U9**); two are applied but leave the blueprint unamended (**U2**, **U13**).
+
+**U6 is partially resolved** (2026-08-09): the Performance gap — spec 001 SC-003 — is
+assigned to roadmap S7. E2E and Security test scheduling remain open.
+
+**U13** (2026-08-09) records that `idea.md` §17/§20 still name Azure Monitor and
+Application Insights while [ADR-018](adr/ADR-018-new-relic-telemetry-backend.md) has made
+New Relic the telemetry backend. Applied in practice; the blueprint amendment is
+recommended but not made, because `idea.md` outranks an ADR.
 
 Two are assigned and need no decision: **U8** → S1's domain model, **U12** → S3
 architecture tests.
