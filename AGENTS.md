@@ -96,10 +96,33 @@ Commit only when asked. If on the default branch, branch first.
 ## Current state
 
 Slice 1 (Constitution + ADRs) is complete. **Slice 2** — auth, tenant, persistence,
-running locally — is specified in
-[specs/001-auth-tenant-management/](specs/001-auth-tenant-management/spec.md) and is
-next. No application code exists yet.
+running locally — is specified *and planned*:
+[spec](specs/001-auth-tenant-management/spec.md) ·
+[plan](specs/001-auth-tenant-management/plan.md) ·
+[research](specs/001-auth-tenant-management/research.md) ·
+[data model](specs/001-auth-tenant-management/data-model.md) ·
+[contracts](specs/001-auth-tenant-management/contracts/openapi.yaml) ·
+[quickstart](specs/001-auth-tenant-management/quickstart.md).
+`/speckit.tasks` is next. **No application code exists yet.**
 
-Six open decisions are recorded in
+Before writing S2 code, read
+[ADR-017](docs/adr/ADR-017-tenant-context-resolution.md) — tenant context comes from a
+**validated route selector**, and it enumerates the only three operations permitted to run
+without tenant context. A fourth would need the ADR amended.
+
+Open decisions are recorded in
 [docs/traceability.md](docs/traceability.md#open-decisions). They need a human, not an
-agent.
+agent. U6 is partially resolved (2026-08-09): performance testing is assigned to S7; E2E and
+security test scheduling remain open.
+
+---
+
+*The two sections below are maintained by `.specify/scripts/bash/update-agent-context.sh`
+from the current slice's `plan.md`. Everything above them is hand-written. Per ADR-016 this
+is the single agent instruction file — there is no `CLAUDE.md`, deliberately.*
+
+## Active Technologies
+- C# 14 / .NET 10 LTS + ASP.NET Core 10, EF Core 10, Microsoft.Identity.Web 4.14.2 (001-auth-tenant-management)
+- SQL Server 2022 (container) (001-auth-tenant-management)
+
+## Recent Changes

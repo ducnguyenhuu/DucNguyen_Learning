@@ -59,7 +59,14 @@ NEW_PLAN="$IMPL_PLAN"  # Alias for compatibility with existing code
 AGENT_TYPE="${1:-}"
 
 # Agent-specific file paths
-CLAUDE_FILE="$REPO_ROOT/CLAUDE.md"
+#
+# PROJECT DEVIATION (2026-08-09) — ADR-016 requires agent instructions to be
+# agent-neutral with a single source of truth: "no duplication... a copy would drift, and
+# drifted knowledge is worse than absent knowledge because it is trusted."
+# This repository therefore keeps ONE instruction file, AGENTS.md, and points the
+# per-agent targets at it rather than generating a second, drifting copy.
+# Do not restore CLAUDE.md without amending ADR-016.
+CLAUDE_FILE="$REPO_ROOT/AGENTS.md"
 GEMINI_FILE="$REPO_ROOT/GEMINI.md"
 COPILOT_FILE="$REPO_ROOT/.github/agents/copilot-instructions.md"
 CURSOR_FILE="$REPO_ROOT/.cursor/rules/specify-rules.mdc"
@@ -583,7 +590,7 @@ update_specific_agent() {
 
     case "$agent_type" in
         claude)
-            update_agent_file "$CLAUDE_FILE" "Claude Code"
+            update_agent_file "$CLAUDE_FILE" "AGENTS.md (agent-neutral, ADR-016)"
             ;;
         gemini)
             update_agent_file "$GEMINI_FILE" "Gemini CLI"
@@ -646,7 +653,7 @@ update_all_existing_agents() {
 
     # Check each possible agent file and update if it exists
     if [[ -f "$CLAUDE_FILE" ]]; then
-        update_agent_file "$CLAUDE_FILE" "Claude Code"
+        update_agent_file "$CLAUDE_FILE" "AGENTS.md (agent-neutral, ADR-016)"
         found_agent=true
     fi
 
@@ -723,7 +730,7 @@ update_all_existing_agents() {
     # If no agent files exist, create a default Claude file
     if [[ "$found_agent" == false ]]; then
         log_info "No existing agent files found, creating default Claude file..."
-        update_agent_file "$CLAUDE_FILE" "Claude Code"
+        update_agent_file "$CLAUDE_FILE" "AGENTS.md (agent-neutral, ADR-016)"
     fi
 }
 print_summary() {
