@@ -1,6 +1,38 @@
 <!--
-SYNC IMPACT REPORT
-==================
+SYNC IMPACT REPORT — 1.0.0 → 1.0.1 (PATCH)
+==========================================
+Date: 2026-08-09 · Approved by: project owner
+
+Reason: a factual error. Technology Constraints closed with "None exist yet" about
+ADR-001, 002, 007, 011, 012, and 013 — all of which have existed since 2026-08-08.
+The file therefore contradicted its own Follow-up TODOs below. Found during the
+spec-001 post-planning consistency review.
+
+Changed (Technology Constraints closing paragraph only):
+- Replaced the stale "None exist yet" claim with a pointer to docs/adr/README.md as
+  the authoritative index, plus the current ADR list including 003, 017, and 018.
+- Added an explicit note that the constraint list is the current *default*, not
+  immutable, and that an ADR may change a constraint without amending this document
+  — which the top of that section already permitted but no reader would infer.
+  ADR-018 (New Relic as telemetry backend) is named as the first such instance.
+
+Deliberately NOT changed:
+- The "Telemetry: OpenTelemetry" constraint. ADR-018 changed the telemetry *backend*,
+  not the instrumentation standard. Naming a vendor here would recreate exactly the
+  staleness this amendment fixes, and would force a constitution amendment every
+  time a backend changes.
+- No principle, rule, rationale, or Quality Gate. This is why it is a PATCH: nothing
+  normative moved.
+
+Impact assessment (Amendment Process step 3): none. No template, spec, plan, or
+skill referenced the changed paragraph. docs/constitution.md is a pointer to this
+file, not a copy (ADR-016), so it needs no edit.
+
+Follow-up TODO status refreshed below to match reality.
+
+
+SYNC IMPACT REPORT — initial ratification
+=========================================
 Version change: 0.0.0 → 1.0.0 (MAJOR — initial ratification for THIS project)
 
 IMPORTANT — foreign content replaced: the file previously at this path was the
@@ -54,11 +86,24 @@ Follow-up TODOs:
   Technology Constraint and Principles III, IV, VI, VIII, IX now have a recorded
   decision. ADRs 004, 005, 010, 014 are deliberately deferred with reasons in the
   index; 006 is folded into ADR-003; 015 is superseded by this document.
+  **Updated 2026-08-09: twelve now exist.** Two were raised by work rather than
+  pre-assigned, which is the expected pattern from here on:
+    - ADR-017 (tenant context from a validated route selector) — raised by spec-001
+      planning, because ADR-013 did not say how a user in several tenants selects
+      one, and the `security` skill's wording forbade the only mechanism that
+      satisfies FR-010. Skill amended alongside it.
+    - ADR-018 (New Relic as the default telemetry backend) — refines ADR-011's
+      backend clause; ADR-011's instrumentation decision is untouched. This is the
+      first exception granted under ADR-001's "non-Azure services require an ADR".
 - ✅ RESOLVED TODO(README).
-- OPEN: six decisions in docs/traceability.md require a human, not an agent. The
-  most consequential is U12 — no automated gate currently prevents a background job
-  or raw SQL from bypassing the tenant filter, which is the likeliest route to a
-  Principle IV violation. Assigned to roadmap S3.
+- OPEN: **seven** decisions in docs/traceability.md require a human, not an agent
+  (was six; U13 added 2026-08-09 for idea.md §17/§20 still naming Azure Monitor and
+  Application Insights, which ADR-018 supersedes in practice — idea.md is higher
+  authority than an ADR, so an agent proposes the blueprint amendment rather than
+  making it). U6 is now partially resolved: performance testing assigned to S7.
+  The most consequential remains U12 — no automated gate currently prevents a
+  background job or raw SQL from bypassing the tenant filter, which is the likeliest
+  route to a Principle IV violation. Assigned to roadmap S3.
 -->
 
 # Constitution: AI Engineering & Delivery Intelligence Platform
@@ -402,9 +447,16 @@ without amending this constitution.
   dependency inversion, REST for synchronous APIs, event-driven where
   asynchrony is genuinely warranted.
 
-Corresponding ADRs: idea.md §45 expects ADR-001 (Azure), ADR-002 (.NET),
-ADR-007 (AKS), ADR-011 (OpenTelemetry), ADR-012 (Terraform), ADR-013
-(multi-tenancy). None exist yet — see the deferred TODOs above.
+Corresponding ADRs — the index at [docs/adr/](../../docs/adr/README.md) is
+authoritative; this list is a convenience: ADR-001 (Azure), ADR-002 (.NET),
+ADR-003 (service boundaries), ADR-007 (AKS), ADR-011 (OpenTelemetry),
+ADR-012 (Terraform), ADR-013 (multi-tenancy), ADR-017 (tenant context),
+ADR-018 (telemetry backend).
+
+**Read the list above as the current default, not as immutable.** A Technology
+Constraint may be changed by an ADR without amending this document, per the note
+at the top of this section. The first instance is ADR-018, which grants the
+telemetry backend an exception to ADR-001's Azure-first rule.
 
 ## Quality Gates
 
@@ -475,4 +527,4 @@ not apply.
 - [ ] X — Delivered as a working, tested, deployed, end-to-end slice
 - [ ] XI — No individual-level measurement; personal data minimized
 
-**Version**: 1.0.0 | **Ratified**: 2026-08-08 | **Last Amended**: 2026-08-08
+**Version**: 1.0.1 | **Ratified**: 2026-08-08 | **Last Amended**: 2026-08-09
