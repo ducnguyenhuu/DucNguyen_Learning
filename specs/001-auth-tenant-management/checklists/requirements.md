@@ -2,7 +2,7 @@
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-08-08
-**Revalidated**: 2026-08-08 — after narrowing to slice S2
+**Revalidated**: 2026-08-08 — after narrowing to slice S2 · **2026-08-09** — after planning (iteration 4)
 **Feature**: [spec.md](../spec.md)
 **Roadmap slice**: S2 — Auth + Tenant + Persistence (local)
 
@@ -103,16 +103,41 @@ Judgement calls most worth disagreement before planning:
 3. **Assumption 3 requires the local schema to be the one that will run in Azure.**
    If this drifts, S6 becomes a rewrite rather than a deployment. Worth an explicit
    check during planning.
-4. **SC-003 (50 concurrent users across 20 tenants)** must be verified locally,
-   without the Azure topology. It measures application and query behaviour, not
-   infrastructure — treat a local pass as necessary, not sufficient.
+4. ~~**SC-003 (50 concurrent users across 20 tenants)** must be verified locally~~ —
+   **superseded 2026-08-09.** Verification is deferred to **S7**
+   ([traceability U6](../../../docs/traceability.md#u6--22-lists-eight-test-types-only-four-are-scheduled)).
+   The reviewer note above was wrong on one point: a local pass is not merely
+   "necessary, not sufficient" — on this machine it is close to meaningless, because
+   the local database is SQL Server under x86 emulation on ARM. The requirement still
+   constrains this slice's indexing and query shape; only the load test moves.
 5. **Non-Goals remain aggressive** — no UI beyond what demonstrates the acceptance
    scenarios, no tenant deletion, no data export. Confirm no stakeholder expects a
    demo-able interface from this slice.
 
+## Iteration 4 — post-planning consistency review (2026-08-09)
+
+Re-validated after `/speckit.plan`, ADR-017, ADR-018, and the SC-003 deferral. All
+checklist items still pass. Six inconsistencies were found and fixed — full list in the
+spec's [Post-Planning Review](../spec.md#post-planning-review). The one worth calling out
+here is a **quality defect this checklist did not catch in iterations 1–3**: the Deferred
+Requirements table reused FR-023..FR-026 and SC-006..SC-009 for entirely different
+requirements than the live ones, which would have misled whoever adopted them in S3–S7.
+
+**Checklist gap identified.** "Requirements are testable and unambiguous" was ticked, but
+nothing in this checklist asks whether *identifiers* are unambiguous. Worth adding to the
+template if another spec ever renumbers.
+
+Also confirmed, and more reassuring than the fixes: **changing the telemetry backend
+(ADR-018) and fixing tenant-context resolution (ADR-017) required no functional requirement
+to change.** Both were absorbed by ADRs beneath the specification, which is where
+implementation decisions belong.
+
 ## Blocking Prerequisite
 
-Per Dependencies, the ADR framework and **ADR-001, ADR-002, ADR-003 do not yet
-exist** (roadmap S1). The constitution's Principle Gate Checklist cannot be
-evaluated against ADRs that are absent, and `/speckit.plan` will need to cite them.
-Write them before planning this slice.
+~~The ADR framework and ADR-001, ADR-002, ADR-003 do not yet exist.~~
+**✅ Resolved 2026-08-08** — roadmap S1 delivered the framework, template, and twelve ADRs.
+All three were cited during planning, and ADR-017 was raised by this slice's planning.
+
+**Remaining blocker (2026-08-09):** a **Microsoft Entra ID tenant with app-registration
+rights**, and the two registrations described in [quickstart.md](../quickstart.md) §1. Needs
+a human. No Azure subscription required.

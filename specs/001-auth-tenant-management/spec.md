@@ -3,8 +3,10 @@
 **Feature Branch**: `001-auth-tenant-management`
 **Created**: 2026-08-08
 **Narrowed**: 2026-08-08 — scope reduced to slice S2 (see Revision Note)
-**Status**: Draft
+**Reviewed**: 2026-08-09 — consistency check after planning; see [Post-Planning Review](#post-planning-review)
+**Status**: **Planned** — `/speckit.plan` complete ([plan.md](plan.md)). Awaiting `/speckit.tasks`.
 **Roadmap slice**: **S2** — Auth + Tenant + Persistence (local). See [roadmap.md](../../roadmap.md).
+**Governing decisions**: [ADR-013](../../docs/adr/ADR-013-multi-tenancy-model.md) (tenancy model) · [ADR-017](../../docs/adr/ADR-017-tenant-context-resolution.md) (how FR-007's tenant context is resolved)
 **Input**: First code slice of the AI Engineering & Delivery Intelligence Platform, per `idea.md` §47. Deliberately contains no AI capability.
 
 ## Revision Note
@@ -17,6 +19,37 @@ is the "large incomplete technical layer" `idea.md` §29 prohibits.
 It has been narrowed to **S2 only**. Everything removed is recorded in
 [Deferred Requirements](#deferred-requirements) with its target slice, so nothing is
 lost. Gate 1 in roadmap.md still requires all of S2–S8 before Horizon 2 begins.
+
+## Post-Planning Review
+
+**2026-08-09.** Re-read against everything decided after this specification was written:
+ADR-017, ADR-018, the SC-003 deferral, and the S2 plan. Six inconsistencies found and fixed;
+**no functional requirement changed**, and none was added or removed.
+
+| # | Drift | Fix |
+|---|---|---|
+| 1 | **Numbering collision** — the Deferred Requirements table reused FR-023..FR-026 and SC-006..SC-009 for *different* requirements than the live ones above. Genuinely misleading to anyone adopting them in S3–S7. | Prefixed `old-`, split into two tables, with an instruction to renumber on adoption |
+| 2 | **Dependencies claimed the ADR framework was outstanding** — "ADR-001, 002, 003 are prerequisites", status *Outstanding*. S1 completed them on 2026-08-08. | Marked satisfied; twelve ADRs now exist |
+| 3 | **Status still `Draft`** after planning completed | → `Planned` |
+| 4 | **Non-Goals excluded "observability platforms"** — ambiguous once ADR-018 made New Relic *our* telemetry backend | Clarified: the exclusion is about ingesting delivery data *from* them, not our own telemetry |
+| 5 | **Assumption 3 said "Azure SQL, run in a local container"** — Azure SQL is a managed service with no container form | Restated as SQL Server standing in for Azure SQL, and named the erosion risk |
+| 6 | **SC-003 had no verification scheduled anywhere** | Deferred to S7, recorded in the spec, U6, and S7's *Done when* |
+
+**What did *not* need changing, and why that matters more than the fixes:**
+
+- **ADR-018 changed the telemetry backend from Application Insights to New Relic, and this
+  specification needed no edit** beyond the wording clarification in #4. The deferred telemetry
+  requirements describe *correlated traces, metrics, logs, health, and audit* without naming a
+  product. That is the requirement written at the right altitude.
+- **ADR-017 settled how FR-007's tenant context is resolved** — a route selector validated
+  against membership — and FR-007 needed no change either. It states the *what* ("resolve to
+  exactly one tenant context; reject if absent, malformed, or not one the caller belongs to");
+  the ADR supplies the *how*. A pointer was added to the header rather than a mechanism to the
+  requirement.
+
+Both are evidence the narrowing put things at the right layer. Had an implementation decision
+forced a requirement to change, that would have been the signal this specification was
+over-specified.
 
 ## Context & Intent
 
@@ -170,7 +203,7 @@ Not every member should be able to change tenant settings or manage membership. 
 
 - **SC-001**: A new administrator can go from first sign-in to a created tenant with one colleague invited in under 5 minutes without documentation or assistance.
 - **SC-002**: An invited colleague can accept an invitation and reach tenant data in under 2 minutes from opening the invitation.
-- **SC-003**: 95% of tenant read operations complete fast enough to feel immediate to the user (within 1 second) under a load of 50 concurrent users across 20 tenants.
+- **SC-003**: 95% of tenant read operations complete fast enough to feel immediate to the user (within 1 second) under a load of 50 concurrent users across 20 tenants. *(Requirement stands; **verification deferred to S7** — see [Deferred Requirements](#deferred-requirements). Measuring on S2's locally emulated database would produce a meaningless number.)*
 - **SC-004**: 100% of attempted cross-tenant accesses are refused, verified by an automated isolation test suite covering every tenant-scoped operation, with zero exceptions permitted.
 - **SC-005**: Two independent organisations can be onboarded and operated concurrently with no observable interference and no data visible across the boundary.
 - **SC-006**: Automated tests cover every functional requirement above, and the full suite runs unattended in under 5 minutes.
@@ -180,32 +213,58 @@ Not every member should be able to change tenant settings or manage membership. 
 
 ## Deferred Requirements
 
-Removed from this slice during narrowing, retained here so the target slice's
-specification can pick them up verbatim. Original FR/SC numbers are from the
-pre-narrowing version of this document.
+Nothing here is dropped — each item names the slice that picks it up.
 
-| Original | Requirement | Target slice |
+> ⚠️ **Read the identifiers carefully.** The table below uses **pre-narrowing** numbering,
+> which *collides* with the live numbering in this document: old FR-023..FR-026 and old
+> SC-006..SC-009 are **different requirements** from the current FR-023..FR-026 and
+> SC-006..SC-009 above. They are prefixed `old-` here to make that unambiguous. When a target
+> slice adopts one, it should **renumber it into its own sequence** rather than carrying the
+> old identifier forward. *(Collision noticed during the 2026-08-09 consistency review.)*
+
+### A. Removed during narrowing — pre-narrowing numbering
+
+| Old ref | Requirement | Target slice |
 |----------|-------------|--------------|
-| FR-028 | Enforce architectural boundaries automatically, such that a violating change fails the build | **S3** |
-| FR-023 | Emit logs, metrics, and distributed traces for every request, correlated by a single identifier spanning the entire request path | **S4** |
-| FR-024 | Annotate telemetry with tenant and user identity without recording unnecessary personal data | **S4** |
-| FR-025 | Expose health status covering the service and each critical dependency | **S4** |
-| FR-026 | Record an immutable audit entry for every authentication outcome, tenant mutation, membership change, and authorisation refusal | **S4** |
-| FR-029 | Be deployable as a container image through an automated pipeline gating on tests and vulnerability scanning, with production requiring human approval | **S5** (image) + **S7** (pipeline) |
-| FR-030 | All infrastructure defined as code and reproducible into a clean environment | **S6** |
-| FR-031 | Retrieve secrets at runtime from managed secret storage using workload identity rather than stored credentials | **S6** |
-| SC-006 | An operator identifies the cause of a deliberately induced failure from telemetry alone in under 10 minutes | **S4** |
-| SC-008 | A deliberate architectural boundary violation is rejected by the automated gate 100% of the time | **S3** |
-| SC-007 | A commit reaches the development environment through the automated pipeline in under 20 minutes with no manual step | **S7** |
-| SC-009 | The entire slice provisions into an empty Azure subscription from code alone and is verified healthy | **S6** |
-| SC-011 | A security review of the deployed slice finds no secret in source control, container images, or logs | **S5**, **S7** |
+| `old-FR-028` | Enforce architectural boundaries automatically, such that a violating change fails the build | **S3** |
+| `old-FR-023` | Emit logs, metrics, and distributed traces for every request, correlated by a single identifier spanning the entire request path | **S4** |
+| `old-FR-024` | Annotate telemetry with tenant and user identity without recording unnecessary personal data | **S4** |
+| `old-FR-025` | Expose health status covering the service and each critical dependency | **S4** |
+| `old-FR-026` | Record an immutable audit entry for every authentication outcome, tenant mutation, membership change, and authorisation refusal | **S4** |
+| `old-FR-029` | Be deployable as a container image through an automated pipeline gating on tests and vulnerability scanning, with production requiring human approval | **S5** (image) + **S7** (pipeline) |
+| `old-FR-030` | All infrastructure defined as code and reproducible into a clean environment | **S6** |
+| `old-FR-031` | Retrieve secrets at runtime from managed secret storage using workload identity rather than stored credentials | **S6** |
+| `old-SC-006` | An operator identifies the cause of a deliberately induced failure from telemetry alone in under 10 minutes | **S4** |
+| `old-SC-008` | A deliberate architectural boundary violation is rejected by the automated gate 100% of the time | **S3** |
+| `old-SC-007` | A commit reaches the development environment through the automated pipeline in under 20 minutes with no manual step | **S7** |
+| `old-SC-009` | The entire slice provisions into an empty Azure subscription from code alone and is verified healthy | **S6** |
+| `old-SC-011` | A security review of the deployed slice finds no secret in source control, container images, or logs | **S5**, **S7** |
 | — | Audit Entry entity (actor, subject, action, time, source, outcome; immutable) | **S4** |
+
+None of the telemetry items above names a backend, which is why
+[ADR-018](../../docs/adr/ADR-018-new-relic-telemetry-backend.md)'s change of telemetry backend
+from Application Insights to New Relic required **no change to this specification**. That is
+the requirement being written at the right level of abstraction, and it is worth noticing.
+
+### B. Deferred after planning — current numbering
+
+| Ref | What moves | Target slice |
+|---|---|---|
+| **SC-003** | **Verification only.** The requirement itself stays in force for this slice's design — indexing and query shape are constrained by it. Only the load test that proves it moves. | **S7** |
+
+**Why SC-003 moved** (decided 2026-08-09, [traceability U6](../../docs/traceability.md#u6--22-lists-eight-test-types-only-four-are-scheduled)):
+raised during S2 planning because SC-003 had no verification scheduled anywhere and roadmap S2's
+*Done when* omitted it — so it was on course to pass unverified and unmarked. S7 is the earliest
+slice with both a pipeline to run a load test **and** a deployed environment to run it against,
+and is still before Gate 1, so this specification remains fully verified before Horizon 2.
+Measuring in S2 was rejected because S2's database is SQL Server under x86 emulation on an ARM
+development machine — the number would say nothing about Azure SQL.
 
 ## Assumptions
 
 1. **Identity provider**: Microsoft Entra ID is the corporate identity provider, consistent with `idea.md` §13 and §18. Users authenticate with existing organisational accounts; the platform manages no passwords. Self-service consumer sign-up is out of scope.
 2. **Tenant model**: A shared-infrastructure, logically isolated model — isolation enforced in application and data access rather than by dedicated infrastructure per tenant. Physically isolated tenants are a later concern if a customer requires it.
-3. **Persistence**: Azure SQL, run in a local container for this slice. The schema and access patterns must be the ones that will run in Azure, so that S6 is a deployment exercise rather than a rewrite.
+3. **Persistence**: Azure SQL is the target. For this slice it is stood in for by **SQL Server in a local container** — Azure SQL itself is a managed service with no container form, so the local database is a compatible substitute, not the same product. The schema and access patterns must be the ones that will run on Azure SQL, so that S6 is a deployment exercise rather than a rewrite. *(This assumption is the one most likely to erode silently; the planning checklist flags it as needing an explicit check.)*
 4. **Deployment target**: The full architecture of `idea.md` §17 — AKS behind API Management, Terraform-provisioned, with managed identity, Key Vault, and private networking — remains the target and is delivered in S6. This slice must not make choices that obstruct it, but must not implement it either.
 5. **Roles**: Three roles — Administrator, Member, Reader — are sufficient for this slice. Fine-grained or custom permissions are deferred until a concrete need appears.
 6. **Invitation expiry**: Invitations expire after 7 days, an industry-standard default.
@@ -216,10 +275,10 @@ pre-narrowing version of this document.
 
 ## Dependencies
 
-- A Microsoft Entra ID tenant with permission to register applications.
-- A local container runtime for the database.
+- A Microsoft Entra ID tenant with permission to register applications. **Outstanding — the only remaining blocker.** Needs a human; see [quickstart.md](quickstart.md) §1. No Azure subscription required.
+- A local container runtime for the database. *(Note for Apple Silicon: SQL Server has no native ARM64 build and runs emulated — see [research.md](research.md) R5 for the image to pin and the one to avoid.)*
 - An engineering constitution — **satisfied**, `.specify/memory/constitution.md` v1.0.0.
-- A decision-record framework, so this slice's decisions can be recorded as it proceeds (roadmap S1). **Outstanding** — ADR-001, 002, 003 are prerequisites for planning this slice.
+- A decision-record framework, so this slice's decisions can be recorded as it proceeds (roadmap S1). **Satisfied** — S1 is complete: [docs/adr/](../../docs/adr/) holds the framework, template, and twelve ADRs. ADR-001, 002, and 003 all exist and were cited during planning; ADR-017 was raised *by* this slice's planning and accepted.
 
 *No Azure subscription is required for this slice. That dependency begins at S6.*
 
@@ -236,4 +295,10 @@ pre-narrowing version of this document.
 
 **Excluded from the MVP entirely** (`idea.md` §46a):
 
-Projects, programs, portfolios, teams, releases, milestones, risks, dependencies, or any other delivery-domain entity; any integration with Jira, Azure DevOps, GitHub, ServiceNow, PagerDuty, or observability platforms; any AI, agent, retrieval, or intelligence capability; any analytics, reporting, dashboard, or metric; billing, subscription, or plan management; tenant deletion or data export; custom or fine-grained permission models; user-facing interface beyond what is needed to demonstrate the acceptance scenarios.
+Projects, programs, portfolios, teams, releases, milestones, risks, dependencies, or any other delivery-domain entity; any integration with Jira, Azure DevOps, GitHub, ServiceNow, PagerDuty, or observability platforms **as data sources**; any AI, agent, retrieval, or intelligence capability; any analytics, reporting, dashboard, or metric; billing, subscription, or plan management; tenant deletion or data export; custom or fine-grained permission models; user-facing interface beyond what is needed to demonstrate the acceptance scenarios.
+
+*Clarification (2026-08-09):* "observability platforms" above means **ingesting delivery data
+from** them as a source for the product's intelligence. It does not refer to the platform's own
+telemetry backend, which is New Relic per
+[ADR-018](../../docs/adr/ADR-018-new-relic-telemetry-backend.md) and arrives in S4. The two are
+unrelated concerns that happen to share a vocabulary.
