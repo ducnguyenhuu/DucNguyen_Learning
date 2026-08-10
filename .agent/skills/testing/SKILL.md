@@ -1,6 +1,6 @@
 ---
 name: testing
-description: Test strategy, architecture tests, and the definition of done for this platform. Load when writing tests, deciding what to test, or judging whether a slice is complete.
+description: Use when writing tests, deciding what to test and at which level, or judging whether a slice or feature is actually done.
 ---
 
 # Testing
@@ -110,6 +110,28 @@ Demonstrating the happy path proves nothing worth knowing.
 Every functional requirement in the slice's spec maps to at least one test (spec 001
 SC-006). If an FR has no test, either write it or challenge the FR — an untestable
 requirement is a badly written one.
+
+## Rationalizations that mean a test is not actually testing anything
+
+| Thought | Reality |
+|---------|---------|
+| "I wrote the test after, but I ran it and it passes" | A test written after the code, passing on the first run, has never been proven capable of failing. That's the one thing a test must do. |
+| "It's a simple isolation test, I don't need to watch it fail first" | Isolation tests are exactly where this matters most — spec 001 SC-004 permits zero exceptions, and a green isolation test that was never red has caught nothing. |
+| "The in-memory provider is faster and tests the same logic" | It doesn't enforce the global query filter the same way a real database does — which is precisely the bug class that matters most here. |
+| "I'll add the architecture test later, the rule is documented anyway" | Documentation is not enforcement. Principle VII exists because human review doesn't scale and doesn't remember; an undocumented-but-enforced rule beats a documented-but-unenforced one. |
+| "This covers three behaviors, splitting it into three tests is overkill" | One assertion-heavy test that fails tells you nothing about which of the three broke. Split it before it fails, not after. |
+| "It worked when I tried it manually, that's good enough for this slice" | "Compiles" and "worked once" are not the definition of done — the slice's Proof checklist in roadmap.md is. |
+
+## Red flags — stop and re-check
+
+- A test that passed the first time it was ever run
+- A tenant-scoped operation with no isolation test in the same PR
+- An integration test running against an in-memory provider instead of a real database
+- An architecture test nobody has verified can actually fail
+- A functional requirement in the spec with no test mapped to it
+- Claiming a slice is done without checking its Proof checklist
+
+**All of these mean: stop, write or re-run the test red-first, and don't mark anything done until it demonstrably could have failed.**
 
 ## Anti-patterns
 

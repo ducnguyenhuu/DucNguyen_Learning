@@ -1,6 +1,6 @@
 ---
 name: ai-engineering
-description: When to use AI at all, the capability abstraction, grounding, structured output, cost accounting, and evaluation. Load before proposing or implementing anything that involves a model. Relevant from slice 13 onward.
+description: Use when proposing, designing, or reviewing anything that involves an AI model or LLM — deciding whether AI is warranted at all, defining a capability contract, or touching structured output, grounding, cost tracking, or evaluation. Relevant from slice 13 onward.
 ---
 
 # AI Engineering
@@ -76,6 +76,16 @@ Every invocation records: tenant, capability, model, tokens, cost, latency, outc
 (Principle IX). Without this, `idea.md` §11's measured model comparison and Gate 2's
 "cost per insight is known" are both impossible.
 
+Emit these as **standard `gen_ai.*` OpenTelemetry attributes on spans** — `gen_ai.system`,
+`gen_ai.request.model`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`. Cost is
+not in the semantic convention, so compute it yourself.
+
+**Known risk, verify before building** ([ADR-018](../../../docs/adr/ADR-018-new-relic-telemetry-backend.md)):
+New Relic's packaged AI Monitoring is built around its APM agents and proprietary event types,
+and it is **not confirmed** to read `gen_ai.*` OTLP attributes. Do not assume the vendor UI
+lights up. If it does not, the answer is a dashboard over standard spans — **not** a vendor
+agent, which ADR-011 rejected for coupling reasons that have not changed.
+
 ## Model choice is measured, not preferred
 
 `idea.md` §11: **self-hosted is not automatically cheaper.** Before claiming it, compare
@@ -97,6 +107,28 @@ not count.
 **Note:** .NET's AI evaluation ecosystem is weaker than Python's — ADR-002 records this as
 the most likely trigger for adding a Python service behind a boundary. Expect friction
 here, and raise it rather than working around it.
+
+## Rationalizations that mean AI is about to go where it shouldn't
+
+| Thought | Reality |
+|---------|---------|
+| "An LLM call is quick to prototype, we can swap it for logic later" | The "later" swap rarely happens once a demo works — and if it's arithmetic, deterministic logic was never actually slower to write. |
+| "This score contributes just a little AI judgment on top of the math" | Any AI contribution to the score makes the whole score non-reproducible and unauditable. There's no "a little" — see why the roadmap was resequenced in `idea.md` §57.4. |
+| "The model output looks well-formed, validating it is redundant here" | Model output is untrusted input by definition, regardless of how clean a specific response looks. Skipping validation once is how a malformed response reaches the domain the one time it isn't clean. |
+| "We're confident in the answer even though the ingested data is thin" | Confidence isn't grounding. If the data can't support the claim, the system must decline — an always-answering system sometimes confabulates, which is worse than declining. |
+| "It's just a model name in this one call site, we'll clean it up" | A model name outside AI Platform configuration is a build failure by design (ADR-008's architecture test), specifically because "just this once" is how routing logic ends up scattered across call sites. |
+| "We'll add cost/telemetry tracking once this capability is used more" | Without per-invocation cost tracking from day one, `idea.md` §11's model comparison and Gate 2's "cost per insight is known" become retroactively impossible to answer. |
+
+## Red flags — stop and re-check
+
+- A model name string outside AI Platform configuration
+- AI output feeding directly into a score, threshold, or classification
+- Model output consumed without schema validation
+- A factual claim with no traceable grounding in ingested data
+- A new capability added with no defined consumer, "for when we need it"
+- An AI feature shipped with no quality metric anyone would show someone else
+
+**All of these mean: stop, re-run the first-question gate (deterministic logic first), and don't ship until grounding, validation, and cost tracking are actually in place.**
 
 ## Anti-patterns
 

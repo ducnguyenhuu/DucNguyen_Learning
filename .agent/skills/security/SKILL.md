@@ -1,6 +1,6 @@
 ---
 name: security
-description: Authentication, authorization, tenant isolation, and secret handling for this platform. Load when touching auth, tenancy, credentials, or any path that accepts untrusted input.
+description: Use when touching authentication, authorization, tenancy, credentials, or any code path that accepts untrusted input.
 ---
 
 # Security
@@ -20,8 +20,19 @@ load-bearing.
    default, never written per query — a developer must not be able to omit it by
    forgetting.
 2. **Tenant context resolved once per request** from the authenticated principal's
-   membership. **Never** from a route parameter, query string, header, or body the caller
-   controls.
+   membership — in **one** seam, never per endpoint.
+
+   A caller in several tenants must be able to say which one they mean (FR-010), so a
+   client-supplied value is unavoidable. The distinction that matters
+   ([ADR-017](../../../docs/adr/ADR-017-tenant-context-resolution.md)):
+
+   > The client may **name** a candidate tenant. It may never **grant** itself access to one.
+
+   The route value is an *input* to a server-side membership lookup keyed on the
+   authenticated principal — never a substitute for it. Fail **closed**: no active
+   membership means 404, identical to a tenant that does not exist. Using a route, query,
+   header, or body value **as the authorization decision itself** is the IDOR
+   vulnerability this rule exists to prevent.
 3. **Authorization evaluated against membership** in the resolved tenant, on every
    tenant-scoped operation.
 4. **Automated isolation tests** for every tenant-scoped operation. This is a release
@@ -98,6 +109,30 @@ Three roles: `Administrator`, `Member`, `Reader`.
   (FR-022).
 - Email addresses in invitations are untrusted until the invited identity authenticates
   as that address (FR-013).
+
+## Rationalizations that mean you're about to cause a leak
+
+| Thought | Reality |
+|---------|---------|
+| "It's an internal admin tool, no external user hits it" | Internal tools still run against real tenant data, and internal-only today is exposed tomorrow. Isolation rules don't have an "internal" exemption. |
+| "This background job only ever runs for one tenant anyway" | It has no request, so it has no tenant context by default. "Only ever" is an assumption about today's callers, not a guarantee the code enforces. |
+| "Raw SQL is faster for this report / bulk export" | Raw SQL bypasses the one mechanism that makes leaks structurally hard. Faster and unscoped is not a trade worth making with customer data. |
+| "I'll add the isolation test after this ships" | Spec 001 SC-004 permits zero exceptions. A tenant-scoped operation without a test is not "done, tested later" — it's not done. |
+| "Returning 403 here is more honest than a generic 404" | More honest to the attacker is exactly the problem — it confirms the tenant exists. Non-existence and inaccessibility must be indistinguishable. |
+| "This log line has the tenant ID but not the secret, so it's fine" | The rule is about secrets and PII, but check what's actually in the object being logged — a full auth header or token often rides along with debug context. |
+
+## Red flags — stop and re-check
+
+- A tenant taken from a route, header, or body value **without** a membership lookup against the authenticated principal
+- A tenant-scoped endpoint resolving its own context instead of going through the single resolution seam
+- A non-member receiving 403 instead of 404 — that response confirms the tenant exists
+- Raw SQL or a stored procedure touching tenant-scoped data
+- A background job or event handler with no explicit tenant context
+- A new tenant-scoped endpoint with no isolation test in the same PR
+- Any response that reveals whether a resource *exists* before confirming the caller can *access* it
+- A secret, token, or connection string anywhere in a config file, fixture, or log statement
+
+**All of these mean: stop, re-check against the four mechanisms above, and do not ship until resolved — this is the one category of bug this platform cannot absorb.**
 
 ## Before you commit
 

@@ -1,6 +1,6 @@
 ---
 name: architecture
-description: Structural decisions, service boundaries, data ownership, and layering for this platform. Load when adding a service, moving a boundary, deciding where code belongs, or checking whether a change respects the architecture.
+description: Use when adding a service, moving a boundary, deciding where new code belongs, or checking whether a change respects service and data-ownership boundaries.
 ---
 
 # Architecture
@@ -74,6 +74,27 @@ Jira. When tempted, re-read `idea.md` §3 and the classification table in domain
 3. Is this a new capability or a new *place* for an existing capability?
 4. Can an architecture test enforce the result? If not, the design may be unenforceable
    (Principle VII prefers gates over vigilance).
+
+## Rationalizations that mean you're about to violate a boundary
+
+| Thought | Reality |
+|---------|---------|
+| "It's just a read, for reporting" | A read across contexts is still a join across a boundary that must not exist. Project the data into the reading context instead. |
+| "It's temporary, I'll fix the boundary later" | Temporary shared-table code outlives its author. There is no "later" pass that removes working code. |
+| "The ADR is clearly outdated, I'll just build around it" | Working around an ADR silently makes the documentation lie. Propose changing the ADR instead (Principle II) — that takes one PR comment, not a workaround. |
+| "This is a small exception, not a new precedent" | Every shared-database violation in this codebase's history started as a small exception. The next person copies what they see, not what the ADR says. |
+| "Scaffolding the service now saves time later" | A service created before it has a consumer is structure without content — it rots, and its shape is guessed wrong before real requirements exist. |
+| "Users just want to edit this one field, it's easier to make it native" | If they need to edit it, they edit it in the source system. Making an ingested entity editable is how this platform becomes a worse Jira. |
+
+## Red flags — stop and re-check against the ADR
+
+- Writing a query that reads another context's tables, "just this once"
+- Adding a service or project before a slice actually needs it
+- A native entity that duplicates a field the source system already owns
+- Justifying a structural choice by "it's technically possible" instead of by bounded context, ownership, or lifecycle
+- Reaching for a workaround instead of opening a discussion to change the ADR
+
+**All of these mean: stop, re-read the relevant ADR, and if it still looks wrong, propose changing it — don't code around it.**
 
 ## Anti-patterns seen in this domain
 

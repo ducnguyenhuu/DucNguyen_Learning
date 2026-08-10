@@ -1,6 +1,6 @@
 ---
 name: azure-architecture
-description: Azure resources, Terraform, AKS, identity, and networking for this platform. Load when touching infrastructure, provisioning resources, or working on deployment.
+description: Use when touching infrastructure, provisioning Azure resources, writing Terraform, or working on AKS deployment, identity, or networking.
 ---
 
 # Azure Architecture
@@ -22,9 +22,16 @@ environment, and `terraform destroy` cleanly removes it.
 
 ```
 Front Door → API Management → AKS → Azure SQL / Service Bus
-                                     Key Vault, Log Analytics, App Insights
+                                     Key Vault
+                               OTel Collector → New Relic (OTLP)
                               Managed identity + private endpoints throughout
 ```
+
+**Telemetry leaves Azure.** [ADR-018](../../../docs/adr/ADR-018-new-relic-telemetry-backend.md)
+makes New Relic the default backend over OTLP — the one granted exception to ADR-001's
+Azure-first rule. Log Analytics and App Insights are **not** provisioned by default; App
+Insights is an optional second exporter on the collector. The ingest licence key is a secret
+and lives in Key Vault, read by workload identity.
 
 **Not provisioned**, despite appearing in `idea.md` §17:
 
@@ -88,6 +95,26 @@ Budgeted at 3–4 weeks for good reason:
 `idea.md` §59.2: **AKS is not learned until a rollout has failed and been recovered.**
 Slice 6's proof requires deliberately breaking one. Standing the cluster up and seeing
 green pods teaches you the least useful thing about it.
+
+## Rationalizations that mean you're about to click instead of code
+
+| Thought | Reality |
+|---------|---------|
+| "I'll just click this one setting to unblock myself, then codify it" | The codify-it-later step almost never happens once the environment works. Now the environment is irreproducible and `terraform destroy`/`apply` silently diverges from reality. |
+| "§17 lists this resource, so we should provision it now" | Nothing consumes it yet. Provisioning ahead of a consumer is exactly what Principle X rejects — it's cost and drift risk with no offsetting value. |
+| "A connection string is simpler than setting up managed identity" | Simpler now, and it's a credential in config that can leak — the design ADR-013/Principle V exist specifically to close is reopened the moment a password appears in a connection string. |
+| "I'll leave the environment up between sessions, tearing down is risky" | Standing the cluster up and down safely is exactly what slice 6's proof establishes. Leaving it up is the untested path, not the safe one. |
+| "The rollout looks healthy, we don't need to test a failure" | Green pods on first stand-up teaches the least useful thing about AKS. The bar is a rollout deliberately broken and recovered. |
+
+## Red flags — stop and re-check
+
+- Any resource that exists only because someone clicked it in the portal
+- A connection string with a password or access key instead of managed identity
+- A resource provisioned with no consumer yet
+- Terraform state or `*.tfvars` anywhere near being committed
+- An environment left running "just for today" past the working session
+
+**All of these mean: stop, codify it in Terraform (or tear it down), and don't count infrastructure as done until `apply` from empty and `destroy` back to empty both work.**
 
 ## Before committing infrastructure
 

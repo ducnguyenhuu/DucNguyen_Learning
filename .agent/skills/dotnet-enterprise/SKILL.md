@@ -1,6 +1,6 @@
 ---
 name: dotnet-enterprise
-description: .NET, C#, ASP.NET Core, and EF Core conventions for this platform — clean architecture layering, domain modelling, persistence, and API shape. Load when writing or reviewing any .NET code.
+description: Use when writing or reviewing any .NET, C#, ASP.NET Core, or EF Core code in this repo.
 ---
 
 # .NET Enterprise
@@ -98,6 +98,29 @@ xUnit. Details in the `testing` skill.
 - Application: unit tests with fakes over mocks where practical
 - Infrastructure: integration tests against a **real** database in a container, not a
   fake provider — an in-memory provider will not catch a broken query filter
+
+## Rationalizations that mean the layering is about to break
+
+| Thought | Reality |
+|---------|---------|
+| "I just need one EF Core attribute on this entity, it's not a real dependency" | It is — Domain now references EF Core. The next person sees it works and adds a real one. Declare the interface in Domain, implement it in Infrastructure. |
+| "A raw Guid is fine here, I'll remember which one it is" | You will, for a while. The next caller who passes a UserId where a TenantId belongs won't get a compiler error — that's the entire reason strongly-typed IDs exist. |
+| "This validation is simple, I'll put it in the service instead of the aggregate" | A service method callers can bypass isn't an invariant, it's a suggestion. `Tenant` losing its last administrator is a broken model if any code path can reach it. |
+| "async void is simpler here, it's just a fire-and-forget handler" | Exceptions from `async void` crash the process instead of surfacing to a caller. There's no scenario in this codebase where that's the acceptable trade. |
+| "I'll add the CancellationToken parameter later if we need cancellation" | Threading it through later means touching every call site again. It costs nothing to add now and everything to retrofit. |
+| "DateTime.Now is fine, I'm not writing a test for this yet" | You will eventually need to test time-dependent logic, and by then `DateTime.Now` is scattered through the code with no seam to inject a fake clock. |
+
+## Red flags — stop and re-check
+
+- Any package reference in a `Domain` project beyond the base library
+- A raw `Guid` parameter where a strongly-typed ID belongs
+- An invariant enforced in a service method instead of on the aggregate
+- `async void` anywhere outside a framework-required signature
+- A missing `CancellationToken` on an async call
+- `DateTime.Now`/`DateTime.UtcNow` called directly instead of through an injected clock
+- A domain entity returned directly from an endpoint instead of mapped to a DTO
+
+**All of these mean: stop, and fix the layering before it compiles into a habit the next PR copies.**
 
 ## Common mistakes in this codebase's shape
 

@@ -1,6 +1,6 @@
 ---
 name: distributed-systems
-description: Messaging, idempotency, retries, consistency, and failure handling for this platform. Load when working with Service Bus, background jobs, sync engines, or any cross-service call.
+description: Use when working with Service Bus, background jobs, sync engines, or any cross-service call — covers messaging, idempotency, retries, eventual consistency, and failure handling.
 ---
 
 # Distributed Systems
@@ -92,6 +92,28 @@ idempotently and a dead letter has been replayed.**
 
 Slice 8's proof requires both, demonstrated. Publishing one message and seeing it arrive
 is the happy path, and the happy path teaches you nothing about messaging.
+
+## Rationalizations that mean you're about to lose or duplicate a message
+
+| Thought | Reality |
+|---------|---------|
+| "Service Bus rarely redelivers in practice" | Rarely is not never, and "at-least-once" is the documented contract, not a corner case. A handler that isn't idempotent will double-process eventually. |
+| "I'll publish right after the commit, that's basically atomic" | It's two separate operations. The commit can succeed and the publish can fail — silently, with nothing reporting it. That's exactly what the outbox pattern exists to close. |
+| "Retrying forever is safer than giving up" | Retrying forever turns a five-minute downstream blip into a permanent backlog or an outage. Bound it and dead-letter instead. |
+| "We don't need to inspect the DLQ, nothing's landed there yet" | A DLQ with no replay tooling is where messages go to be forgotten the first time something does land. Build it before you need it, not after. |
+| "This background job only ever processes one tenant's data, tenant context isn't needed" | It has no request, so it has no tenant context unless you establish it explicitly — see [[security]]. "Only ever" describes today's callers, not what the code enforces. |
+| "One message published and received — messaging is proven" | The happy path teaches nothing about failure handling. The bar here is a duplicate handled idempotently and a dead letter replayed, both demonstrated. |
+
+## Red flags — stop and re-check
+
+- A handler with no dedupe check before doing work
+- A publish call with no corresponding outbox write in the same transaction
+- A retry loop with no bounded attempt count
+- A DLQ nobody has ever inspected or replayed from
+- A background job or event handler with no explicit tenant context
+- A correlation ID that stops at the messaging boundary instead of riding in the message body or properties
+
+**All of these mean: stop, and don't call the integration done until a duplicate and a dead letter have actually been exercised.**
 
 ## Anti-patterns
 
