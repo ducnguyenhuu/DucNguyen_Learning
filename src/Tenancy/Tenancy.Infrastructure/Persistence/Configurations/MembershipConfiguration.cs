@@ -36,6 +36,14 @@ public class MembershipConfiguration : IEntityTypeConfiguration<Membership>
             .HasFilter("[Status] = 'Active'")
             .HasDatabaseName("IX_Memberships_TenantId_UserId_Active");
 
+        // Covering index for membership lookup on the hot path (ADR-017: tenant context resolution).
+        // Key columns (TenantId, UserId, Status) satisfy the most common query filter, and including
+        // Role lets the lookup complete without touching the base table. Not filtered (applies to all
+        // statuses) and not unique (distinct purpose from the filtered unique constraint above).
+        builder.HasIndex(m => new { m.TenantId, m.UserId, m.Status })
+            .IncludeProperties(m => m.Role)
+            .HasDatabaseName("IX_Memberships_TenantId_UserId_Status_Covering");
+
         builder.Property(m => m.RowVersion)
             .IsRowVersion();
     }
