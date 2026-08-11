@@ -98,7 +98,9 @@ specs/001-auth-tenant-management/
 ```text
 src/Tenancy/
 ├── Tenancy.Domain/            # entities, value objects, invariants — NO package references
-│   ├── Tenants/               #   Tenant, TenantStatus, TenantSettings
+│   ├── Tenants/               #   Tenant, TenantStatus, TenantSettings,
+│                              #   TenantAdministration (the last-administrator invariant,
+│                              #   which spans all memberships so it cannot live on one)
 │   ├── Users/                 #   User
 │   ├── Memberships/           #   Membership, Role, MembershipStatus
 │   ├── Invitations/           #   Invitation, InvitationStatus
