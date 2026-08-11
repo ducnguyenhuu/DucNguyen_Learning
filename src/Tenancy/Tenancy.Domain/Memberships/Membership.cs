@@ -57,6 +57,12 @@ public class Membership : ITenantOwned
     public DateTimeOffset? RemovedAtUtc { get; private set; }
 
     /// <summary>
+    /// Concurrency token maintained by the database (SQL Server <c>rowversion</c>). Never set by
+    /// application code — EF Core populates it on read/write.
+    /// </summary>
+    public byte[] RowVersion { get; private set; } = [];
+
+    /// <summary>
     /// Creates a new, active membership linking the given user to the given tenant with the given
     /// role.
     /// </summary>

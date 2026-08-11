@@ -41,6 +41,12 @@ public class User
     public EmailAddress Email { get; }
 
     /// <summary>
+    /// Concurrency token maintained by the database (SQL Server <c>rowversion</c>). Never set by
+    /// application code — EF Core populates it on read/write.
+    /// </summary>
+    public byte[] RowVersion { get; private set; } = [];
+
+    /// <summary>
     /// Creates a new user from the given Entra identity and email.
     /// </summary>
     /// <param name="entraTenantId">The Entra ID tenant identifier (<c>tid</c> claim).</param>

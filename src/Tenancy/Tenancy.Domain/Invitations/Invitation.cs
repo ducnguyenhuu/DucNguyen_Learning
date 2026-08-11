@@ -72,6 +72,12 @@ public class Invitation : ITenantOwned
     public DateTimeOffset ExpiresAtUtc { get; }
 
     /// <summary>
+    /// Concurrency token maintained by the database (SQL Server <c>rowversion</c>). Never set by
+    /// application code — EF Core populates it on read/write.
+    /// </summary>
+    public byte[] RowVersion { get; private set; } = [];
+
+    /// <summary>
     /// Creates a new, pending invitation for the given email address to join the given tenant
     /// with the given role.
     /// </summary>

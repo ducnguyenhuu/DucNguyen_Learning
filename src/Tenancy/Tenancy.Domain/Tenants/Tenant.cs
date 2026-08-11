@@ -37,6 +37,12 @@ public class Tenant
     public TenantSettings Settings { get; }
 
     /// <summary>
+    /// Concurrency token maintained by the database (SQL Server <c>rowversion</c>). Never set by
+    /// application code — EF Core populates it on read/write.
+    /// </summary>
+    public byte[] RowVersion { get; private set; } = [];
+
+    /// <summary>
     /// Creates a new, active tenant with the given display name.
     /// </summary>
     /// <param name="displayName">The tenant's display name. Required, but not globally unique.</param>

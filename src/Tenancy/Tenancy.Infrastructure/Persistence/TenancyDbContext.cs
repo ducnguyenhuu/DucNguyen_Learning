@@ -51,6 +51,11 @@ public class TenancyDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
+        // Applies every IEntityTypeConfiguration<T> in this assembly (Configurations/), rather
+        // than listing each one by hand — new entities pick up their configuration automatically
+        // as long as they follow the one-configuration-class-per-entity convention.
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(TenancyDbContext).Assembly);
+
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
             if (typeof(ITenantOwned).IsAssignableFrom(entityType.ClrType))
