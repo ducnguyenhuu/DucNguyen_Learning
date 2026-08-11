@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using Xunit;
 
 namespace Tenancy.UnitTests;
@@ -5,5 +6,5 @@ namespace Tenancy.UnitTests;
 public class PlaceholderTests
 {
     [Fact]
-    public void Placeholder() => Assert.True(true);
+    public void Placeholder() => true.Should().BeTrue();
 }
