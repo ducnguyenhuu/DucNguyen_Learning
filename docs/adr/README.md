@@ -64,6 +64,7 @@ what was decided and why it changed is the point of the record.
 | [016](ADR-016-agent-neutral-skill-location.md) | Agent-neutral skill location | Accepted | idea.md §38 |
 | [017](ADR-017-tenant-context-resolution.md) | Tenant context from a validated route selector | Accepted | Principle IV |
 | [018](ADR-018-new-relic-telemetry-backend.md) | New Relic as the default telemetry backend | Accepted | Principle VI |
+| [019](ADR-019-single-entra-tenant-in-horizon-1.md) | One Entra tenant in Horizon 1; multi-directory sign-in deferred | Accepted | Principle IV, X |
 
 ### Deliberately unwritten
 

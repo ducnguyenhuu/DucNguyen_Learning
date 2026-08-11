@@ -6,7 +6,7 @@
 **Reviewed**: 2026-08-09 — consistency check after planning; see [Post-Planning Review](#post-planning-review)
 **Status**: **Planned** — `/speckit.plan` complete ([plan.md](plan.md)). Awaiting `/speckit.tasks`.
 **Roadmap slice**: **S2** — Auth + Tenant + Persistence (local). See [roadmap.md](../../roadmap.md).
-**Governing decisions**: [ADR-013](../../docs/adr/ADR-013-multi-tenancy-model.md) (tenancy model) · [ADR-017](../../docs/adr/ADR-017-tenant-context-resolution.md) (how FR-007's tenant context is resolved)
+**Governing decisions**: [ADR-013](../../docs/adr/ADR-013-multi-tenancy-model.md) (tenancy model) · [ADR-017](../../docs/adr/ADR-017-tenant-context-resolution.md) (how FR-007's tenant context is resolved) · [ADR-019](../../docs/adr/ADR-019-single-entra-tenant-in-horizon-1.md) (one Entra tenant; SC-005 split)
 **Input**: First code slice of the AI Engineering & Delivery Intelligence Platform, per `idea.md` §47. Deliberately contains no AI capability.
 
 ## Revision Note
@@ -159,7 +159,7 @@ Not every member should be able to change tenant settings or manage membership. 
 - **FR-007**: System MUST resolve every request to exactly one active tenant context, and MUST reject any request whose tenant context is absent, malformed, or not one the caller belongs to.
 - **FR-008**: System MUST prevent all cross-tenant data access, such that no response ever contains data belonging to a tenant the caller is not a member of.
 - **FR-009**: System MUST make a tenant the caller cannot access indistinguishable from a tenant that does not exist.
-- **FR-010**: System MUST support a single user holding membership in multiple tenants without blending their data.
+- **FR-010**: System MUST support a single user holding membership in multiple tenants without blending their data **within any tenant-scoped response**. *(Clarified 2026-08-10 — K2. The tenant-list operation required by Story 1 scenario 5 necessarily spans tenants and is one of the three operations [ADR-017](../../docs/adr/ADR-017-tenant-context-resolution.md) enumerates as legitimately running without tenant context. Without this clause, FR-010 read as forbidding the very operation Story 1 requires.)*
 
 **Membership & Invitations**
 
@@ -205,7 +205,7 @@ Not every member should be able to change tenant settings or manage membership. 
 - **SC-002**: An invited colleague can accept an invitation and reach tenant data in under 2 minutes from opening the invitation.
 - **SC-003**: 95% of tenant read operations complete fast enough to feel immediate to the user (within 1 second) under a load of 50 concurrent users across 20 tenants. *(Requirement stands; **verification deferred to S7** — see [Deferred Requirements](#deferred-requirements). Measuring on S2's locally emulated database would produce a meaningless number.)*
 - **SC-004**: 100% of attempted cross-tenant accesses are refused, verified by an automated isolation test suite covering every tenant-scoped operation, with zero exceptions permitted.
-- **SC-005**: Two independent organisations can be onboarded and operated concurrently with no observable interference and no data visible across the boundary.
+- **SC-005**: Two independent organisations can be onboarded as separate tenants and operated concurrently with no observable interference and no data visible across the boundary. *(Split 2026-08-10 — see [ADR-019](../../docs/adr/ADR-019-single-entra-tenant-in-horizon-1.md). The **isolation** half is in scope and must be proven here. The **multi-directory sign-in** half — each organisation's users authenticating from their own Entra directory — is deferred; see [Deferred Requirements](#deferred-requirements). In this slice both organisations' users are homed in one Entra tenant.)*
 - **SC-006**: Automated tests cover every functional requirement above, and the full suite runs unattended in under 5 minutes.
 - **SC-007**: Database migrations apply cleanly to an empty database and the application starts and serves requests with no manual setup step.
 - **SC-008**: No secret appears anywhere in source control, verified by scanning the repository including its history.
@@ -251,6 +251,7 @@ the requirement being written at the right level of abstraction, and it is worth
 | Ref | What moves | Target slice |
 |---|---|---|
 | **SC-003** | **Verification only.** The requirement itself stays in force for this slice's design — indexing and query shape are constrained by it. Only the load test that proves it moves. | **S7** |
+| **SC-005** *(partial)* | **Multi-directory sign-in only.** Each organisation's users authenticating from *their own* Entra directory, via Entra B2B guests or a multi-tenant app registration. SC-005's isolation half stays in this slice and must be proven. | **Post-Gate-1**, with an ADR superseding [ADR-019](../../docs/adr/ADR-019-single-entra-tenant-in-horizon-1.md) |
 
 **Why SC-003 moved** (decided 2026-08-09, [traceability U6](../../docs/traceability.md#u6--22-lists-eight-test-types-only-four-are-scheduled)):
 raised during S2 planning because SC-003 had no verification scheduled anywhere and roadmap S2's
@@ -262,11 +263,15 @@ development machine — the number would say nothing about Azure SQL.
 
 ## Assumptions
 
-1. **Identity provider**: Microsoft Entra ID is the corporate identity provider, consistent with `idea.md` §13 and §18. Users authenticate with existing organisational accounts; the platform manages no passwords. Self-service consumer sign-up is out of scope.
+1. **Identity provider**: Microsoft Entra ID, consistent with `idea.md` §13 and §18. The platform manages no passwords. Self-service consumer sign-up is out of scope.
+
+   **One Entra tenant in this slice** ([ADR-019](../../docs/adr/ADR-019-single-entra-tenant-in-horizon-1.md)). All users — including those representing different customer organisations — are homed in a single Entra directory, and the app registration is single-tenant. Customer users signing in from *their own* corporate directory requires either Entra B2B guest invitations or a multi-tenant app registration, and both are deferred. The data model is already shaped for it: `User` is keyed on the composite `(EntraTenantId, EntraObjectId)` because `oid` is unique only *within* an Entra tenant, so lifting this limit later is a configuration change rather than a data migration.
 2. **Tenant model**: A shared-infrastructure, logically isolated model — isolation enforced in application and data access rather than by dedicated infrastructure per tenant. Physically isolated tenants are a later concern if a customer requires it.
 3. **Persistence**: Azure SQL is the target. For this slice it is stood in for by **SQL Server in a local container** — Azure SQL itself is a managed service with no container form, so the local database is a compatible substitute, not the same product. The schema and access patterns must be the ones that will run on Azure SQL, so that S6 is a deployment exercise rather than a rewrite. *(This assumption is the one most likely to erode silently; the planning checklist flags it as needing an explicit check.)*
 4. **Deployment target**: The full architecture of `idea.md` §17 — AKS behind API Management, Terraform-provisioned, with managed identity, Key Vault, and private networking — remains the target and is delivered in S6. This slice must not make choices that obstruct it, but must not implement it either.
 5. **Roles**: Three roles — Administrator, Member, Reader — are sufficient for this slice. Fine-grained or custom permissions are deferred until a concrete need appears.
+
+   **Member and Reader have identical effective permissions in this slice, and that is expected** *(K3, 2026-08-10)*. Every operation here is either readable by any member or restricted to administrators — there is no tenant-scoped *data* to act on until the delivery model arrives (S11), which is where the distinction becomes observable. The role is therefore carried now and enforced now, but Story 3's independent test cannot distinguish Member from Reader in S2. Stated explicitly so an untestable requirement does not masquerade as a tested one. **Do not invent an operation solely to make the distinction testable** — that would be building for an anticipated need (Principle X).
 6. **Invitation expiry**: Invitations expire after 7 days, an industry-standard default.
 7. **Access-token staleness**: Credentials are short-lived enough that revoked access ends within one hour, satisfying FR-016 without per-request revocation checks.
 8. **Invitation delivery**: Delivered by email. For this slice a development-time mechanism (logged or captured locally) is acceptable; the specification requires only that a pending invitation is recorded and acceptable.
