@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Identity.Web;
 using Tenancy.Infrastructure.Persistence;
 using Tenancy.Infrastructure.Persistence.Interceptors;
 
@@ -7,6 +9,21 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+// Entra ID (Azure AD) bearer-token authentication. T033 populates the "AzureAd" configuration
+// section (tenant/client IDs, etc.) via User Secrets; this task only wires the scheme.
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
+
+// By default, ASP.NET Core's JWT handler remaps standard OIDC claim names (e.g. "oid" ->
+// "http://schemas.microsoft.com/identity/claims/objectidentifier") into legacy .NET claim types
+// for historical WS-Fed compatibility. Disabling that keeps claim types exactly as they appear
+// in the token ("oid", "tid", "scp", ...). This decision is made once, globally, here — every
+// piece of code reading claims (this wiring, and T040/T041's test auth handlers) must agree on
+// it, or you get the classic "tests green, production 403" bug from mismatched claim names.
+builder.Services.Configure<JwtBearerOptions>(
+    JwtBearerDefaults.AuthenticationScheme,
+    options => options.MapInboundClaims = false);
 
 // Scoped (not singleton) in case it ever needs scoped dependencies later; a stateless class
 // registered as scoped costs nothing.
@@ -47,6 +64,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 var summaries = new[]
 {
