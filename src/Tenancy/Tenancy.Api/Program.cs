@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Web;
+using Tenancy.Api.ErrorHandling;
 using Tenancy.Api.Middleware;
 using Tenancy.Application.Abstractions;
 using Tenancy.Application.Users;
@@ -14,6 +15,15 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+// RFC 9457 global error handling (FR-022): AddExceptionHandler alone is not sufficient —
+// AddProblemDetails() supplies the ProblemDetails-writing infrastructure that the exception
+// handler middleware (registered below via UseExceptionHandler()) relies on, and
+// ProblemDetailsHandler is where the actual "never leak exception.Message/StackTrace/type"
+// contract is enforced. All three pieces (AddExceptionHandler + AddProblemDetails +
+// UseExceptionHandler) are required together for this to take effect.
+builder.Services.AddExceptionHandler<ProblemDetailsHandler>();
+builder.Services.AddProblemDetails();
 
 // Entra ID (Azure AD) bearer-token authentication. T033 populates the "AzureAd" configuration
 // section (tenant/client IDs, etc.) via User Secrets; this task only wires the scheme.
@@ -83,6 +93,10 @@ if (app.Environment.IsDevelopment())
     var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
     await db.Database.MigrateAsync();
 }
+
+// Registered before UseAuthentication()/UseAuthorization() (and everything else) so it catches
+// unhandled exceptions thrown anywhere downstream in the pipeline, including auth/authz.
+app.UseExceptionHandler();
 
 app.UseHttpsRedirection();
 
