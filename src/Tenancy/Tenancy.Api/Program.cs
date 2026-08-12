@@ -5,6 +5,7 @@ using Tenancy.Api.Middleware;
 using Tenancy.Application.Abstractions;
 using Tenancy.Application.Users;
 using Tenancy.Infrastructure.Persistence;
+using Tenancy.Infrastructure.Persistence.Audited;
 using Tenancy.Infrastructure.Persistence.Interceptors;
 using Tenancy.Infrastructure.Security;
 
@@ -56,6 +57,10 @@ builder.Services.AddDbContext<TenancyDbContext>((sp, options) =>
 // scoped to match TenancyDbContext's own scoped lifetime.
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<EnsureUserProvisioned>();
+
+// The one sanctioned cross-tenant bypass in the codebase (T037, ADR-017) — scoped to match
+// TenancyDbContext's own scoped lifetime, following T036's registration pattern.
+builder.Services.AddScoped<IMembershipDirectory, MembershipDirectory>();
 
 var app = builder.Build();
 
