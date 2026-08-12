@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Web;
 using Tenancy.Api.Middleware;
 using Tenancy.Application.Abstractions;
+using Tenancy.Application.Users;
 using Tenancy.Infrastructure.Persistence;
 using Tenancy.Infrastructure.Persistence.Interceptors;
 using Tenancy.Infrastructure.Security;
@@ -49,6 +50,12 @@ builder.Services.AddDbContext<TenancyDbContext>((sp, options) =>
         .UseSqlServer(connectionString)
         .AddInterceptors(interceptor);
 });
+
+// The first repository port in the codebase (T036) — Application depends on IUserRepository,
+// never on TenancyDbContext directly; this is the Infrastructure-side implementation, wired
+// scoped to match TenancyDbContext's own scoped lifetime.
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<EnsureUserProvisioned>();
 
 var app = builder.Build();
 
