@@ -1,8 +1,11 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Web;
+using Tenancy.Api.Middleware;
+using Tenancy.Application.Abstractions;
 using Tenancy.Infrastructure.Persistence;
 using Tenancy.Infrastructure.Persistence.Interceptors;
+using Tenancy.Infrastructure.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,6 +31,12 @@ builder.Services.Configure<JwtBearerOptions>(
 // Scoped (not singleton) in case it ever needs scoped dependencies later; a stateless class
 // registered as scoped costs nothing.
 builder.Services.AddScoped<TenantSaveChangesInterceptor>();
+
+// The ADR-017 tenant context. Scoped, not singleton/transient: it must live exactly as long as
+// the request scope that TenantContextResolutionMiddleware (T035) populates it for, and every
+// resolution within that scope (including inside TenancyDbContext) must see the same instance.
+builder.Services.AddScoped<HttpContextTenantContext>();
+builder.Services.AddScoped<ITenantContext>(sp => sp.GetRequiredService<HttpContextTenantContext>());
 
 // AddDbContext (scoped), not AddDbContextPool: TenancyDbContext.CurrentTenantId is set once per
 // request (T035's middleware) and must not leak across requests via a pooled instance.

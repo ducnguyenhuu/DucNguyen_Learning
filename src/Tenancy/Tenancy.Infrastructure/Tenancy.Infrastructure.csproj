@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Tenancy.Domain\Tenancy.Domain.csproj" />
+    <ProjectReference Include="..\Tenancy.Application\Tenancy.Application.csproj" />
   </ItemGroup>
 
   <ItemGroup>
