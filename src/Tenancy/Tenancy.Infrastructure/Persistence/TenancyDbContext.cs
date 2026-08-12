@@ -47,6 +47,8 @@ public class TenancyDbContext : DbContext
 
     public DbSet<Invitation> Invitations => Set<Invitation>();
 
+    public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
