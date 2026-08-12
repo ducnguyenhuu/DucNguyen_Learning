@@ -8,12 +8,11 @@ namespace Tenancy.Domain.Tenants;
 /// </summary>
 public class Tenant
 {
-    private Tenant(TenantId id, string displayName, TenantStatus status, TenantSettings settings)
+    private Tenant(TenantId id, string displayName, TenantStatus status)
     {
         Id = id;
         DisplayName = displayName;
         Status = status;
-        Settings = settings;
     }
 
     /// <summary>
@@ -32,9 +31,12 @@ public class Tenant
     public TenantStatus Status { get; private set; }
 
     /// <summary>
-    /// The tenant's owned settings.
+    /// The tenant's owned settings. Not accepted through the constructor: EF Core cannot bind
+    /// constructor parameters to owned/complex reference-type properties (see
+    /// <c>TenantConfiguration</c>), and the settings object currently carries no state of its
+    /// own anyway, so a stable default instance is created here instead.
     /// </summary>
-    public TenantSettings Settings { get; }
+    public TenantSettings Settings { get; } = new TenantSettings();
 
     /// <summary>
     /// Concurrency token maintained by the database (SQL Server <c>rowversion</c>). Never set by
@@ -51,7 +53,7 @@ public class Tenant
     {
         EnsureValidDisplayName(displayName);
 
-        return new Tenant(TenantId.New(), displayName, TenantStatus.Active, new TenantSettings());
+        return new Tenant(TenantId.New(), displayName, TenantStatus.Active);
     }
 
     /// <summary>

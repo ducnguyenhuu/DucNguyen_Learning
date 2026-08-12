@@ -49,6 +49,19 @@ public class TenancyDbContext : DbContext
 
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
 
+    /// <summary>
+    /// Registers the value converters for the project's strongly-typed ID structs once, globally,
+    /// rather than repeating <c>HasConversion</c> in every entity configuration — see
+    /// <see cref="StronglyTypedIdConverters"/>.
+    /// </summary>
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        configurationBuilder.Properties<TenantId>().HaveConversion<TenantIdConverter>();
+        configurationBuilder.Properties<UserId>().HaveConversion<UserIdConverter>();
+        configurationBuilder.Properties<MembershipId>().HaveConversion<MembershipIdConverter>();
+        configurationBuilder.Properties<InvitationId>().HaveConversion<InvitationIdConverter>();
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

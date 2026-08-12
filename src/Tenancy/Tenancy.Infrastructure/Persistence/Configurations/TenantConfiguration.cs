@@ -29,9 +29,12 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
             .HasConversion<string>()
             .IsRequired();
 
-        // TenantSettings has no identity of its own — configure it as an owned type rather than
-        // a separate table/aggregate.
-        builder.OwnsOne(t => t.Settings);
+        // TenantSettings currently has no properties of its own (intentionally minimal, per its
+        // doc comment — grows as tenant-level configuration needs emerge). EF Core's complex-type
+        // mapping (and owned-entity mapping) both require at least one persisted property, so
+        // there is nothing to configure yet; explicitly ignore it so EF doesn't try to map an
+        // empty type, and map it (as ComplexProperty or OwnsOne) once it gains its first property.
+        builder.Ignore(t => t.Settings);
 
         // Explicitly NOT unique — DisplayName is not globally unique, per T017's design.
 

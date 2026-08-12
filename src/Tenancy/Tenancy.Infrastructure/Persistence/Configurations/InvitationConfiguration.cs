@@ -54,6 +54,9 @@ public class InvitationConfiguration : IEntityTypeConfiguration<Invitation>
             .HasFilter("[Status] = 'Pending'")
             .HasDatabaseName("IX_Invitations_TenantId_Email_Pending");
 
+        builder.Property(i => i.ExpiresAtUtc)
+            .IsRequired();
+
         builder.Property(i => i.RowVersion)
             .IsRowVersion();
     }
