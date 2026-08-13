@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Web;
+using Tenancy.Api.Authorization;
 using Tenancy.Api.Configuration;
 using Tenancy.Api.Endpoints;
 using Tenancy.Api.ErrorHandling;
@@ -131,6 +133,18 @@ builder.Services.AddScoped<Tenancy.Application.Invitations.InviteMember>();
 builder.Services.AddScoped<Tenancy.Application.Invitations.AcceptInvitation>();
 builder.Services.AddScoped<Tenancy.Application.Invitations.ListInvitations>();
 builder.Services.AddScoped<Tenancy.Application.Invitations.RevokeInvitation>();
+
+// T085: the "TenantAdministrator" policy mechanism, evaluated against the membership resolved by
+// TenantContextResolutionMiddleware (T035/ADR-017 step 5) via ITenantContext.Role, never against
+// a token claim. Registered here only — no endpoint applies this policy yet; wiring it onto real
+// routes (e.g. the role-change/removal endpoints) is T088's job, once those routes exist.
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(
+        "TenantAdministrator",
+        policy => policy.Requirements.Add(new AdministratorOnlyRequirement()));
+});
+builder.Services.AddScoped<IAuthorizationHandler, AdministratorOnlyAuthorizationHandler>();
 
 var app = builder.Build();
 
