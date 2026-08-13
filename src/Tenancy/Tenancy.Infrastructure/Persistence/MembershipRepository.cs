@@ -54,6 +54,23 @@ public class MembershipRepository : IMembershipRepository
         _clock = clock;
     }
 
+    public async Task<IReadOnlyList<Membership>> GetActiveMembersAsync(CancellationToken ct)
+    {
+        // No IgnoreQueryFilters here (unlike RemoveMembershipAsync below): the tenant-scoping
+        // global query filter is exactly what's wanted for this read — TenancyDbContext.CurrentTenantId
+        // has already been resolved to the caller's tenant by upstream middleware (ADR-017), the
+        // same ambient-scoping reliance GetTenant (T055) documents.
+        return await _dbContext.Memberships
+            .Where(m => m.Status == MembershipStatus.Active)
+            .ToListAsync(ct);
+    }
+
+    public Task<Membership?> GetActiveMembershipForUserAsync(UserId userId, CancellationToken ct)
+    {
+        return _dbContext.Memberships
+            .SingleOrDefaultAsync(m => m.UserId == userId && m.Status == MembershipStatus.Active, ct);
+    }
+
     public async Task RemoveMembershipAsync(MembershipId membershipId, CancellationToken ct)
     {
         // IgnoreQueryFilters: the tenant-scoping filter on Memberships requires

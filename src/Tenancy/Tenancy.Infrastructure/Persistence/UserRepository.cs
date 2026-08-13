@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Tenancy.Application.Abstractions;
+using Tenancy.Domain.Abstractions;
 using Tenancy.Domain.Users;
 
 namespace Tenancy.Infrastructure.Persistence;
@@ -28,5 +29,12 @@ public class UserRepository : IUserRepository
     {
         _dbContext.Users.Add(user);
         await _dbContext.SaveChangesAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<User>> FindByIdsAsync(IReadOnlyCollection<UserId> userIds, CancellationToken ct)
+    {
+        return await _dbContext.Users
+            .Where(u => userIds.Contains(u.Id))
+            .ToListAsync(ct);
     }
 }

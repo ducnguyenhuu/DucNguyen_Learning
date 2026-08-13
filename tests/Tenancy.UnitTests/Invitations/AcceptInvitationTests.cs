@@ -85,6 +85,9 @@ public class AcceptInvitationTests
             ExistingUser = user;
             return Task.CompletedTask;
         }
+
+        public Task<IReadOnlyList<User>> FindByIdsAsync(IReadOnlyCollection<UserId> userIds, CancellationToken ct) =>
+            throw new NotSupportedException("Not used by AcceptInvitationTests.");
     }
 
     private static Invitation CreatePendingInvitation(
