@@ -6,6 +6,11 @@ namespace Tenancy.Domain.Abstractions;
 public enum Role
 {
     /// <summary>
+    /// An administrator with full control over the tenant and its members.
+    /// </summary>
+    Administrator,
+
+    /// <summary>
     /// A member with full access to the tenant.
     /// </summary>
     Member,
