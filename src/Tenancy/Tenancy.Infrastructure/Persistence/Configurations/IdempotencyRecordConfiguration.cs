@@ -27,22 +27,21 @@ public class IdempotencyRecordConfiguration : IEntityTypeConfiguration<Idempoten
 
     public void Configure(EntityTypeBuilder<IdempotencyRecord> builder)
     {
-        // The composite (TenantId, Endpoint, Key) is the primary key — the uniqueness of this
-        // key IS the concurrency control, and scoping by tenant prevents cross-tenant key
-        // probing. There is deliberately no surrogate Id.
+        // The composite (TenantId, CreatedByUserId, Endpoint, Key) is the primary key — the
+        // uniqueness of this key IS the concurrency control, and scoping by tenant prevents
+        // cross-tenant key probing. There is deliberately no surrogate Id.
         //
-        // NOTE: TenantId is nullable (see IdempotencyRecord's class remarks — POST /tenants has
-        // no tenant context yet). EF Core / SQL Server allow a nullable column to participate in
-        // a composite primary key, but the column is still implicitly marked NOT NULL by the PK
-        // constraint itself — SQL Server does not support NULL in ANY column that is part of a
-        // PRIMARY KEY, composite or not. That means TenantId is only truly "nullable" at the CLR
-        // level for the ITenantOwned-removal reasoning above; at the storage level the PK
-        // constraint forces it to NOT NULL. This is a known SQL Server limitation worth flagging:
-        // if the pre-tenant (POST /tenants) case is ever hit for real, this composite PK as
-        // written will reject a NULL TenantId at the database level. Revisit if/when T056 wires
-        // up the no-tenant-context path against a real database — a filtered unique index or a
-        // sentinel TenantId may be needed instead of relying on NULL here.
-        builder.HasKey(r => new { r.TenantId, r.Endpoint, r.Key });
+        // TenantId is non-nullable: SQL Server does not support NULL in ANY column that is part
+        // of a PRIMARY KEY, composite or not — no per-column exception exists, and a CLR
+        // `TenantId?` would be silently discarded by EF Core's model builder once the property
+        // participates in HasKey(...) anyway (it always generates a plain non-nullable
+        // uniqueidentifier column). For the POST /tenants no-tenant-context case, callers use the
+        // fixed sentinel TenantId.Empty instead of null. CreatedByUserId — always the real
+        // caller, never a sentinel — is the actual disambiguator for two different users both
+        // calling POST /tenants with the same client-supplied idempotency key; it is included in
+        // the key even for the normal tenant-scoped case (redundant with TenantId alone there,
+        // but harmless, since it is already required data on every record).
+        builder.HasKey(r => new { r.TenantId, r.CreatedByUserId, r.Endpoint, r.Key });
 
         builder.Property(r => r.Endpoint)
             .IsRequired()

@@ -170,6 +170,9 @@ namespace Tenancy.Infrastructure.Migrations
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("Endpoint")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
@@ -180,9 +183,6 @@ namespace Tenancy.Infrastructure.Migrations
 
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid>("CreatedByUserId")
-                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset>("ExpiresAtUtc")
                         .HasColumnType("datetimeoffset");
@@ -204,7 +204,7 @@ namespace Tenancy.Infrastructure.Migrations
                     b.Property<int?>("StatusCode")
                         .HasColumnType("int");
 
-                    b.HasKey("TenantId", "Endpoint", "Key");
+                    b.HasKey("TenantId", "CreatedByUserId", "Endpoint", "Key");
 
                     b.ToTable("IdempotencyRecords");
                 });

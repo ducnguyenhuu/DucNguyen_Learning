@@ -27,16 +27,23 @@ public enum IdempotencyStatus
 /// <remarks>
 /// <para>
 /// <b>Deliberate exception to the <c>ITenantOwned</c> auto-filter pattern (ADR-017 exception
-/// 1):</b> <see cref="TenantId"/> is nullable because <c>POST /tenants</c> — the request that
-/// creates the very first tenant for a user — has no tenant context yet when its idempotency
-/// record is written. A nullable <c>TenantId</c> cannot satisfy the non-nullable
-/// <c>ITenantOwned.TenantId</c> getter, so this class intentionally does <b>not</b> implement
-/// <see cref="ITenantOwned"/> and therefore does not participate in
-/// <c>TenancyDbContext</c>'s automatic <c>"TenantFilter"</c> global query filter that every other
-/// tenant-owned entity gets for free. This is a one-off, reasoned exception, not an oversight:
-/// any future code that queries this entity MUST apply its own explicit filter — either
-/// <c>TenantId == tenantId</c> for the normal case, or
-/// <c>TenantId == null &amp;&amp; CreatedByUserId == userId</c> for the pre-tenant
+/// 1):</b> <c>POST /tenants</c> — the request that creates the very first tenant for a user — has
+/// no tenant context yet when its idempotency record is written. SQL Server's composite primary
+/// key <c>(TenantId, CreatedByUserId, Endpoint, Key)</c> cannot hold a <c>NULL</c> in any key
+/// column (no per-column exception exists for a column participating in a PK), so
+/// <see cref="TenantId"/> uses the fixed sentinel <c>TenantId.Empty</c> for the pre-tenant case
+/// rather than a nullable CLR type — a <c>TenantId?</c> is silently discarded by EF Core's model
+/// builder once the property participates in <c>HasKey(...)</c> anyway, generating a plain
+/// non-nullable column regardless of the CLR type. <see cref="CreatedByUserId"/> — always real,
+/// never sentinel — is what actually disambiguates two different users both calling
+/// <c>POST /tenants</c> with the same client-supplied idempotency key value; the sentinel
+/// <see cref="TenantId"/> is just a fixed placeholder so the PK column stays non-null. Because of
+/// this, this class intentionally does <b>not</b> implement <see cref="ITenantOwned"/> and
+/// therefore does not participate in <c>TenancyDbContext</c>'s automatic <c>"TenantFilter"</c>
+/// global query filter that every other tenant-owned entity gets for free. This is a one-off,
+/// reasoned exception, not an oversight: any future code that queries this entity MUST apply its
+/// own explicit filter — either <c>TenantId == tenantId</c> for the normal, tenant-scoped case,
+/// or <c>TenantId == TenantId.Empty &amp;&amp; CreatedByUserId == userId</c> for the pre-tenant
 /// <c>POST /tenants</c> case — to avoid leaking or colliding idempotency records across
 /// tenants/users.
 /// </para>
@@ -57,12 +64,14 @@ public enum IdempotencyStatus
 public class IdempotencyRecord
 {
     /// <summary>
-    /// The tenant this idempotency record belongs to, or <c>null</c> when the original request
-    /// (e.g. <c>POST /tenants</c>) had no tenant context yet. Part of the composite primary key
-    /// alongside <see cref="Endpoint"/> and <see cref="Key"/>. See the class remarks for why this
-    /// entity does not implement <c>ITenantOwned</c> and is not auto-filtered by tenant.
+    /// The tenant this idempotency record belongs to, or <see cref="Domain.Abstractions.TenantId.Empty"/>
+    /// (a fixed sentinel, never a real tenant) when the original request (e.g. <c>POST /tenants</c>)
+    /// had no tenant context yet. Part of the composite primary key alongside
+    /// <see cref="CreatedByUserId"/>, <see cref="Endpoint"/>, and <see cref="Key"/>. See the class
+    /// remarks for why this entity does not implement <c>ITenantOwned</c> and is not
+    /// auto-filtered by tenant.
     /// </summary>
-    public TenantId? TenantId { get; set; }
+    public TenantId TenantId { get; set; }
 
     /// <summary>
     /// Identifies which operation this record applies to, e.g.
@@ -88,8 +97,10 @@ public class IdempotencyRecord
     public IdempotencyStatus Status { get; set; }
 
     /// <summary>
-    /// The user who made the original request. Serves as the fallback key when
-    /// <see cref="TenantId"/> is <c>null</c> (the pre-tenant <c>POST /tenants</c> case).
+    /// The user who made the original request. Always the real caller's id (never a sentinel) —
+    /// part of the composite primary key, and the real disambiguator when <see cref="TenantId"/>
+    /// is the sentinel <see cref="Domain.Abstractions.TenantId.Empty"/> (the pre-tenant
+    /// <c>POST /tenants</c> case).
     /// </summary>
     public UserId CreatedByUserId { get; set; }
 

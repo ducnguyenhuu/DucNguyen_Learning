@@ -10,6 +10,15 @@ public readonly record struct TenantId(Guid Value)
     /// Creates a new tenant ID using a Version 7 GUID.
     /// </summary>
     public static TenantId New() => new(Guid.CreateVersion7());
+
+    /// <summary>
+    /// The fixed sentinel tenant id used where a real tenant does not yet exist (e.g. the
+    /// <c>IdempotencyRecord</c> for <c>POST /tenants</c>, which has no tenant context). Not a
+    /// real tenant and must never resolve to one — used only so a non-nullable
+    /// <see cref="TenantId"/> column can still participate in a composite primary key without
+    /// storing <c>NULL</c>.
+    /// </summary>
+    public static TenantId Empty => new(Guid.Empty);
 }
 
 /// <summary>
