@@ -111,6 +111,11 @@ builder.Services.AddScoped<ListTenants>();
 // MembershipRepository's remarks) — scoped to match TenancyDbContext's own scoped lifetime.
 builder.Services.AddScoped<IMembershipRepository, MembershipRepository>();
 
+// T076's ListMembers/RemoveMember use cases, wired here at T079 per that task's own deferral note
+// (same "port lands ahead of its use case's DI registration" shape as InviteMember et al. above).
+builder.Services.AddScoped<Tenancy.Application.Members.ListMembers>();
+builder.Services.AddScoped<Tenancy.Application.Members.RemoveMember>();
+
 // The fifth repository port in the codebase (T071-T073, wired here at T078 per that task's own
 // deferral note) — one shared port for the invite/accept/list/revoke invitation use cases,
 // scoped to match TenancyDbContext's own scoped lifetime.
@@ -170,6 +175,9 @@ app.MapTenantEndpoints();
 
 // T078: the invitation endpoints wiring together T071-T073.
 app.MapInvitationEndpoints();
+
+// T079: the member endpoints wiring together T075-T076.
+app.MapMemberEndpoints();
 
 var summaries = new[]
 {

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using AwesomeAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Tenancy.Domain.Abstractions;
 using Tenancy.Domain.Memberships;
@@ -78,10 +79,17 @@ public sealed class RevocationWindowTests : IClassFixture<ApiFactory>
 
         using var adminClient = CreateTestSchemeClient(seed.Administrator);
 
-        // Target-spec removal. Today this hits an absent route (T079 not yet implemented).
-        var deleteResponse = await adminClient.DeleteAsync(
-            $"/tenants/{seed.Administrator.TenantId.Value}/members/{seed.Member.UserId.Value}",
-            TestContext.Current.CancellationToken);
+        // T079's DELETE route requires an If-Match precondition (contracts/openapi.yaml,
+        // FR-021) — there is no list/GET response header exposing a member's ETag (unlike
+        // Tenant's GET), so it is read directly from the database, mirroring this file's own
+        // SeedAdministratorAndMemberAsync helper's use of a scoped TenancyDbContext.
+        var ifMatch = await GetMembershipETagAsync(seed.Administrator.TenantId, seed.Member.UserId);
+
+        using var deleteRequest = new HttpRequestMessage(
+            HttpMethod.Delete,
+            $"/tenants/{seed.Administrator.TenantId.Value}/members/{seed.Member.UserId.Value}");
+        deleteRequest.Headers.IfMatch.Add(ifMatch);
+        var deleteResponse = await adminClient.SendAsync(deleteRequest, TestContext.Current.CancellationToken);
         deleteResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
         // The just-removed member presents a brand new authenticated context (fresh
@@ -144,15 +152,15 @@ public sealed class RevocationWindowTests : IClassFixture<ApiFactory>
 
         using var adminClient = CreateTestSchemeClient(seed.Administrator);
 
-        // Target-spec removal. Today this hits an absent route (T079 not yet implemented), so
-        // the membership row is never actually transitioned — meaning today's replay below
-        // reaches a still-active membership regardless. That is fine: the assertion below (never
-        // 401) is designed to hold in both states, because it targets "was the token itself the
-        // reason," not "what exact status this endpoint returns" — see the class remarks and the
-        // report's flagged ambiguity for why a stronger, single-status assertion was avoided.
-        var deleteResponse = await adminClient.DeleteAsync(
-            $"/tenants/{seed.Administrator.TenantId.Value}/members/{seed.Member.UserId.Value}",
-            TestContext.Current.CancellationToken);
+        // T079's DELETE route requires an If-Match precondition (contracts/openapi.yaml,
+        // FR-021) — read directly from the database, same as the other test in this file.
+        var ifMatch = await GetMembershipETagAsync(seed.Administrator.TenantId, seed.Member.UserId);
+
+        using var deleteRequest = new HttpRequestMessage(
+            HttpMethod.Delete,
+            $"/tenants/{seed.Administrator.TenantId.Value}/members/{seed.Member.UserId.Value}");
+        deleteRequest.Headers.IfMatch.Add(ifMatch);
+        var deleteResponse = await adminClient.SendAsync(deleteRequest, TestContext.Current.CancellationToken);
         deleteResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
         using var replayClient = _factory.CreateClient();
@@ -175,6 +183,27 @@ public sealed class RevocationWindowTests : IClassFixture<ApiFactory>
         client.DefaultRequestHeaders.Add("X-Test-Oid", seededTenant.EntraObjectId.ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", seededTenant.EntraTenantId.ToString());
         return client;
+    }
+
+    /// <summary>
+    /// Reads the current <c>rowversion</c> for the active membership identified by
+    /// <paramref name="tenantId"/>/<paramref name="userId"/> directly from the database, and
+    /// encodes it as the quoted, base64 strong ETag <c>DELETE /tenants/{tenantId}/members/{userId}</c>
+    /// (T079) requires as <c>If-Match</c> (contracts/openapi.yaml, FR-021) — there is no HTTP
+    /// response header exposing a member's ETag anywhere in this flow (unlike Tenant's GET), so
+    /// this is the only way a caller of this route can learn the value to send.
+    /// </summary>
+    private async Task<EntityTagHeaderValue> GetMembershipETagAsync(TenantId tenantId, UserId userId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
+        db.CurrentTenantId = tenantId;
+
+        var membership = await db.Memberships
+            .AsNoTracking()
+            .SingleAsync(m => m.UserId == userId && m.Status == MembershipStatus.Active);
+
+        return new EntityTagHeaderValue($"\"{Convert.ToBase64String(membership.RowVersion)}\"");
     }
 
     /// <summary>
