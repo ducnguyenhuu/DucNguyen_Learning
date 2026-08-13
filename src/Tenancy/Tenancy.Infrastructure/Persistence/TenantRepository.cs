@@ -19,7 +19,11 @@ public class TenantRepository : ITenantRepository
 
     public Task<Tenant?> GetCurrentAsync(CancellationToken ct)
     {
-        return _dbContext.Tenants.SingleOrDefaultAsync(ct);
+        // Tenant is not ITenantOwned (see ITenantRepository's remarks), so it is never covered
+        // by TenancyDbContext's "TenantFilter" global query filter — this explicit predicate
+        // against the ambient CurrentTenantId is the only thing scoping this read to the
+        // resolved tenant. Without it, this would throw once more than one Tenant row exists.
+        return _dbContext.Tenants.SingleOrDefaultAsync(t => t.Id == _dbContext.CurrentTenantId, ct);
     }
 
     public async Task<IReadOnlyList<Tenant>> GetManyByIdsAsync(IReadOnlyCollection<TenantId> tenantIds, CancellationToken ct)

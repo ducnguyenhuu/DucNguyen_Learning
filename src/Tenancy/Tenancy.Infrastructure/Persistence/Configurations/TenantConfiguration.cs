@@ -40,5 +40,8 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
 
         builder.Property(t => t.RowVersion)
             .IsRowVersion();
+
+        builder.Property(t => t.CreatedAtUtc)
+            .IsRequired();
     }
 }

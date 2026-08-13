@@ -1,11 +1,13 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Web;
+using Tenancy.Api.Endpoints;
 using Tenancy.Api.ErrorHandling;
 using Tenancy.Api.Middleware;
 using Tenancy.Application.Abstractions;
 using Tenancy.Application.Tenants;
 using Tenancy.Application.Users;
+using Tenancy.Domain.Abstractions;
 using Tenancy.Infrastructure.Persistence;
 using Tenancy.Infrastructure.Persistence.Audited;
 using Tenancy.Infrastructure.Persistence.Interceptors;
@@ -40,6 +42,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.Configure<JwtBearerOptions>(
     JwtBearerDefaults.AuthenticationScheme,
     options => options.MapInboundClaims = false);
+
+// T056's IdempotencyFilter (and any other consumer) needs a testable system clock — singleton
+// is safe since SystemClock carries no state of its own.
+builder.Services.AddSingleton<IClock, SystemClock>();
 
 // Scoped (not singleton) in case it ever needs scoped dependencies later; a stateless class
 // registered as scoped costs nothing.
@@ -114,8 +120,25 @@ app.UseExceptionHandler();
 
 app.UseHttpsRedirection();
 
+// T056's IdempotencyFilter (an IEndpointFilter) needs to re-read the raw request body after
+// model binding has already consumed it, to compute its request-hash. Model binding for minimal
+// API JSON parameters reads via HttpRequest.BodyReader (a PipeReader), not HttpRequest.Body (the
+// Stream) directly; calling EnableBuffering() only once binding is already underway (i.e. from
+// inside the filter itself, the first time anything tries to read the body) is too late for that
+// PipeReader-based read to be replayable. Enabling buffering here, as the very first thing that
+// touches the request, ensures whichever reader gets to the body first (the JSON binder or the
+// filter) leaves it seekable for the other.
+app.Use((context, next) =>
+{
+    context.Request.EnableBuffering();
+    return next(context);
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
+
+// T058: the four /tenants endpoints wiring together T032-T057.
+app.MapTenantEndpoints();
 
 var summaries = new[]
 {

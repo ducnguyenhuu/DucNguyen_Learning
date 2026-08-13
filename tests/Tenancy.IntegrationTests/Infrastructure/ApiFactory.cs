@@ -296,8 +296,24 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
 
         db.Tenants.AddRange(tenantA, tenantB);
         db.Users.AddRange(userA, userB);
-        db.Memberships.AddRange(membershipA, membershipB);
 
+        // TenantSaveChangesInterceptor (T017) unconditionally stamps every newly-added
+        // ITenantOwned entity's TenantId with the context's ambient CurrentTenantId before it
+        // hits the database — it does not trust whatever TenantId the entity was constructed
+        // with. CurrentTenantId defaults to TenantId.Empty until something sets it, so batching
+        // both memberships into one SaveChangesAsync without setting CurrentTenantId first would
+        // silently stamp both with TenantId.Empty instead of tenantA.Id/tenantB.Id, corrupting
+        // every membership lookup that follows. Two saves, each preceded by pointing
+        // CurrentTenantId at the tenant that membership actually belongs to — the same pattern
+        // SeedOneUserInTwoTenantsAsync below already uses for the same reason.
+        await db.SaveChangesAsync();
+
+        db.CurrentTenantId = tenantA.Id;
+        db.Memberships.Add(membershipA);
+        await db.SaveChangesAsync();
+
+        db.CurrentTenantId = tenantB.Id;
+        db.Memberships.Add(membershipB);
         await db.SaveChangesAsync();
 
         return new TwoTenantSeed(

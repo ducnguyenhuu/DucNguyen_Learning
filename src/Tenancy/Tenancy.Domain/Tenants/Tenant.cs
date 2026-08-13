@@ -13,6 +13,7 @@ public class Tenant
         Id = id;
         DisplayName = displayName;
         Status = status;
+        CreatedAtUtc = DateTimeOffset.UtcNow;
     }
 
     /// <summary>
@@ -29,6 +30,13 @@ public class Tenant
     /// The lifecycle status of the tenant.
     /// </summary>
     public TenantStatus Status { get; private set; }
+
+    /// <summary>
+    /// UTC instant this tenant was created, per <c>contracts/openapi.yaml</c>'s <c>Tenant</c>
+    /// schema (<c>createdAtUtc</c> is a required response field). Set once, at construction, and
+    /// never changed. EF Core persists this rather than deriving it, so it survives across reads.
+    /// </summary>
+    public DateTimeOffset CreatedAtUtc { get; private set; }
 
     /// <summary>
     /// The tenant's owned settings. Not accepted through the constructor: EF Core cannot bind
