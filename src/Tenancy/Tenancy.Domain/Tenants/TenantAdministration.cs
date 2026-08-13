@@ -8,12 +8,6 @@ namespace Tenancy.Domain.Tenants;
 /// active <see cref="Role.Administrator"/> membership, so removing or demoting the sole
 /// administrator must be refused.
 /// </summary>
-/// <remarks>
-/// This is a minimal stub (T067) — every method throws <see cref="NotImplementedException"/>.
-/// It exists only so the solution builds and <c>LastAdministratorTests</c> fails at runtime
-/// rather than at compile time. The real invariant-enforcing logic is T074's job, implemented
-/// against the test file as its spec.
-/// </remarks>
 public static class TenantAdministration
 {
     /// <summary>
@@ -29,7 +23,12 @@ public static class TenantAdministration
         IEnumerable<Membership> activeMemberships,
         Membership membershipToRemove)
     {
-        throw new NotImplementedException();
+        var administratorCount = activeMemberships.Count(m => m.Role == Role.Administrator);
+
+        if (membershipToRemove.Role == Role.Administrator && administratorCount == 1)
+        {
+            throw new DomainException("Cannot remove the sole administrator of the tenant.");
+        }
     }
 
     /// <summary>
@@ -47,6 +46,13 @@ public static class TenantAdministration
         Membership membershipToChange,
         Role newRole)
     {
-        throw new NotImplementedException();
+        var administratorCount = activeMemberships.Count(m => m.Role == Role.Administrator);
+
+        if (membershipToChange.Role == Role.Administrator &&
+            administratorCount == 1 &&
+            newRole != Role.Administrator)
+        {
+            throw new DomainException("Cannot demote the sole administrator of the tenant.");
+        }
     }
 }
