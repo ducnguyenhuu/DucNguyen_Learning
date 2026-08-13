@@ -261,7 +261,19 @@ public static class TenantEndpoints
     /// decoded <c>If-Match</c> bytes (EF's concurrency-check baseline) before renaming/saving, per
     /// this task's brief.
     /// </summary>
-    private static async Task<Tenant?> RenameWithOriginalRowVersionAsync(
+    /// <remarks>
+    /// <c>internal</c> rather than <c>private</c> (with <c>Tenancy.Api.csproj</c>'s existing
+    /// <c>InternalsVisibleTo("Tenancy.IntegrationTests")</c>) solely so
+    /// <c>ConcurrencyTests.RenameWithOriginalRowVersionAsync_SameValueAsCurrentDisplayName_StillThrowsOnStaleRowVersion</c>
+    /// can exercise this exact method directly and deterministically. The bug this guards against
+    /// (a stale pinned <c>RowVersion.OriginalValue</c> going unchecked when the requested value
+    /// equals the tenant's current value) only manifests in a narrow window between
+    /// <c>PatchTenantAsync</c>'s own fresh pre-check and this method's tracked load/save — not
+    /// reliably reproducible from outside the process via real HTTP concurrency without a
+    /// save-pipeline test hook (see <see cref="ConcurrencyTests"/>'s remarks on that same
+    /// limitation for the save-time race case).
+    /// </remarks>
+    internal static async Task<Tenant?> RenameWithOriginalRowVersionAsync(
         TenancyDbContext dbContext,
         RenameTenant renameTenant,
         byte[] originalRowVersion,
@@ -276,7 +288,16 @@ public static class TenantEndpoints
             return null;
         }
 
-        dbContext.Entry(tracked).Property(nameof(Tenant.RowVersion)).OriginalValue = originalRowVersion;
+        var trackedEntry = dbContext.Entry(tracked);
+        trackedEntry.Property(nameof(Tenant.RowVersion)).OriginalValue = originalRowVersion;
+
+        // Force a real UPDATE (and thus the optimistic-concurrency check against the pinned
+        // OriginalValue above) even when the caller's requested displayName happens to equal the
+        // tenant's current displayName: without this, EF's change tracker sees zero modified
+        // scalar properties for a same-value "change" and skips SaveChanges' UPDATE entirely —
+        // silently "succeeding" without the concurrency check ever running against the database
+        // at all. Mirrors MemberEndpoints.PatchMemberRoleAsync's identical fix.
+        trackedEntry.State = EntityState.Modified;
 
         return await renameTenant.ExecuteAsync(newDisplayName, ct);
     }
