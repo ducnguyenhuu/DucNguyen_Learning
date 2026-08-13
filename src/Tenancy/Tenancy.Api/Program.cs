@@ -120,6 +120,13 @@ builder.Services.AddScoped<Tenancy.Application.Members.RemoveMember>();
 // deferral note) — one shared port for the invite/accept/list/revoke invitation use cases,
 // scoped to match TenancyDbContext's own scoped lifetime.
 builder.Services.AddScoped<IInvitationRepository, InvitationRepository>();
+
+// T080/Assumption 8's dev-time invitation delivery sink — a stateless structured-logging
+// wrapper, so singleton is safe (no per-request state, unlike the scoped registrations above).
+builder.Services.AddSingleton<
+    Tenancy.Application.Invitations.IInvitationDeliverySink,
+    Tenancy.Infrastructure.Notifications.LoggingInvitationDeliverySink>();
+
 builder.Services.AddScoped<Tenancy.Application.Invitations.InviteMember>();
 builder.Services.AddScoped<Tenancy.Application.Invitations.AcceptInvitation>();
 builder.Services.AddScoped<Tenancy.Application.Invitations.ListInvitations>();

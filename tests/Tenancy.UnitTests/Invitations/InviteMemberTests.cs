@@ -81,12 +81,33 @@ public class InviteMemberTests
             throw new NotSupportedException("Not used by InviteMemberTests.");
     }
 
+    private sealed class FakeInvitationDeliverySink : IInvitationDeliverySink
+    {
+        public int CallCount { get; private set; }
+
+        public EmailAddress? LastRecipient { get; private set; }
+
+        public string? LastRawToken { get; private set; }
+
+        public Task DeliverAsync(EmailAddress recipient, string rawToken, CancellationToken ct)
+        {
+            CallCount++;
+            LastRecipient = recipient;
+            LastRawToken = rawToken;
+            return Task.CompletedTask;
+        }
+    }
+
     private static InviteMember CreateUseCase(
-        FakeInvitationRepository repository, FakeTenantContext? tenantContext = null, FakeClock? clock = null) =>
+        FakeInvitationRepository repository,
+        FakeTenantContext? tenantContext = null,
+        FakeClock? clock = null,
+        FakeInvitationDeliverySink? deliverySink = null) =>
         new(
             repository,
             tenantContext ?? new FakeTenantContext(),
             clock ?? new FakeClock(),
+            deliverySink ?? new FakeInvitationDeliverySink(),
             NullLogger<InviteMember>.Instance);
 
     [Fact]
@@ -94,7 +115,8 @@ public class InviteMemberTests
     {
         var repository = new FakeInvitationRepository();
         var clock = new FakeClock();
-        var useCase = CreateUseCase(repository, clock: clock);
+        var deliverySink = new FakeInvitationDeliverySink();
+        var useCase = CreateUseCase(repository, clock: clock, deliverySink: deliverySink);
         var email = new EmailAddress("invitee@example.com");
         var invitedByUserId = UserId.New();
 
@@ -112,6 +134,12 @@ public class InviteMemberTests
         // The persisted hash must never equal the raw token, and must match Hash(rawToken).
         result.Invitation.TokenHash.Should().Be(Convert.ToBase64String(InvitationToken.Hash(result.RawToken)));
         result.Invitation.TokenHash.Should().NotBe(result.RawToken);
+
+        // T080: delivery is attempted exactly once, after persistence, with the recipient and
+        // the real raw token (the same one returned to the caller above) — not the persisted hash.
+        deliverySink.CallCount.Should().Be(1);
+        deliverySink.LastRecipient.Should().Be(email);
+        deliverySink.LastRawToken.Should().Be(result.RawToken);
     }
 
     [Fact]

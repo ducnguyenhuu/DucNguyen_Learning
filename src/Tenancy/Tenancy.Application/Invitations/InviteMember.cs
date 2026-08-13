@@ -66,17 +66,20 @@ public class InviteMember
     private readonly IInvitationRepository _invitationRepository;
     private readonly ITenantContext _tenantContext;
     private readonly IClock _clock;
+    private readonly IInvitationDeliverySink _deliverySink;
     private readonly ILogger<InviteMember> _logger;
 
     public InviteMember(
         IInvitationRepository invitationRepository,
         ITenantContext tenantContext,
         IClock clock,
+        IInvitationDeliverySink deliverySink,
         ILogger<InviteMember> logger)
     {
         _invitationRepository = invitationRepository;
         _tenantContext = tenantContext;
         _clock = clock;
+        _deliverySink = deliverySink;
         _logger = logger;
     }
 
@@ -138,6 +141,11 @@ public class InviteMember
             email,
             invitation.TenantId,
             invitedByUserId);
+
+        // T080/Assumption 8's "delivery" seam — a dev-time stand-in today, a real email send
+        // later, both behind the same port. Called only after the invitation is durably
+        // persisted above, never before.
+        await _deliverySink.DeliverAsync(email, rawToken, ct);
 
         return new InviteMemberResult(invitation, rawToken);
     }
