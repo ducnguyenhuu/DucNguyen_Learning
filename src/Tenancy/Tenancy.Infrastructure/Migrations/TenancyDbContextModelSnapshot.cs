@@ -8,7 +8,8 @@ using Tenancy.Infrastructure.Persistence;
 
 #nullable disable
 
-namespace Tenancy.Infrastructure.Migrations;
+namespace Tenancy.Infrastructure.Migrations
+{
     [DbContext(typeof(TenancyDbContext))]
     partial class TenancyDbContextModelSnapshot : ModelSnapshot
     {
@@ -180,10 +181,27 @@ namespace Tenancy.Infrastructure.Migrations;
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("ExpiresAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<byte[]>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("varbinary(32)");
+
+                    b.Property<string>("ResourceLocation")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("ResponseBody")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("ResponseStatusCode")
+                    b.Property<byte>("Status")
+                        .HasColumnType("tinyint");
+
+                    b.Property<int?>("StatusCode")
                         .HasColumnType("int");
 
                     b.HasKey("TenantId", "Endpoint", "Key");
@@ -193,3 +211,4 @@ namespace Tenancy.Infrastructure.Migrations;
 #pragma warning restore 612, 618
         }
     }
+}
