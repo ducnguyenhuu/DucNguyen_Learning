@@ -6,6 +6,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Respawn;
 using Tenancy.Domain.Abstractions;
 using Tenancy.Domain.Memberships;
@@ -106,9 +107,27 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     public const string ExpectedAudience = "api://tenancy-test";
 
     private readonly SignedTokenHarness _tokenHarness = new();
+    private readonly CapturingLoggerProvider _loggerProvider = new();
 
     private string? _connectionString;
     private Respawner? _respawner;
+
+    /// <summary>
+    /// Every formatted log message the host has produced since construction or since
+    /// <see cref="ClearCapturedLogs"/> was last called (T053). See
+    /// <see cref="CapturingLoggerProvider"/>'s remarks for why messages are captured as
+    /// fully-formatted strings shared across all log categories.
+    /// </summary>
+    public string[] CapturedLogMessages => _loggerProvider.Messages;
+
+    /// <summary>
+    /// Clears previously captured log messages. Because this <see cref="ApiFactory"/> instance
+    /// is shared across an entire test class via <c>IClassFixture&lt;ApiFactory&gt;</c>, a test
+    /// must call this immediately before the request under test to get a clean, request-scoped
+    /// view via <see cref="CapturedLogMessages"/> — otherwise log lines from earlier tests in the
+    /// same class would still be present and make hygiene assertions unreliable.
+    /// </summary>
+    public void ClearCapturedLogs() => _loggerProvider.Clear();
 
     /// <summary>
     /// Receives the running container's connection string from <see cref="SqlServerFixture"/>
@@ -138,6 +157,12 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
                 "from the consuming test class's constructor, using the SqlServerFixture assembly " +
                 "fixture injected into that constructor) before the host is built.");
         }
+
+        // Registered before ConfigureServices below so every category the host logs from
+        // (ASP.NET Core's own request/hosting diagnostics, Microsoft.Identity.Web, etc.) is
+        // captured by CapturingLoggerProvider (T053) in addition to whatever providers the host
+        // would otherwise use — this augments, it does not replace, default logging.
+        builder.ConfigureLogging(logging => logging.AddProvider(_loggerProvider));
 
         builder.ConfigureServices(services =>
         {
