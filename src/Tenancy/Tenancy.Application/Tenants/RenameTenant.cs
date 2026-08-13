@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Tenancy.Application.Abstractions;
 using Tenancy.Domain.Abstractions;
 using Tenancy.Domain.Tenants;
@@ -26,10 +27,12 @@ namespace Tenancy.Application.Tenants;
 public class RenameTenant
 {
     private readonly ITenantRepository _tenantRepository;
+    private readonly ILogger<RenameTenant> _logger;
 
-    public RenameTenant(ITenantRepository tenantRepository)
+    public RenameTenant(ITenantRepository tenantRepository, ILogger<RenameTenant> logger)
     {
         _tenantRepository = tenantRepository;
+        _logger = logger;
     }
 
     /// <summary>
@@ -49,9 +52,17 @@ public class RenameTenant
             return null;
         }
 
+        var oldDisplayName = tenant.DisplayName;
+
         tenant.Rename(newDisplayName);
 
         await _tenantRepository.SaveAsync(tenant, ct);
+
+        _logger.LogInformation(
+            "Tenant {TenantId} renamed from {OldDisplayName} to {NewDisplayName}",
+            tenant.Id,
+            oldDisplayName,
+            newDisplayName);
 
         return tenant;
     }

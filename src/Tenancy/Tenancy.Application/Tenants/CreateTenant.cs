@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Tenancy.Application.Abstractions;
 using Tenancy.Domain.Abstractions;
 using Tenancy.Domain.Memberships;
@@ -45,10 +46,12 @@ namespace Tenancy.Application.Tenants;
 public class CreateTenant
 {
     private readonly ICreateTenantRepository _createTenantRepository;
+    private readonly ILogger<CreateTenant> _logger;
 
-    public CreateTenant(ICreateTenantRepository createTenantRepository)
+    public CreateTenant(ICreateTenantRepository createTenantRepository, ILogger<CreateTenant> logger)
     {
         _createTenantRepository = createTenantRepository;
+        _logger = logger;
     }
 
     /// <summary>
@@ -71,6 +74,11 @@ public class CreateTenant
         var administratorMembership = Membership.Create(tenant.Id, creatorUserId, Role.Administrator);
 
         await _createTenantRepository.AddAsync(tenant, administratorMembership, ct);
+
+        _logger.LogInformation(
+            "Tenant {TenantId} created by user {UserId}",
+            tenant.Id,
+            creatorUserId);
 
         return tenant;
     }

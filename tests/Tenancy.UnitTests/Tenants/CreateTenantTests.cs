@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Tenancy.Application.Abstractions;
 using Tenancy.Application.Tenants;
 using Tenancy.Domain.Abstractions;
@@ -36,7 +37,7 @@ public class CreateTenantTests
     public async Task ExecuteAsync_CreatesTenantAndAdministratorMembership_InOneCall()
     {
         var fakeRepository = new FakeCreateTenantRepository();
-        var useCase = new CreateTenant(fakeRepository);
+        var useCase = new CreateTenant(fakeRepository, NullLogger<CreateTenant>.Instance);
         var creatorUserId = UserId.New();
 
         var tenant = await useCase.ExecuteAsync("Acme Corp", creatorUserId, CancellationToken.None);
@@ -54,7 +55,7 @@ public class CreateTenantTests
     public async Task ExecuteAsync_WithInvalidDisplayName_ThrowsDomainException_AndNeverCallsRepository()
     {
         var fakeRepository = new FakeCreateTenantRepository();
-        var useCase = new CreateTenant(fakeRepository);
+        var useCase = new CreateTenant(fakeRepository, NullLogger<CreateTenant>.Instance);
 
         var act = () => useCase.ExecuteAsync(" ", UserId.New(), CancellationToken.None);
 

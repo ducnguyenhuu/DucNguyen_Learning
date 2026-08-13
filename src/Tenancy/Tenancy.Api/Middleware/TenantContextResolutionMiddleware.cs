@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Tenancy.Domain.Abstractions;
 using Tenancy.Domain.Memberships;
 using Tenancy.Infrastructure.Persistence;
@@ -62,6 +63,13 @@ public sealed class TenantContextResolutionMiddleware : IEndpointFilter
     /// </summary>
     public const string RouteParameterName = "tenantId";
 
+    private readonly ILogger<TenantContextResolutionMiddleware> _logger;
+
+    public TenantContextResolutionMiddleware(ILogger<TenantContextResolutionMiddleware> logger)
+    {
+        _logger = logger;
+    }
+
     /// <inheritdoc />
     public async ValueTask<object?> InvokeAsync(
         EndpointFilterInvocationContext context,
@@ -74,7 +82,7 @@ public sealed class TenantContextResolutionMiddleware : IEndpointFilter
         var routeValue = httpContext.GetRouteValue(RouteParameterName) as string;
         if (routeValue is null || !Guid.TryParse(routeValue, out var candidateGuid))
         {
-            return NotMember();
+            return NotMember(routeValue ?? "(missing)", "malformed tenant id");
         }
 
         var candidateTenantId = new TenantId(candidateGuid);
@@ -91,7 +99,7 @@ public sealed class TenantContextResolutionMiddleware : IEndpointFilter
             // with no valid token before this filter ever runs. If we still land here without
             // usable identity claims, fail the same closed way rather than crash or leak
             // anything — this is not a distinct error path.
-            return NotMember();
+            return NotMember(candidateTenantId.Value.ToString(), "unusable identity claims");
         }
 
         var dbContext = httpContext.RequestServices.GetRequiredService<TenancyDbContext>();
@@ -112,7 +120,7 @@ public sealed class TenantContextResolutionMiddleware : IEndpointFilter
 
         if (user is null)
         {
-            return NotMember();
+            return NotMember(candidateTenantId.Value.ToString(), "no provisioned user for caller identity");
         }
 
         // Step 4: Membership IS ITenantOwned, so this query is scoped by the "TenantFilter" to
@@ -124,7 +132,7 @@ public sealed class TenantContextResolutionMiddleware : IEndpointFilter
 
         if (membership is null)
         {
-            return NotMember();
+            return NotMember(candidateTenantId.Value.ToString(), "no active membership for caller in candidate tenant");
         }
 
         // Only now — membership proven — does the tenant context become real for the rest of
@@ -133,6 +141,12 @@ public sealed class TenantContextResolutionMiddleware : IEndpointFilter
         var tenantContext = (HttpContextTenantContext)httpContext.RequestServices
             .GetRequiredService<Tenancy.Application.Abstractions.ITenantContext>();
         tenantContext.Resolve(candidateTenantId, membership.Role);
+
+        _logger.LogInformation(
+            "Membership resolved for tenant {TenantId}: user {UserId} with role {Role}",
+            candidateTenantId,
+            user.Id,
+            membership.Role);
 
         return await next(context);
     }
@@ -144,7 +158,19 @@ public sealed class TenantContextResolutionMiddleware : IEndpointFilter
     /// no body and no detail describing which case occurred. <c>403</c> is deliberately never
     /// used here: per ADR-017, <c>403</c> would itself confirm the tenant exists.
     /// </summary>
-    private static object NotMember() => Results.NotFound();
+    private object NotMember(string candidateTenantId, string reason)
+    {
+        // ADR-017's indistinguishability requirement is about the HTTP response, not
+        // server-side logs — operators legitimately need to know *why* resolution failed for
+        // debugging, so the reason is logged here but never reflected in the 404 response body
+        // that Results.NotFound() below returns.
+        _logger.LogInformation(
+            "Membership resolution failed for candidate tenant {CandidateTenantId}: {Reason}",
+            candidateTenantId,
+            reason);
+
+        return Results.NotFound();
+    }
 }
 
 /// <summary>

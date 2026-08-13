@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Tenancy.Application.Abstractions;
 using Tenancy.Application.Tenants;
 using Tenancy.Domain.Abstractions;
@@ -80,7 +81,7 @@ public class GetRenameListTenantsTests
         {
             CurrentTenant = Tenant.Create("Acme Corp"),
         };
-        var useCase = new RenameTenant(fakeRepository);
+        var useCase = new RenameTenant(fakeRepository, NullLogger<RenameTenant>.Instance);
 
         var act = () => useCase.ExecuteAsync(" ", CancellationToken.None);
 
@@ -97,7 +98,7 @@ public class GetRenameListTenantsTests
         {
             CurrentTenant = tenant,
         };
-        var useCase = new RenameTenant(fakeRepository);
+        var useCase = new RenameTenant(fakeRepository, NullLogger<RenameTenant>.Instance);
 
         var result = await useCase.ExecuteAsync("Acme Corporation", CancellationToken.None);
 

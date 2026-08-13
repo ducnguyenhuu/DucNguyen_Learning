@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Logging;
 using Tenancy.Application.Abstractions;
 using Tenancy.Domain.Abstractions;
 using Tenancy.Infrastructure.Persistence;
@@ -71,6 +72,13 @@ public sealed class IdempotencyFilter : IEndpointFilter
     /// being processed" before it becomes reclaimable, per the task's own text.
     /// </summary>
     private static readonly TimeSpan InFlightReclaimThreshold = TimeSpan.FromSeconds(60);
+
+    private readonly ILogger<IdempotencyFilter> _logger;
+
+    public IdempotencyFilter(ILogger<IdempotencyFilter> logger)
+    {
+        _logger = logger;
+    }
 
     /// <inheritdoc />
     public async ValueTask<object?> InvokeAsync(
@@ -163,6 +171,12 @@ public sealed class IdempotencyFilter : IEndpointFilter
         {
             if (!existing.RequestHash.AsSpan().SequenceEqual(requestHash))
             {
+                _logger.LogInformation(
+                    "Idempotency refusal for tenant {TenantId}: key reuse with a different " +
+                    "request body on endpoint {Endpoint}",
+                    existing.TenantId,
+                    existing.Endpoint);
+
                 return Results.Problem(
                     title: "Idempotency key reuse with a different request",
                     detail: "This Idempotency-Key was already used with a different request body.",
@@ -191,6 +205,12 @@ public sealed class IdempotencyFilter : IEndpointFilter
         var age = now - existing.CreatedAtUtc;
         if (age < InFlightReclaimThreshold)
         {
+            _logger.LogInformation(
+                "Idempotency refusal for tenant {TenantId}: request already in flight on " +
+                "endpoint {Endpoint}",
+                existing.TenantId,
+                existing.Endpoint);
+
             httpContext.Response.Headers.RetryAfter = ((int)InFlightReclaimThreshold.TotalSeconds).ToString();
             return Results.Problem(
                 title: "Request already in flight",
