@@ -43,14 +43,12 @@ namespace Tenancy.IntegrationTests.Scenarios;
 /// here.
 /// </para>
 /// </remarks>
-public sealed class InvitationRefusalTests : IClassFixture<ApiFactory>
+public sealed class InvitationRefusalTests : TenancyIntegrationTestBase
 {
-    private readonly ApiFactory _factory;
 
     public InvitationRefusalTests(SqlServerFixture sqlServerFixture, ApiFactory factory)
+        : base(sqlServerFixture, factory)
     {
-        _factory = factory;
-        _factory.UseConnectionString(sqlServerFixture.ConnectionString);
     }
 
     /// <summary>
@@ -61,8 +59,8 @@ public sealed class InvitationRefusalTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Post_AcceptUnknownToken_Returns404()
     {
-        await _factory.InitializeDatabaseAsync();
-        await _factory.SeedTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        await Factory.SeedTwoTenantsAsync();
 
         using var client = CreateInviteeClient(Guid.NewGuid().ToString(), "nobody@example.com");
 
@@ -82,8 +80,8 @@ public sealed class InvitationRefusalTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Post_AcceptExpiredToken_Returns404()
     {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsAsync();
 
         const string invitedEmail = "expired-invitee@tenant-a.example.com";
         const string rawToken = "refusal-expired-token";
@@ -106,8 +104,8 @@ public sealed class InvitationRefusalTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Post_AcceptRevokedToken_Returns404()
     {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsAsync();
 
         const string invitedEmail = "revoked-invitee@tenant-a.example.com";
         const string rawToken = "refusal-revoked-token";
@@ -131,8 +129,8 @@ public sealed class InvitationRefusalTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Post_AcceptAlreadyAcceptedToken_Returns404()
     {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsAsync();
 
         const string invitedEmail = "already-accepted-invitee@tenant-a.example.com";
         const string rawToken = "refusal-already-accepted-token";
@@ -150,7 +148,7 @@ public sealed class InvitationRefusalTests : IClassFixture<ApiFactory>
 
     private HttpClient CreateInviteeClient(string entraObjectId, string invitedEmail)
     {
-        var client = _factory.CreateClient();
+        var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", entraObjectId);
         client.DefaultRequestHeaders.Add("X-Test-Tid", Guid.NewGuid().ToString());
@@ -165,7 +163,7 @@ public sealed class InvitationRefusalTests : IClassFixture<ApiFactory>
     /// </summary>
     private async Task SeedExpiredInvitationAsync(TenantId tenantId, string invitedEmail, string rawToken)
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
 
         db.CurrentTenantId = tenantId;
@@ -186,7 +184,7 @@ public sealed class InvitationRefusalTests : IClassFixture<ApiFactory>
     /// </summary>
     private async Task SeedRevokedInvitationAsync(TenantId tenantId, string invitedEmail, string rawToken)
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
 
         db.CurrentTenantId = tenantId;
@@ -208,7 +206,7 @@ public sealed class InvitationRefusalTests : IClassFixture<ApiFactory>
     /// </summary>
     private async Task SeedAcceptedInvitationAsync(TenantId tenantId, string invitedEmail, string rawToken)
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
 
         db.CurrentTenantId = tenantId;

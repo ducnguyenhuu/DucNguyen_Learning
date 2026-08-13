@@ -42,14 +42,12 @@ namespace Tenancy.IntegrationTests.Scenarios;
 /// optimistic-concurrency handling once T086/T087 land; until then it documents the intended
 /// behavior and will fail on the absent route.
 /// </remarks>
-public sealed class ConcurrentRoleEditTests : IClassFixture<ApiFactory>
+public sealed class ConcurrentRoleEditTests : TenancyIntegrationTestBase
 {
-    private readonly ApiFactory _factory;
 
     public ConcurrentRoleEditTests(SqlServerFixture sqlServerFixture, ApiFactory factory)
+        : base(sqlServerFixture, factory)
     {
-        _factory = factory;
-        _factory.UseConnectionString(sqlServerFixture.ConnectionString);
     }
 
     /// <summary>
@@ -68,7 +66,7 @@ public sealed class ConcurrentRoleEditTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Patch_MemberRole_TwoAdministrators_SameIfMatch_Concurrently_ExactlyOneWinsWithNoLostUpdate()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var seed = await SeedTwoAdministratorsAndOneMemberAsync();
 
         using var clientA = CreateAuthenticatedClient(seed.AdminA);
@@ -129,7 +127,7 @@ public sealed class ConcurrentRoleEditTests : IClassFixture<ApiFactory>
 
     private async Task<string> GetMembershipIfMatchAsync(TenantId tenantId, MembershipId membershipId)
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
         db.CurrentTenantId = tenantId;
         var membership = await db.Memberships.FindAsync(
@@ -139,7 +137,7 @@ public sealed class ConcurrentRoleEditTests : IClassFixture<ApiFactory>
 
     private async Task<Role> ReadFinalRoleAsync(TenantId tenantId, MembershipId membershipId)
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
         db.CurrentTenantId = tenantId;
 
@@ -152,7 +150,7 @@ public sealed class ConcurrentRoleEditTests : IClassFixture<ApiFactory>
 
     private HttpClient CreateAuthenticatedClient(SeededTenant seededTenant)
     {
-        var client = _factory.CreateClient();
+        var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", seededTenant.EntraObjectId.ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", seededTenant.EntraTenantId.ToString());
@@ -171,7 +169,7 @@ public sealed class ConcurrentRoleEditTests : IClassFixture<ApiFactory>
     /// </summary>
     private async Task<TwoAdministratorsAndOneMemberSeed> SeedTwoAdministratorsAndOneMemberAsync()
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
 
         var tenant = Tenant.Create("Concurrent Role Edit Tenant");

@@ -61,14 +61,12 @@ namespace Tenancy.IntegrationTests.Scenarios;
 /// not-yet-implemented behavior.
 /// </para>
 /// </remarks>
-public sealed class RolePermissionMatrixTests : IClassFixture<ApiFactory>
+public sealed class RolePermissionMatrixTests : TenancyIntegrationTestBase
 {
-    private readonly ApiFactory _factory;
 
     public RolePermissionMatrixTests(SqlServerFixture sqlServerFixture, ApiFactory factory)
+        : base(sqlServerFixture, factory)
     {
-        _factory = factory;
-        _factory.UseConnectionString(sqlServerFixture.ConnectionString);
     }
 
     /// <summary>
@@ -80,7 +78,7 @@ public sealed class RolePermissionMatrixTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Post_Invitation_AsMember_IsRefused()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var seed = await SeedAdministratorAndMemberAsync();
 
         using var memberClient = CreateAuthenticatedClient(seed.Member);
@@ -103,7 +101,7 @@ public sealed class RolePermissionMatrixTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Delete_Member_AsMember_IsRefused()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var seed = await SeedAdministratorTwoMembersAsync();
 
         using var memberClient = CreateAuthenticatedClient(seed.Member);
@@ -116,7 +114,7 @@ public sealed class RolePermissionMatrixTests : IClassFixture<ApiFactory>
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
         db.CurrentTenantId = seed.Administrator.TenantId;
         var membership = await db.Memberships.FindAsync(
@@ -133,7 +131,7 @@ public sealed class RolePermissionMatrixTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Get_TenantDetails_AsMember_Succeeds()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var seed = await SeedAdministratorAndMemberAsync();
 
         using var memberClient = CreateAuthenticatedClient(seed.Member);
@@ -155,7 +153,7 @@ public sealed class RolePermissionMatrixTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Get_TenantDetails_MemberAndReaderBehaveIdentically()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var seed = await SeedAdministratorMemberAndReaderAsync();
 
         using var memberClient = CreateAuthenticatedClient(seed.Member);
@@ -180,7 +178,7 @@ public sealed class RolePermissionMatrixTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Patch_TenantSettings_AsReader_IsRefused()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var seed = await SeedAdministratorAndReaderAsync();
 
         using var readerClient = CreateAuthenticatedClient(seed.Reader);
@@ -203,7 +201,7 @@ public sealed class RolePermissionMatrixTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Post_Invitation_AsAdministrator_Succeeds()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var seed = await SeedAdministratorAndMemberAsync();
 
         using var adminClient = CreateAuthenticatedClient(seed.Administrator);
@@ -225,7 +223,7 @@ public sealed class RolePermissionMatrixTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Get_Invitations_AsMember_IsRefused()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var seed = await SeedAdministratorAndMemberAsync();
 
         using var memberClient = CreateAuthenticatedClient(seed.Member);
@@ -244,7 +242,7 @@ public sealed class RolePermissionMatrixTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Delete_Invitation_AsMember_IsRefused()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var seed = await SeedAdministratorAndMemberAsync();
 
         var invitationId = await SeedPendingInvitationAsync(
@@ -266,7 +264,7 @@ public sealed class RolePermissionMatrixTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Get_Members_AsMember_IsRefused()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var seed = await SeedAdministratorAndMemberAsync();
 
         using var memberClient = CreateAuthenticatedClient(seed.Member);
@@ -290,7 +288,7 @@ public sealed class RolePermissionMatrixTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Patch_MemberRole_AsAdministrator_IsNotYetARoute()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var seed = await SeedAdministratorAndMemberAsync();
 
         using var adminClient = CreateAuthenticatedClient(seed.Administrator);
@@ -307,7 +305,7 @@ public sealed class RolePermissionMatrixTests : IClassFixture<ApiFactory>
 
     private HttpClient CreateAuthenticatedClient(SeededTenant seededTenant)
     {
-        var client = _factory.CreateClient();
+        var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", seededTenant.EntraObjectId.ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", seededTenant.EntraTenantId.ToString());
@@ -336,7 +334,7 @@ public sealed class RolePermissionMatrixTests : IClassFixture<ApiFactory>
     /// </summary>
     private async Task<string> GetMembershipIfMatchAsync(TenantId tenantId, MembershipId membershipId)
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
         db.CurrentTenantId = tenantId;
         var membership = await db.Memberships.FindAsync(
@@ -352,7 +350,7 @@ public sealed class RolePermissionMatrixTests : IClassFixture<ApiFactory>
     private async Task<InvitationId> SeedPendingInvitationAsync(
         TenantId tenantId, string invitedEmail)
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
 
         db.CurrentTenantId = tenantId;
@@ -377,7 +375,7 @@ public sealed class RolePermissionMatrixTests : IClassFixture<ApiFactory>
     /// </summary>
     private async Task<AdministratorAndMemberSeed> SeedAdministratorAndMemberAsync()
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
 
         var tenant = Tenant.Create("Admin And Member Tenant");
@@ -414,7 +412,7 @@ public sealed class RolePermissionMatrixTests : IClassFixture<ApiFactory>
     /// </summary>
     private async Task<AdministratorAndReaderSeed> SeedAdministratorAndReaderAsync()
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
 
         var tenant = Tenant.Create("Admin And Reader Tenant");
@@ -452,7 +450,7 @@ public sealed class RolePermissionMatrixTests : IClassFixture<ApiFactory>
     /// </summary>
     private async Task<AdministratorMemberAndReaderSeed> SeedAdministratorMemberAndReaderAsync()
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
 
         var tenant = Tenant.Create("Admin Member Reader Tenant");
@@ -498,7 +496,7 @@ public sealed class RolePermissionMatrixTests : IClassFixture<ApiFactory>
     /// </summary>
     private async Task<AdministratorTwoMembersSeed> SeedAdministratorTwoMembersAsync()
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
 
         var tenant = Tenant.Create("Admin Two Members Tenant");

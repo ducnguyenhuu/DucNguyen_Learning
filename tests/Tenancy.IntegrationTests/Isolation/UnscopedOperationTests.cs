@@ -41,26 +41,24 @@ namespace Tenancy.IntegrationTests.Isolation;
 /// following the same precedent T063 already established for this exact scenario.
 /// </para>
 /// </remarks>
-public sealed class UnscopedOperationTests : IClassFixture<ApiFactory>
+public sealed class UnscopedOperationTests : TenancyIntegrationTestBase
 {
-    private readonly ApiFactory _factory;
 
     public UnscopedOperationTests(SqlServerFixture sqlServerFixture, ApiFactory factory)
+        : base(sqlServerFixture, factory)
     {
-        _factory = factory;
-        _factory.UseConnectionString(sqlServerFixture.ConnectionString);
     }
 
     [Fact]
     public async Task Post_Tenants_WithoutAnyTenantContext_Succeeds()
     {
-        await _factory.InitializeDatabaseAsync();
-        await _factory.SeedTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        await Factory.SeedTwoTenantsAsync();
 
         // A brand-new, never-seeded Entra identity — there is no membership-based gate on
         // this route, so tenant creation must work even though the caller has no tenant
         // context established yet.
-        using var client = _factory.CreateClient();
+        using var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", Guid.NewGuid().ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", Guid.NewGuid().ToString());
@@ -77,8 +75,8 @@ public sealed class UnscopedOperationTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Get_Tenants_ForTenantAMember_ReturnsOnlyTenantA_NotTenantB()
     {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsAsync();
 
         using var client = CreateAuthenticatedClient(seed.TenantA.EntraObjectId, seed.TenantA.EntraTenantId);
 
@@ -96,8 +94,8 @@ public sealed class UnscopedOperationTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Get_Tenants_ForUserWithNoMemberships_ReturnsEmptyArray()
     {
-        await _factory.InitializeDatabaseAsync();
-        await _factory.SeedTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        await Factory.SeedTwoTenantsAsync();
 
         // A fresh, never-seeded Entra identity with no memberships anywhere.
         using var client = CreateAuthenticatedClient(Guid.NewGuid(), Guid.NewGuid());
@@ -124,13 +122,13 @@ public sealed class UnscopedOperationTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Post_AcceptInvitation_WithValidTokenForSomeoneElse_IsRefused()
     {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsWithInvitationInTenantBAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsWithInvitationInTenantBAsync();
 
         // The seeded invitation is addressed to invitee@tenant-b.example.com. This caller is a
         // real, distinct identity (Tenant A's seeded member) authenticating with a different
         // email — a valid token belonging to somebody else does not authorize acceptance.
-        using var client = _factory.CreateClient();
+        using var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", seed.TenantA.EntraObjectId.ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", seed.TenantA.EntraTenantId.ToString());
@@ -155,12 +153,12 @@ public sealed class UnscopedOperationTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Post_AcceptInvitation_AsInvitedAddressee_Succeeds()
     {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsWithInvitationInTenantBAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsWithInvitationInTenantBAsync();
 
         // A brand-new identity — never seeded as a member anywhere — authenticating with the
         // exact email the invitation was issued to.
-        using var client = _factory.CreateClient();
+        using var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", Guid.NewGuid().ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", Guid.NewGuid().ToString());
@@ -178,7 +176,7 @@ public sealed class UnscopedOperationTests : IClassFixture<ApiFactory>
 
     private HttpClient CreateAuthenticatedClient(Guid entraObjectId, Guid entraTenantId)
     {
-        var client = _factory.CreateClient();
+        var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", entraObjectId.ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", entraTenantId.ToString());

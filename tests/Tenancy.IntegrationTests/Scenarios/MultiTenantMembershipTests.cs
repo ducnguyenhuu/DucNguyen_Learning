@@ -18,21 +18,19 @@ namespace Tenancy.IntegrationTests.Scenarios;
 /// Scenarios files, the <c>/tenants</c> endpoints don't exist yet (T058 adds them), so this is
 /// expected to fail/behave per the same "route absent" situation as prior files until then.
 /// </remarks>
-public sealed class MultiTenantMembershipTests : IClassFixture<ApiFactory>
+public sealed class MultiTenantMembershipTests : TenancyIntegrationTestBase
 {
-    private readonly ApiFactory _factory;
 
     public MultiTenantMembershipTests(SqlServerFixture sqlServerFixture, ApiFactory factory)
+        : base(sqlServerFixture, factory)
     {
-        _factory = factory;
-        _factory.UseConnectionString(sqlServerFixture.ConnectionString);
     }
 
     [Fact]
     public async Task Get_TenantById_ForEachTenant_ReturnsThatTenantsOwnData_NeverBlended()
     {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedOneUserInTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedOneUserInTwoTenantsAsync();
 
         using var client = CreateAuthenticatedClient(seed.User);
 
@@ -60,8 +58,8 @@ public sealed class MultiTenantMembershipTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Get_Tenants_ForUserInBothTenants_ReturnsBothTenants_CorrectlySeparated()
     {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedOneUserInTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedOneUserInTwoTenantsAsync();
 
         using var client = CreateAuthenticatedClient(seed.User);
 
@@ -78,7 +76,7 @@ public sealed class MultiTenantMembershipTests : IClassFixture<ApiFactory>
 
     private HttpClient CreateAuthenticatedClient(SharedUserSeed sharedUser)
     {
-        var client = _factory.CreateClient();
+        var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", sharedUser.EntraObjectId.ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", sharedUser.EntraTenantId.ToString());

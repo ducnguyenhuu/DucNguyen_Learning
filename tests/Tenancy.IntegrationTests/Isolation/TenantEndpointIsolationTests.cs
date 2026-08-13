@@ -28,21 +28,19 @@ namespace Tenancy.IntegrationTests.Isolation;
 /// output. This is what distinguishes this suite from scaffolding that merely detects an absent
 /// route.
 /// </remarks>
-public sealed class TenantEndpointIsolationTests : IClassFixture<ApiFactory>
+public sealed class TenantEndpointIsolationTests : TenancyIntegrationTestBase
 {
-    private readonly ApiFactory _factory;
 
     public TenantEndpointIsolationTests(SqlServerFixture sqlServerFixture, ApiFactory factory)
+        : base(sqlServerFixture, factory)
     {
-        _factory = factory;
-        _factory.UseConnectionString(sqlServerFixture.ConnectionString);
     }
 
     [Fact]
     public async Task Get_TenantById_ForOtherTenant_IsRefused_AndIndistinguishableFromNonExistentTenant()
     {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsAsync();
 
         using var client = CreateAuthenticatedClient(seed);
 
@@ -77,8 +75,8 @@ public sealed class TenantEndpointIsolationTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Patch_TenantById_ForOtherTenant_IsRefused_AndIndistinguishableFromNonExistentTenant()
     {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsAsync();
 
         using var client = CreateAuthenticatedClient(seed);
 
@@ -116,10 +114,10 @@ public sealed class TenantEndpointIsolationTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Post_Tenants_DoesNotErrorRegardlessOfOtherTenants()
     {
-        await _factory.InitializeDatabaseAsync();
-        await _factory.SeedTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        await Factory.SeedTwoTenantsAsync();
 
-        using var client = _factory.CreateClient();
+        using var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", Guid.NewGuid().ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", Guid.NewGuid().ToString());
@@ -149,7 +147,7 @@ public sealed class TenantEndpointIsolationTests : IClassFixture<ApiFactory>
 
     private HttpClient CreateAuthenticatedClient(TwoTenantSeed seed)
     {
-        var client = _factory.CreateClient();
+        var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", seed.TenantA.EntraObjectId.ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", seed.TenantA.EntraTenantId.ToString());

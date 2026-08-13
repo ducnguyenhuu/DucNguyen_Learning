@@ -62,14 +62,12 @@ namespace Tenancy.IntegrationTests.Isolation;
 /// </para>
 /// <para>No production code changed by this task.</para>
 /// </remarks>
-public sealed class ForbiddenVersusNotFoundTests : IClassFixture<ApiFactory>
+public sealed class ForbiddenVersusNotFoundTests : TenancyIntegrationTestBase
 {
-    private readonly ApiFactory _factory;
 
     public ForbiddenVersusNotFoundTests(SqlServerFixture sqlServerFixture, ApiFactory factory)
+        : base(sqlServerFixture, factory)
     {
-        _factory = factory;
-        _factory.UseConnectionString(sqlServerFixture.ConnectionString);
     }
 
     /// <summary>
@@ -85,7 +83,7 @@ public sealed class ForbiddenVersusNotFoundTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Post_Invitation_AsWrongRoleMember_Returns403()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var seed = await SeedAdministratorAndMemberAsync();
         var otherSeed = await SeedAdministratorAndMemberAsync();
 
@@ -130,7 +128,7 @@ public sealed class ForbiddenVersusNotFoundTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Post_Invitation_ByNonMember_Returns404_AgainstTheSameTenant()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var seed = await SeedAdministratorAndMemberAsync();
 
         using var nonMemberClient = CreateAuthenticatedClient(NeverSeededCaller());
@@ -167,7 +165,7 @@ public sealed class ForbiddenVersusNotFoundTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Post_Invitation_ByAdministratorOfAnotherTenant_Returns404_NotForbidden()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var tenantOne = await SeedAdministratorAndMemberAsync();
         var tenantTwo = await SeedAdministratorAndMemberAsync();
 
@@ -209,7 +207,7 @@ public sealed class ForbiddenVersusNotFoundTests : IClassFixture<ApiFactory>
 
     private HttpClient CreateAuthenticatedClient(SeededTenant seededTenant)
     {
-        var client = _factory.CreateClient();
+        var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", seededTenant.EntraObjectId.ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", seededTenant.EntraTenantId.ToString());
@@ -236,7 +234,7 @@ public sealed class ForbiddenVersusNotFoundTests : IClassFixture<ApiFactory>
     /// </summary>
     private async Task<AdministratorAndMemberSeed> SeedAdministratorAndMemberAsync()
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
 
         var suffix = Guid.NewGuid();

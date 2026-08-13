@@ -22,20 +22,18 @@ namespace Tenancy.IntegrationTests.Scenarios;
 /// (a routing-table 404, or a framework-level 400 for malformed JSON) rather than forcing an
 /// assumption about which layer produces the response.
 /// </remarks>
-public sealed class ErrorDisclosureTests : IClassFixture<ApiFactory>
+public sealed class ErrorDisclosureTests : TenancyIntegrationTestBase
 {
-    private readonly ApiFactory _factory;
 
     public ErrorDisclosureTests(SqlServerFixture sqlServerFixture, ApiFactory factory)
+        : base(sqlServerFixture, factory)
     {
-        _factory = factory;
-        _factory.UseConnectionString(sqlServerFixture.ConnectionString);
     }
 
     [Fact]
     public async Task Get_TenantById_WithMalformedRouteId_DoesNotDiscloseSensitiveDetail()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
 
         using var client = CreateAuthenticatedClient(Guid.NewGuid(), Guid.NewGuid());
 
@@ -53,7 +51,7 @@ public sealed class ErrorDisclosureTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Post_Tenants_WithMalformedJsonBody_DoesNotDiscloseSensitiveDetail()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
 
         using var client = CreateAuthenticatedClient(Guid.NewGuid(), Guid.NewGuid());
 
@@ -75,8 +73,8 @@ public sealed class ErrorDisclosureTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Get_TenantById_ForOtherTenant_DoesNotDiscloseOtherTenantIdentity()
     {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsAsync();
 
         using var client = CreateAuthenticatedClient(
             seed.TenantA.EntraTenantId,
@@ -98,7 +96,7 @@ public sealed class ErrorDisclosureTests : IClassFixture<ApiFactory>
 
     private HttpClient CreateAuthenticatedClient(Guid entraTenantId, Guid entraObjectId)
     {
-        var client = _factory.CreateClient();
+        var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", entraObjectId.ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", entraTenantId.ToString());

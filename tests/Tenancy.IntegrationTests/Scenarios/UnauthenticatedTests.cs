@@ -21,22 +21,20 @@ namespace Tenancy.IntegrationTests.Scenarios;
 /// today with a genuine 401-vs-404 assertion mismatch, not weakened to "not 200" just to pass
 /// prematurely. They'll go genuinely green once T058 lands the endpoints behind authentication.
 /// </remarks>
-public sealed class UnauthenticatedTests : IClassFixture<ApiFactory>
+public sealed class UnauthenticatedTests : TenancyIntegrationTestBase
 {
-    private readonly ApiFactory _factory;
 
     public UnauthenticatedTests(SqlServerFixture sqlServerFixture, ApiFactory factory)
+        : base(sqlServerFixture, factory)
     {
-        _factory = factory;
-        _factory.UseConnectionString(sqlServerFixture.ConnectionString);
     }
 
     [Fact]
     public async Task Post_Tenants_WithNoAuthorizationHeader_ReturnsUnauthorized()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
 
-        using var client = _factory.CreateClient();
+        using var client = Factory.CreateClient();
 
         var response = await client.PostAsync(
             "/tenants",
@@ -49,9 +47,9 @@ public sealed class UnauthenticatedTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Get_Tenants_WithNoAuthorizationHeader_ReturnsUnauthorized()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
 
-        using var client = _factory.CreateClient();
+        using var client = Factory.CreateClient();
 
         var response = await client.GetAsync("/tenants", TestContext.Current.CancellationToken);
 
@@ -61,9 +59,9 @@ public sealed class UnauthenticatedTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Get_TenantById_WithNoAuthorizationHeader_ReturnsUnauthorized()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
 
-        using var client = _factory.CreateClient();
+        using var client = Factory.CreateClient();
 
         var response = await client.GetAsync(
             $"/tenants/{Guid.NewGuid()}",
@@ -75,9 +73,9 @@ public sealed class UnauthenticatedTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Patch_TenantById_WithNoAuthorizationHeader_ReturnsUnauthorized()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
 
-        using var client = _factory.CreateClient();
+        using var client = Factory.CreateClient();
 
         var response = await client.PatchAsync(
             $"/tenants/{Guid.NewGuid()}",

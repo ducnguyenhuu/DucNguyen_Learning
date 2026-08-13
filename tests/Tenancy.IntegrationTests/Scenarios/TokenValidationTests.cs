@@ -29,9 +29,8 @@ namespace Tenancy.IntegrationTests.Scenarios;
 /// is in what they become, not what they show today.
 /// </para>
 /// </remarks>
-public sealed class TokenValidationTests : IClassFixture<ApiFactory>, IDisposable
+public sealed class TokenValidationTests : TenancyIntegrationTestBase, IDisposable
 {
-    private readonly ApiFactory _factory;
 
     // Constructed directly (not injected as a fixture) per T041's contract — but deliberately
     // *not* used to mint the tokens below. ApiFactory (T042) already owns its own
@@ -46,22 +45,21 @@ public sealed class TokenValidationTests : IClassFixture<ApiFactory>, IDisposabl
     private readonly SignedTokenHarness _tokenHarness = new();
 
     public TokenValidationTests(SqlServerFixture sqlServerFixture, ApiFactory factory)
+        : base(sqlServerFixture, factory)
     {
-        _factory = factory;
-        _factory.UseConnectionString(sqlServerFixture.ConnectionString);
     }
 
     [Fact]
     public async Task Get_TenantById_WithExpiredToken_ReturnsUnauthorized()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
 
-        using var client = _factory.CreateClient();
+        using var client = Factory.CreateClient();
 
         // Invalid because: NotBefore/Expires are both in the past, so ValidateLifetime rejects
         // the token on expiry alone even though issuer/audience/signature are all otherwise
         // valid and trusted.
-        var token = _factory.TokenHarness.MintToken(
+        var token = Factory.TokenHarness.MintToken(
             tid: Guid.NewGuid(),
             oid: Guid.NewGuid(),
             audience: ApiFactory.ExpectedAudience,
@@ -81,14 +79,14 @@ public sealed class TokenValidationTests : IClassFixture<ApiFactory>, IDisposabl
     [Fact]
     public async Task Get_TenantById_WithWrongAudience_ReturnsUnauthorized()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
 
-        using var client = _factory.CreateClient();
+        using var client = Factory.CreateClient();
 
         // Invalid because: the audience claim does not match ApiFactory.ExpectedAudience, so
         // ValidateAudience rejects the token even though issuer, signature, and expiry are all
         // otherwise valid and trusted.
-        var token = _factory.TokenHarness.MintToken(
+        var token = Factory.TokenHarness.MintToken(
             tid: Guid.NewGuid(),
             oid: Guid.NewGuid(),
             audience: "api://some-other-app",
@@ -106,14 +104,14 @@ public sealed class TokenValidationTests : IClassFixture<ApiFactory>, IDisposabl
     [Fact]
     public async Task Get_TenantById_WithWrongIssuer_ReturnsUnauthorized()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
 
-        using var client = _factory.CreateClient();
+        using var client = Factory.CreateClient();
 
         // Invalid because: the issuer claim does not match ApiFactory.ExpectedIssuer, so
         // ValidateIssuer rejects the token even though audience, signature, and expiry are all
         // otherwise valid and trusted.
-        var token = _factory.TokenHarness.MintToken(
+        var token = Factory.TokenHarness.MintToken(
             tid: Guid.NewGuid(),
             oid: Guid.NewGuid(),
             audience: ApiFactory.ExpectedAudience,
@@ -131,20 +129,20 @@ public sealed class TokenValidationTests : IClassFixture<ApiFactory>, IDisposabl
     [Fact]
     public async Task Get_TenantById_WithInvalidSignature_ReturnsUnauthorized()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
 
-        using var client = _factory.CreateClient();
+        using var client = Factory.CreateClient();
 
         // Invalid because: the token is signed with SignedTokenHarness.WrongSigningCredentials —
         // a second RSA key ApiFactory never configured as trusted via PublicSigningKey — so
         // signature verification fails even though issuer, audience, and expiry claims are all
         // otherwise valid.
-        var token = _factory.TokenHarness.MintToken(
+        var token = Factory.TokenHarness.MintToken(
             tid: Guid.NewGuid(),
             oid: Guid.NewGuid(),
             audience: ApiFactory.ExpectedAudience,
             issuer: ApiFactory.ExpectedIssuer,
-            signingCredentials: _factory.TokenHarness.WrongSigningCredentials);
+            signingCredentials: Factory.TokenHarness.WrongSigningCredentials);
 
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 

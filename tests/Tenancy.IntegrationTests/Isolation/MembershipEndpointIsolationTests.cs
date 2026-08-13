@@ -30,21 +30,19 @@ namespace Tenancy.IntegrationTests.Isolation;
 /// temporarily disabling <c>TenancyDbContext</c>'s <c>"TenantFilter"</c> and confirming the test
 /// starts failing on a real cross-tenant leak) before trusting it as isolation coverage.
 /// </remarks>
-public sealed class MembershipEndpointIsolationTests : IClassFixture<ApiFactory>
+public sealed class MembershipEndpointIsolationTests : TenancyIntegrationTestBase
 {
-    private readonly ApiFactory _factory;
 
     public MembershipEndpointIsolationTests(SqlServerFixture sqlServerFixture, ApiFactory factory)
+        : base(sqlServerFixture, factory)
     {
-        _factory = factory;
-        _factory.UseConnectionString(sqlServerFixture.ConnectionString);
     }
 
     [Fact]
     public async Task Post_InvitationForOtherTenant_IsRefused()
     {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsAsync();
 
         using var client = CreateAuthenticatedClientAsTenantAMember(seed);
         client.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
@@ -63,8 +61,8 @@ public sealed class MembershipEndpointIsolationTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Get_InvitationsForOtherTenant_IsRefused()
     {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsAsync();
 
         using var client = CreateAuthenticatedClientAsTenantAMember(seed);
 
@@ -78,10 +76,10 @@ public sealed class MembershipEndpointIsolationTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Delete_InvitationForOtherTenant_IsRefused()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         // A genuinely-persisted, still-pending invitation in Tenant B, so the refusal proves
         // route-level tenant scoping — not merely that the invitation id happens not to exist.
-        var seed = await _factory.SeedTwoTenantsWithInvitationInTenantBAsync();
+        var seed = await Factory.SeedTwoTenantsWithInvitationInTenantBAsync();
 
         using var client = CreateAuthenticatedClientAsTenantAMember(seed.TenantA);
 
@@ -95,8 +93,8 @@ public sealed class MembershipEndpointIsolationTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Get_MembersForOtherTenant_IsRefused()
     {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsAsync();
 
         using var client = CreateAuthenticatedClientAsTenantAMember(seed);
 
@@ -110,11 +108,11 @@ public sealed class MembershipEndpointIsolationTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Delete_MemberForOtherTenant_IsRefused()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         // Tenant B's own real member (SeededTenant.UserId), being removed via Tenant A's route
         // context — the point is proving the route refuses regardless of the target user
         // legitimately existing as a Tenant B member.
-        var seed = await _factory.SeedTwoTenantsAsync();
+        var seed = await Factory.SeedTwoTenantsAsync();
 
         using var client = CreateAuthenticatedClientAsTenantAMember(seed);
 
@@ -139,7 +137,7 @@ public sealed class MembershipEndpointIsolationTests : IClassFixture<ApiFactory>
 
     private HttpClient CreateAuthenticatedClientAsTenantAMember(SeededTenant tenantA)
     {
-        var client = _factory.CreateClient();
+        var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", tenantA.EntraObjectId.ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", tenantA.EntraTenantId.ToString());

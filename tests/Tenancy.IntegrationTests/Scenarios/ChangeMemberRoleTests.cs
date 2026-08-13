@@ -29,14 +29,12 @@ namespace Tenancy.IntegrationTests.Scenarios;
 /// rather than any real business rule. These tests encode the eventual-correct behavior per
 /// <c>contracts/openapi.yaml</c> so they go genuinely green once T086/T087 land.
 /// </remarks>
-public sealed class ChangeMemberRoleTests : IClassFixture<ApiFactory>
+public sealed class ChangeMemberRoleTests : TenancyIntegrationTestBase
 {
-    private readonly ApiFactory _factory;
 
     public ChangeMemberRoleTests(SqlServerFixture sqlServerFixture, ApiFactory factory)
+        : base(sqlServerFixture, factory)
     {
-        _factory = factory;
-        _factory.UseConnectionString(sqlServerFixture.ConnectionString);
     }
 
     /// <summary>
@@ -49,7 +47,7 @@ public sealed class ChangeMemberRoleTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Patch_MemberRole_AsAdministrator_ChangesRoleAndReturnsFreshETag()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var seed = await SeedAdministratorAndMemberAsync();
 
         using var adminClient = CreateAuthenticatedClient(seed.Administrator);
@@ -79,10 +77,10 @@ public sealed class ChangeMemberRoleTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Patch_MemberRole_SoleAdministratorDemotesSelf_IsRefused()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var seed = await SeedSoleAdministratorTenantAsync();
 
-        using var client = _factory.CreateClient();
+        using var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", seed.EntraObjectId.ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", seed.EntraTenantId.ToString());
@@ -106,7 +104,7 @@ public sealed class ChangeMemberRoleTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Patch_MemberRole_WithoutIfMatchHeader_ReturnsPreconditionRequired()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var seed = await SeedAdministratorAndMemberAsync();
 
         using var adminClient = CreateAuthenticatedClient(seed.Administrator);
@@ -127,7 +125,7 @@ public sealed class ChangeMemberRoleTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Patch_MemberRole_WithMalformedIfMatchHeader_ReturnsBadRequest()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var seed = await SeedAdministratorAndMemberAsync();
 
         using var adminClient = CreateAuthenticatedClient(seed.Administrator);
@@ -149,7 +147,7 @@ public sealed class ChangeMemberRoleTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Patch_MemberRole_WithStaleIfMatchHeader_ReturnsPreconditionFailed()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var seed = await SeedAdministratorAndMemberAsync();
 
         using var adminClient = CreateAuthenticatedClient(seed.Administrator);
@@ -172,7 +170,7 @@ public sealed class ChangeMemberRoleTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Patch_MemberRole_ForUserWithNoActiveMembership_ReturnsNotFound()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var seed = await SeedAdministratorAndMemberAsync();
 
         using var adminClient = CreateAuthenticatedClient(seed.Administrator);
@@ -188,7 +186,7 @@ public sealed class ChangeMemberRoleTests : IClassFixture<ApiFactory>
 
     private HttpClient CreateAuthenticatedClient(SeededTenant seededTenant)
     {
-        var client = _factory.CreateClient();
+        var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", seededTenant.EntraObjectId.ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", seededTenant.EntraTenantId.ToString());
@@ -204,7 +202,7 @@ public sealed class ChangeMemberRoleTests : IClassFixture<ApiFactory>
     /// </summary>
     private async Task<string> GetMembershipIfMatchAsync(TenantId tenantId, MembershipId membershipId)
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
         db.CurrentTenantId = tenantId;
         var membership = await db.Memberships.FindAsync(
@@ -220,7 +218,7 @@ public sealed class ChangeMemberRoleTests : IClassFixture<ApiFactory>
     /// </summary>
     private async Task<AdministratorAndMemberSeed> SeedAdministratorAndMemberAsync()
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
 
         var tenant = Tenant.Create("Change Role Tenant");
@@ -258,7 +256,7 @@ public sealed class ChangeMemberRoleTests : IClassFixture<ApiFactory>
     /// </summary>
     private async Task<SeededTenant> SeedSoleAdministratorTenantAsync()
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
 
         var tenant = Tenant.Create("Sole Admin Change Role Tenant");

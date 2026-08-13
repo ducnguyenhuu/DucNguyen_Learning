@@ -29,14 +29,12 @@ namespace Tenancy.IntegrationTests.Scenarios;
 /// eventual-correct concurrency behavior per openapi.yaml so they'll go genuinely green once
 /// T057/T058 land.
 /// </remarks>
-public sealed class ConcurrencyTests : IClassFixture<ApiFactory>
+public sealed class ConcurrencyTests : TenancyIntegrationTestBase
 {
-    private readonly ApiFactory _factory;
 
     public ConcurrencyTests(SqlServerFixture sqlServerFixture, ApiFactory factory)
+        : base(sqlServerFixture, factory)
     {
-        _factory = factory;
-        _factory.UseConnectionString(sqlServerFixture.ConnectionString);
     }
 
     /// <summary>
@@ -47,8 +45,8 @@ public sealed class ConcurrencyTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Patch_Tenant_WithoutIfMatchHeader_ReturnsPreconditionRequired()
     {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsAsync();
 
         using var client = CreateAuthenticatedClient(seed.TenantA);
 
@@ -74,8 +72,8 @@ public sealed class ConcurrencyTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Patch_Tenant_WithStaleIfMatch_ReturnsPreconditionFailed()
     {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsAsync();
 
         using var client = CreateAuthenticatedClient(seed.TenantA);
         var tenantUri = $"/tenants/{seed.TenantA.TenantId.Value}";
@@ -135,8 +133,8 @@ public sealed class ConcurrencyTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Patch_Tenant_ConcurrentRequestsWithSameIfMatch_AtLeastOneSucceedsOrConflicts()
     {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsAsync();
 
         using var client = CreateAuthenticatedClient(seed.TenantA);
         var tenantUri = $"/tenants/{seed.TenantA.TenantId.Value}";
@@ -201,14 +199,14 @@ public sealed class ConcurrencyTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task RenameWithOriginalRowVersionAsync_SameValueAsCurrentDisplayName_StillThrowsOnStaleRowVersion()
     {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsAsync();
         var tenantId = seed.TenantA.TenantId;
 
         // Capture the tenant's RowVersion before any rename below — this becomes the "stale"
         // originalRowVersion a racing/retrying caller would have captured from an earlier read.
         byte[] staleRowVersion;
-        using (var captureScope = _factory.Services.CreateScope())
+        using (var captureScope = Factory.Services.CreateScope())
         {
             var db = captureScope.ServiceProvider.GetRequiredService<TenancyDbContext>();
             db.CurrentTenantId = tenantId;
@@ -222,7 +220,7 @@ public sealed class ConcurrencyTests : IClassFixture<ApiFactory>
         // Simulates "someone else already renamed the tenant to raceValue", advancing the
         // RowVersion past staleRowVersion — exactly the situation that makes the racing caller's
         // captured If-Match stale.
-        using (var firstScope = _factory.Services.CreateScope())
+        using (var firstScope = Factory.Services.CreateScope())
         {
             var db = firstScope.ServiceProvider.GetRequiredService<TenancyDbContext>();
             db.CurrentTenantId = tenantId;
@@ -233,7 +231,7 @@ public sealed class ConcurrencyTests : IClassFixture<ApiFactory>
         // The racing caller's own scope: requests the SAME displayName the tenant now already
         // has (raceValue, set immediately above), using the pre-captured staleRowVersion as its
         // pinned original — precisely the no-op-skip gap's trigger condition.
-        using var racingScope = _factory.Services.CreateScope();
+        using var racingScope = Factory.Services.CreateScope();
         var racingDb = racingScope.ServiceProvider.GetRequiredService<TenancyDbContext>();
         racingDb.CurrentTenantId = tenantId;
         var racingRenameTenant = racingScope.ServiceProvider.GetRequiredService<RenameTenant>();
@@ -252,7 +250,7 @@ public sealed class ConcurrencyTests : IClassFixture<ApiFactory>
 
     private HttpClient CreateAuthenticatedClient(SeededTenant seededTenant)
     {
-        var client = _factory.CreateClient();
+        var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", seededTenant.EntraObjectId.ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", seededTenant.EntraTenantId.ToString());

@@ -22,14 +22,12 @@ namespace Tenancy.IntegrationTests.Scenarios;
 /// eventual-correct idempotency behavior per openapi.yaml so they'll go genuinely green once
 /// T056/T058 land.
 /// </remarks>
-public sealed class IdempotencyTests : IClassFixture<ApiFactory>
+public sealed class IdempotencyTests : TenancyIntegrationTestBase
 {
-    private readonly ApiFactory _factory;
 
     public IdempotencyTests(SqlServerFixture sqlServerFixture, ApiFactory factory)
+        : base(sqlServerFixture, factory)
     {
-        _factory = factory;
-        _factory.UseConnectionString(sqlServerFixture.ConnectionString);
     }
 
     /// <summary>
@@ -45,9 +43,9 @@ public sealed class IdempotencyTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Post_Tenants_ReplayedWithSameKeyAndBody_ReturnsSameStatusAndBodyVerbatim()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
 
-        using var client = _factory.CreateClient();
+        using var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", Guid.NewGuid().ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", Guid.NewGuid().ToString());
@@ -77,9 +75,9 @@ public sealed class IdempotencyTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Post_Tenants_SameKeyDifferentBody_ReturnsUnprocessableEntity()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
 
-        using var client = _factory.CreateClient();
+        using var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", Guid.NewGuid().ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", Guid.NewGuid().ToString());
@@ -112,9 +110,9 @@ public sealed class IdempotencyTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Post_Tenants_ConcurrentIdenticalRequests_AtLeastOneIsCreatedOrInFlightRejected()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
 
-        using var client = _factory.CreateClient();
+        using var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", Guid.NewGuid().ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", Guid.NewGuid().ToString());

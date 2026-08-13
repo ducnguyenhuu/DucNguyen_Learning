@@ -51,14 +51,12 @@ namespace Tenancy.IntegrationTests.Scenarios;
 /// only becomes a meaningful proof of T075's mitigation once T075 and T079 both exist; until then
 /// it is trivially true because neither removal can succeed at all.
 /// </remarks>
-public sealed class ConcurrentAdminRemovalTests : IClassFixture<ApiFactory>
+public sealed class ConcurrentAdminRemovalTests : TenancyIntegrationTestBase
 {
-    private readonly ApiFactory _factory;
 
     public ConcurrentAdminRemovalTests(SqlServerFixture sqlServerFixture, ApiFactory factory)
+        : base(sqlServerFixture, factory)
     {
-        _factory = factory;
-        _factory.UseConnectionString(sqlServerFixture.ConnectionString);
     }
 
     /// <summary>
@@ -75,7 +73,7 @@ public sealed class ConcurrentAdminRemovalTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Delete_BothAdministrators_Concurrently_NeverLeavesZeroAdministrators()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var seed = await SeedTwoAdministratorsOnlyTenantAsync();
 
         using var clientA = CreateAuthenticatedClient(seed.AdminA);
@@ -116,7 +114,7 @@ public sealed class ConcurrentAdminRemovalTests : IClassFixture<ApiFactory>
 
     private async Task<int> CountActiveAdministratorsAsync(TenantId tenantId)
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
         db.CurrentTenantId = tenantId;
 
@@ -128,7 +126,7 @@ public sealed class ConcurrentAdminRemovalTests : IClassFixture<ApiFactory>
 
     private HttpClient CreateAuthenticatedClient(SeededTenant seededTenant)
     {
-        var client = _factory.CreateClient();
+        var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", seededTenant.EntraObjectId.ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", seededTenant.EntraTenantId.ToString());
@@ -145,7 +143,7 @@ public sealed class ConcurrentAdminRemovalTests : IClassFixture<ApiFactory>
     /// </summary>
     private async Task<TwoAdministratorsOnlySeed> SeedTwoAdministratorsOnlyTenantAsync()
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
 
         var tenant = Tenant.Create("Two Administrators Only Tenant");

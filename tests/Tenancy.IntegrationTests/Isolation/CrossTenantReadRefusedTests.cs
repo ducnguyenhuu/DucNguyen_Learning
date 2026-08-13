@@ -27,24 +27,22 @@ namespace Tenancy.IntegrationTests.Isolation;
 /// literal before/during/after output. This test will get the same treatment once the
 /// memberships endpoint exists.
 /// </remarks>
-public sealed class CrossTenantReadRefusedTests : IClassFixture<ApiFactory>
+public sealed class CrossTenantReadRefusedTests : TenancyIntegrationTestBase
 {
-    private readonly ApiFactory _factory;
 
     public CrossTenantReadRefusedTests(SqlServerFixture sqlServerFixture, ApiFactory factory)
+        : base(sqlServerFixture, factory)
     {
-        _factory = factory;
-        _factory.UseConnectionString(sqlServerFixture.ConnectionString);
     }
 
     [Fact]
     public async Task Get_MembershipsForOtherTenant_IsRefused()
     {
         // Arrange: apply migrations and seed two independent tenants (T042).
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsAsync();
 
-        using var client = _factory.CreateClient();
+        using var client = Factory.CreateClient();
 
         // Authenticate as Tenant A's member via T040's header-driven TestAuthHandler. A bare,
         // non-empty Authorization header is required to enter TestAuthHandler's "caller is

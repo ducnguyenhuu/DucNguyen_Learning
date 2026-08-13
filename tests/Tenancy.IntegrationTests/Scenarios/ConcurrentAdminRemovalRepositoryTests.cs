@@ -41,20 +41,18 @@ namespace Tenancy.IntegrationTests.Scenarios;
 /// administrator count), not on which call happened to win.
 /// </para>
 /// </remarks>
-public sealed class ConcurrentAdminRemovalRepositoryTests : IClassFixture<ApiFactory>
+public sealed class ConcurrentAdminRemovalRepositoryTests : TenancyIntegrationTestBase
 {
-    private readonly ApiFactory _factory;
 
     public ConcurrentAdminRemovalRepositoryTests(SqlServerFixture sqlServerFixture, ApiFactory factory)
+        : base(sqlServerFixture, factory)
     {
-        _factory = factory;
-        _factory.UseConnectionString(sqlServerFixture.ConnectionString);
     }
 
     [Fact]
     public async Task RemoveMembershipAsync_BothAdministrators_Concurrently_NeverLeavesZeroAdministrators()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var ct = TestContext.Current.CancellationToken;
 
         var (tenantId, adminAMembershipId, adminBMembershipId) = await SeedTwoAdministratorsOnlyTenantAsync(ct);
@@ -90,7 +88,7 @@ public sealed class ConcurrentAdminRemovalRepositoryTests : IClassFixture<ApiFac
     {
         await start.Task;
 
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var repository = scope.ServiceProvider.GetRequiredService<IMembershipRepository>();
 
         try
@@ -106,7 +104,7 @@ public sealed class ConcurrentAdminRemovalRepositoryTests : IClassFixture<ApiFac
 
     private async Task<int> CountActiveAdministratorsAsync(TenantId tenantId, CancellationToken ct)
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
         db.CurrentTenantId = tenantId;
 
@@ -124,7 +122,7 @@ public sealed class ConcurrentAdminRemovalRepositoryTests : IClassFixture<ApiFac
     private async Task<(TenantId TenantId, MembershipId AdminAMembershipId, MembershipId AdminBMembershipId)>
         SeedTwoAdministratorsOnlyTenantAsync(CancellationToken ct)
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
 
         var tenant = Tenant.Create("Two Administrators Only Tenant (Repository)");

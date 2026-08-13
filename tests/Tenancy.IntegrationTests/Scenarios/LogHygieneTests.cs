@@ -49,14 +49,12 @@ namespace Tenancy.IntegrationTests.Scenarios;
 /// this project can point to.
 /// </para>
 /// </remarks>
-public sealed class LogHygieneTests : IClassFixture<ApiFactory>
+public sealed class LogHygieneTests : TenancyIntegrationTestBase
 {
-    private readonly ApiFactory _factory;
 
     public LogHygieneTests(SqlServerFixture sqlServerFixture, ApiFactory factory)
+        : base(sqlServerFixture, factory)
     {
-        _factory = factory;
-        _factory.UseConnectionString(sqlServerFixture.ConnectionString);
     }
 
     /// <summary>
@@ -68,8 +66,8 @@ public sealed class LogHygieneTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task AuthenticatedRequest_NeverLogsBearerTokenOrSecretHeaderValues()
     {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsAsync();
 
         // Deliberately distinctive, greppable fake values so a false negative (the assertion
         // passing only because the marker happens to collide with unrelated log text) is
@@ -79,9 +77,9 @@ public sealed class LogHygieneTests : IClassFixture<ApiFactory>
         const string fakeSecretHeaderValue =
             "LOGHYGIENE-T053-FAKE-SECRET-Server=fake;Password=do-not-log-me-8a1c2e9d";
 
-        _factory.ClearCapturedLogs();
+        Factory.ClearCapturedLogs();
 
-        using var client = _factory.CreateClient();
+        using var client = Factory.CreateClient();
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
             $"/tenants/{seed.TenantA.TenantId.Value}");
@@ -100,7 +98,7 @@ public sealed class LogHygieneTests : IClassFixture<ApiFactory>
 
         await client.SendAsync(request, TestContext.Current.CancellationToken);
 
-        var capturedLogs = _factory.CapturedLogMessages;
+        var capturedLogs = Factory.CapturedLogMessages;
 
         capturedLogs.Should().NotBeEmpty(
             "ASP.NET Core's hosting/routing pipeline logs something for every request " +

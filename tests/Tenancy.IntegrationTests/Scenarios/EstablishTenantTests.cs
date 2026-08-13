@@ -19,14 +19,12 @@ namespace Tenancy.IntegrationTests.Scenarios;
 /// eventual-correct behavior per spec.md so they'll go genuinely green once T058 lands the
 /// endpoints.
 /// </remarks>
-public sealed class EstablishTenantTests : IClassFixture<ApiFactory>
+public sealed class EstablishTenantTests : TenancyIntegrationTestBase
 {
-    private readonly ApiFactory _factory;
 
     public EstablishTenantTests(SqlServerFixture sqlServerFixture, ApiFactory factory)
+        : base(sqlServerFixture, factory)
     {
-        _factory = factory;
-        _factory.UseConnectionString(sqlServerFixture.ConnectionString);
     }
 
     /// <summary>
@@ -37,9 +35,9 @@ public sealed class EstablishTenantTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Post_Tenants_WithValidDisplayName_CreatesTenant_AndReturnsItToCaller()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
 
-        using var client = _factory.CreateClient();
+        using var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", Guid.NewGuid().ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", Guid.NewGuid().ToString());
@@ -61,8 +59,8 @@ public sealed class EstablishTenantTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Get_TenantById_ForOtherTenant_IsRefused()
     {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsAsync();
 
         using var client = CreateAuthenticatedClient(seed.TenantA);
 
@@ -86,8 +84,8 @@ public sealed class EstablishTenantTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Patch_TenantDisplayName_ThenGet_ReflectsUpdatedName()
     {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsAsync();
 
         using var client = CreateAuthenticatedClient(seed.TenantA);
 
@@ -128,9 +126,9 @@ public sealed class EstablishTenantTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Get_Tenants_WithoutAuthentication_IsRejectedAsUnauthenticated()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
 
-        using var client = _factory.CreateClient();
+        using var client = Factory.CreateClient();
 
         var response = await client.GetAsync("/tenants", TestContext.Current.CancellationToken);
 
@@ -148,8 +146,8 @@ public sealed class EstablishTenantTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Get_Tenants_ForAuthenticatedUser_ReturnsOnlyTenantsTheyAreMemberOf()
     {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsAsync();
 
         using var client = CreateAuthenticatedClient(seed.TenantA);
 
@@ -164,7 +162,7 @@ public sealed class EstablishTenantTests : IClassFixture<ApiFactory>
 
     private HttpClient CreateAuthenticatedClient(SeededTenant seededTenant)
     {
-        var client = _factory.CreateClient();
+        var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", seededTenant.EntraObjectId.ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", seededTenant.EntraTenantId.ToString());

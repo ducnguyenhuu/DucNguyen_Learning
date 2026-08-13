@@ -29,14 +29,12 @@ namespace Tenancy.IntegrationTests.Scenarios;
 /// the eventual-correct behavior per openapi.yaml/FR-020 so they go genuinely green once T078
 /// lands.
 /// </remarks>
-public sealed class InvitationIdempotencyTests : IClassFixture<ApiFactory>
+public sealed class InvitationIdempotencyTests : TenancyIntegrationTestBase
 {
-    private readonly ApiFactory _factory;
 
     public InvitationIdempotencyTests(SqlServerFixture sqlServerFixture, ApiFactory factory)
+        : base(sqlServerFixture, factory)
     {
-        _factory = factory;
-        _factory.UseConnectionString(sqlServerFixture.ConnectionString);
     }
 
     /// <summary>
@@ -49,7 +47,7 @@ public sealed class InvitationIdempotencyTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Post_Invitations_ReplayedWithSameKeyAndBody_ReturnsSameStatusAndBodyVerbatim_AndOnlyOneInvitationExists()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var administrator = await SeedSoleAdministratorTenantAsync();
 
         using var client = CreateAuthenticatedClient(administrator);
@@ -93,7 +91,7 @@ public sealed class InvitationIdempotencyTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Post_Invitations_SameKeyDifferentBody_ReturnsUnprocessableEntity()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var administrator = await SeedSoleAdministratorTenantAsync();
 
         using var client = CreateAuthenticatedClient(administrator);
@@ -139,7 +137,7 @@ public sealed class InvitationIdempotencyTests : IClassFixture<ApiFactory>
 
     private HttpClient CreateAuthenticatedClient(SeededTenant seededTenant)
     {
-        var client = _factory.CreateClient();
+        var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", seededTenant.EntraObjectId.ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", seededTenant.EntraTenantId.ToString());
@@ -155,7 +153,7 @@ public sealed class InvitationIdempotencyTests : IClassFixture<ApiFactory>
     /// </summary>
     private async Task<SeededTenant> SeedSoleAdministratorTenantAsync()
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
 
         var tenant = Tenant.Create("Sole Admin Invitation Tenant");

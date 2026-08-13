@@ -29,14 +29,12 @@ namespace Tenancy.IntegrationTests.Scenarios;
 /// is deliberately kept to a simple integration-level acknowledgement, with the real invariant
 /// tested at unit level by T067 and its concurrent variant by T068.
 /// </remarks>
-public sealed class InviteAndManageMembersTests : IClassFixture<ApiFactory>
+public sealed class InviteAndManageMembersTests : TenancyIntegrationTestBase
 {
-    private readonly ApiFactory _factory;
 
     public InviteAndManageMembersTests(SqlServerFixture sqlServerFixture, ApiFactory factory)
+        : base(sqlServerFixture, factory)
     {
-        _factory = factory;
-        _factory.UseConnectionString(sqlServerFixture.ConnectionString);
     }
 
     /// <summary>
@@ -49,8 +47,8 @@ public sealed class InviteAndManageMembersTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Post_Invitation_WithEmailAndRole_RecordsPendingInvitation()
     {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsAsync();
 
         using var client = CreateAuthenticatedClient(seed.TenantA);
         client.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
@@ -77,8 +75,8 @@ public sealed class InviteAndManageMembersTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Post_Invitation_ThenAccept_ThenListMembers_ShowsNewActiveMemberWithInvitedRole()
     {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsAsync();
 
         using var adminClient = CreateAuthenticatedClient(seed.TenantA);
         adminClient.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
@@ -96,7 +94,7 @@ public sealed class InviteAndManageMembersTests : IClassFixture<ApiFactory>
         inviteBody.Should().NotBeNull();
         inviteBody!.Token.Should().NotBeNullOrWhiteSpace();
 
-        using var inviteeClient = _factory.CreateClient();
+        using var inviteeClient = Factory.CreateClient();
         inviteeClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         inviteeClient.DefaultRequestHeaders.Add("X-Test-Oid", Guid.NewGuid().ToString());
         inviteeClient.DefaultRequestHeaders.Add("X-Test-Tid", Guid.NewGuid().ToString());
@@ -127,13 +125,13 @@ public sealed class InviteAndManageMembersTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Post_AcceptExpiredInvitation_IsRefused()
     {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsAsync();
 
         const string invitedEmail = "expired-invitee@tenant-a.example.com";
         await SeedExpiredInvitationAsync(seed.TenantA.TenantId, invitedEmail);
 
-        using var client = _factory.CreateClient();
+        using var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", Guid.NewGuid().ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", Guid.NewGuid().ToString());
@@ -155,13 +153,13 @@ public sealed class InviteAndManageMembersTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Post_AcceptInvitation_AsDifferentEmailThanInvited_IsRefused()
     {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsWithInvitationInTenantBAsync();
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsWithInvitationInTenantBAsync();
 
         // The invitation seeded by SeedTwoTenantsWithInvitationInTenantBAsync targets
         // invitee@tenant-b.example.com; here the caller authenticates as a different identity
         // entirely (Tenant A's member) and attempts to accept it anyway.
-        using var client = _factory.CreateClient();
+        using var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", seed.TenantA.EntraObjectId.ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", seed.TenantA.EntraTenantId.ToString());
@@ -185,10 +183,10 @@ public sealed class InviteAndManageMembersTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Delete_ActiveMember_ThenMemberAttemptsToReadTenantData_IsRefused()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var seed = await SeedAdministratorAndMemberAsync();
 
-        using var adminClient = _factory.CreateClient();
+        using var adminClient = Factory.CreateClient();
         adminClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         adminClient.DefaultRequestHeaders.Add("X-Test-Oid", seed.Administrator.EntraObjectId.ToString());
         adminClient.DefaultRequestHeaders.Add("X-Test-Tid", seed.Administrator.EntraTenantId.ToString());
@@ -205,7 +203,7 @@ public sealed class InviteAndManageMembersTests : IClassFixture<ApiFactory>
         // 404 the whole file already discloses — kept anyway so the assertion goes meaningfully
         // green (403/404 from real authorization, not ASP.NET Core's routing) once those
         // endpoints land.
-        using var removedMemberClient = _factory.CreateClient();
+        using var removedMemberClient = Factory.CreateClient();
         removedMemberClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         removedMemberClient.DefaultRequestHeaders.Add("X-Test-Oid", seed.Member.EntraObjectId.ToString());
         removedMemberClient.DefaultRequestHeaders.Add("X-Test-Tid", seed.Member.EntraTenantId.ToString());
@@ -226,10 +224,10 @@ public sealed class InviteAndManageMembersTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Delete_SoleAdministrator_IsRefused()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var seed = await SeedSoleAdministratorTenantAsync();
 
-        using var client = _factory.CreateClient();
+        using var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", seed.EntraObjectId.ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", seed.EntraTenantId.ToString());
@@ -243,7 +241,7 @@ public sealed class InviteAndManageMembersTests : IClassFixture<ApiFactory>
 
     private HttpClient CreateAuthenticatedClient(SeededTenant seededTenant)
     {
-        var client = _factory.CreateClient();
+        var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", seededTenant.EntraObjectId.ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", seededTenant.EntraTenantId.ToString());
@@ -257,7 +255,7 @@ public sealed class InviteAndManageMembersTests : IClassFixture<ApiFactory>
     /// </summary>
     private async Task SeedExpiredInvitationAsync(TenantId tenantId, string invitedEmail)
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
 
         db.CurrentTenantId = tenantId;
@@ -277,7 +275,7 @@ public sealed class InviteAndManageMembersTests : IClassFixture<ApiFactory>
     /// </summary>
     private async Task<SeededTenant> SeedSoleAdministratorTenantAsync()
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
 
         var tenant = Tenant.Create("Sole Admin Tenant");
@@ -307,7 +305,7 @@ public sealed class InviteAndManageMembersTests : IClassFixture<ApiFactory>
     /// </summary>
     private async Task<AdministratorAndMemberSeed> SeedAdministratorAndMemberAsync()
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
 
         var tenant = Tenant.Create("Admin And Member Tenant");

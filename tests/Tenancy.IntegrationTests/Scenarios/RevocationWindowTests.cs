@@ -54,14 +54,12 @@ namespace Tenancy.IntegrationTests.Scenarios;
 /// together end to end.
 /// </para>
 /// </remarks>
-public sealed class RevocationWindowTests : IClassFixture<ApiFactory>
+public sealed class RevocationWindowTests : TenancyIntegrationTestBase
 {
-    private readonly ApiFactory _factory;
 
     public RevocationWindowTests(SqlServerFixture sqlServerFixture, ApiFactory factory)
+        : base(sqlServerFixture, factory)
     {
-        _factory = factory;
-        _factory.UseConnectionString(sqlServerFixture.ConnectionString);
     }
 
     /// <summary>
@@ -74,7 +72,7 @@ public sealed class RevocationWindowTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task RemovedMember_FreshRequest_IsRefused_AndIndistinguishableFromNeverAMember()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var seed = await SeedAdministratorAndMemberAsync();
 
         using var adminClient = CreateTestSchemeClient(seed.Administrator);
@@ -102,7 +100,7 @@ public sealed class RevocationWindowTests : IClassFixture<ApiFactory>
 
         // A caller who was genuinely never a member of this tenant, making the exact same
         // request.
-        using var strangerClient = _factory.CreateClient();
+        using var strangerClient = Factory.CreateClient();
         strangerClient.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("TestScheme", "test");
         strangerClient.DefaultRequestHeaders.Add("X-Test-Oid", Guid.NewGuid().ToString());
@@ -138,13 +136,13 @@ public sealed class RevocationWindowTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task AlreadyIssuedToken_ReplayedAfterRemoval_IsNotRejectedOnTokenGrounds()
     {
-        await _factory.InitializeDatabaseAsync();
+        await Factory.InitializeDatabaseAsync();
         var seed = await SeedAdministratorAndMemberAsync();
 
         // Mint a genuinely valid, unexpired, real RSA-signed JWT for the member BEFORE removal —
         // the same harness/host trust relationship T047's TokenValidationTests uses, so this
         // token goes through the real JwtBearer pipeline, not TestAuthHandler.
-        var memberToken = _factory.TokenHarness.MintToken(
+        var memberToken = Factory.TokenHarness.MintToken(
             tid: seed.Member.EntraTenantId,
             oid: seed.Member.EntraObjectId,
             audience: ApiFactory.ExpectedAudience,
@@ -163,7 +161,7 @@ public sealed class RevocationWindowTests : IClassFixture<ApiFactory>
         var deleteResponse = await adminClient.SendAsync(deleteRequest, TestContext.Current.CancellationToken);
         deleteResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        using var replayClient = _factory.CreateClient();
+        using var replayClient = Factory.CreateClient();
         replayClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", memberToken);
 
         var replayResponse = await replayClient.GetAsync(
@@ -178,7 +176,7 @@ public sealed class RevocationWindowTests : IClassFixture<ApiFactory>
 
     private HttpClient CreateTestSchemeClient(SeededTenant seededTenant)
     {
-        var client = _factory.CreateClient();
+        var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", seededTenant.EntraObjectId.ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", seededTenant.EntraTenantId.ToString());
@@ -195,7 +193,7 @@ public sealed class RevocationWindowTests : IClassFixture<ApiFactory>
     /// </summary>
     private async Task<EntityTagHeaderValue> GetMembershipETagAsync(TenantId tenantId, UserId userId)
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
         db.CurrentTenantId = tenantId;
 
@@ -215,7 +213,7 @@ public sealed class RevocationWindowTests : IClassFixture<ApiFactory>
     /// </summary>
     private async Task<AdministratorAndMemberSeed> SeedAdministratorAndMemberAsync()
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
 
         var tenant = Tenant.Create("Revocation Window Tenant");

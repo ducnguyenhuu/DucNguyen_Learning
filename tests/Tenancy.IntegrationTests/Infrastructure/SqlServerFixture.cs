@@ -3,6 +3,17 @@ using Xunit;
 
 [assembly: AssemblyFixture(typeof(Tenancy.IntegrationTests.Infrastructure.SqlServerFixture))]
 
+// All test classes in this assembly share one SQL Server Testcontainer/database (via
+// SqlServerFixture's single connection string). Once ResetDatabaseAsync (wired in via
+// TenancyIntegrationTestBase.InitializeAsync) truncates every table between tests, letting
+// different test classes' collections run in parallel — xUnit v3's default — means one class's
+// reset can wipe rows a different, concurrently-running class's test is mid-flight relying on,
+// which is far more destructive than the pre-reset leftover-data collisions this whole fix
+// exists to solve. Every test class in this assembly implicitly shares state (the database), so
+// they must run serialized against each other; only test methods *within* the same class were
+// ever safe to interleave, and this project doesn't rely on even that.
+[assembly: CollectionBehavior(DisableTestParallelization = true)]
+
 namespace Tenancy.IntegrationTests.Infrastructure;
 
 /// <summary>
