@@ -11,16 +11,21 @@ namespace Tenancy.IntegrationTests.Isolation;
 /// <see cref="TestAuthHandler"/>) and attempts to read a resource scoped to Tenant B.
 /// </summary>
 /// <remarks>
-/// <b>What this test proves right now, and what it doesn't.</b> No tenant-scoped endpoints exist
-/// yet (Phase 3+ adds them), so the request below hits a route that simply does not exist in
-/// <c>Program.cs</c>'s route table. The plain ASP.NET Core "no matching endpoint" 404 asserted
-/// here is a routing-table fact, not an isolation-check fact — it would look identical whether
-/// or not tenant isolation were ever implemented correctly. This red only proves the route is
-/// absent. T060 (after Phase 3 adds the real <c>/tenants/{tenantId}/memberships</c> endpoint) is
-/// the task that turns this into a real assertion: first confirming the *same* 404 now comes from
-/// a membership check rather than a missing route, then deliberately re-breaking isolation to
-/// confirm this test actually catches a real cross-tenant leak. Until T060 lands, treat this test
-/// as scaffolding, not as isolation coverage.
+/// <b>What this test proves right now, and what it doesn't.</b> The
+/// <c>/tenants/{tenantId}/memberships</c> route this test targets does not exist yet in
+/// <c>Program.cs</c>'s route table (a separate, later slice), so the 404 asserted here is still a
+/// plain ASP.NET Core "no matching endpoint" routing-table fact, not an isolation-check fact — it
+/// would look identical whether or not tenant isolation were ever implemented correctly. This test
+/// therefore remains scaffolding, not isolation coverage, for this specific route. T060 has since
+/// proven the isolation mechanism itself for the sibling <c>/tenants/{tenantId}</c> endpoint (see
+/// <see cref="TenantEndpointIsolationTests.Get_TenantById_ForOtherTenant_IsRefused_AndIndistinguishableFromNonExistentTenant"/>):
+/// disabling <c>TenancyDbContext</c>'s <c>"TenantFilter"</c> caused that test to fail with an
+/// actual <c>200</c> returning Tenant B's real data (traced to
+/// <c>TenantContextResolutionMiddleware</c>'s unscoped <c>Memberships</c> lookup incorrectly
+/// resolving a caller's own membership as valid for a tenant they don't belong to), and restoring
+/// the filter returned it to green — see <c>.superpowers/sdd/tasks/task-60-report.md</c> for the
+/// literal before/during/after output. This test will get the same treatment once the
+/// memberships endpoint exists.
 /// </remarks>
 public sealed class CrossTenantReadRefusedTests : IClassFixture<ApiFactory>
 {

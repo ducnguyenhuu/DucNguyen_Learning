@@ -12,15 +12,21 @@ namespace Tenancy.IntegrationTests.Isolation;
 /// <c>PATCH /tenants/{tenantId}</c>).
 /// </summary>
 /// <remarks>
-/// <b>What this file proves right now, and what it doesn't.</b> Same caveat as T043's
-/// <see cref="CrossTenantReadRefusedTests"/>: none of these endpoints exist yet (T058 adds
-/// them), so every request below hits a route absent from <c>Program.cs</c>'s route table.
-/// The "not found" responses asserted here are plain ASP.NET Core routing-table facts, not
-/// membership-check facts — they would look identical whether or not tenant isolation is ever
-/// implemented correctly. This is expected and already understood (per T043's adjudication);
-/// T060 is the task that turns the wrong-tenant/nonexistent-tenant assertions into real proof
-/// by first confirming the 404 survives once the route exists for a genuine membership-check
-/// reason, then deliberately breaking isolation to confirm the test catches a real leak.
+/// <b>What this file proves, and how it was proven (T060).</b> All four endpoints now exist
+/// (T058/T059). T060 confirmed that <see cref="Get_TenantById_ForOtherTenant_IsRefused_AndIndistinguishableFromNonExistentTenant"/>'s
+/// (and, secondarily, <see cref="Patch_TenantById_ForOtherTenant_IsRefused_AndIndistinguishableFromNonExistentTenant"/>'s)
+/// 404 comes from a genuine membership check, not a missing route: temporarily disabling
+/// <c>TenancyDbContext</c>'s <c>"TenantFilter"</c> global query filter caused
+/// <c>Get_TenantById...</c> to fail with an actual <c>HttpStatusCode.OK</c> (200) carrying Tenant
+/// B's real <c>displayName</c> — traced via the EF Core command log to
+/// <c>TenantContextResolutionMiddleware</c>'s unscoped <c>Memberships</c> lookup incorrectly
+/// treating the caller's own (real, but wrong-tenant) active membership as valid for Tenant B —
+/// and <c>Patch_TenantById...</c> to fail with <c>428 PreconditionRequired</c> instead of 404
+/// (i.e. it also reached real per-tenant mutation logic against Tenant B's actual record).
+/// Restoring the filter returned both to green. See
+/// <c>.superpowers/sdd/tasks/task-60-report.md</c> for the full literal before/during/after test
+/// output. This is what distinguishes this suite from scaffolding that merely detects an absent
+/// route.
 /// </remarks>
 public sealed class TenantEndpointIsolationTests : IClassFixture<ApiFactory>
 {
