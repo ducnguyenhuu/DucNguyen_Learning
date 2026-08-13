@@ -1,0 +1,58 @@
+using Tenancy.Application.Abstractions;
+using Tenancy.Domain.Abstractions;
+using Tenancy.Domain.Tenants;
+
+namespace Tenancy.Application.Tenants;
+
+/// <summary>
+/// Renames the <see cref="Tenant"/> the caller is currently scoped to, for
+/// <c>PATCH /tenants/{tenantId}</c> (Administrator-only per the contract).
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>No role check here:</b> per ADR-017 step 5, "Role authorization is evaluated against that
+/// membership, not against the token" — that check is a cross-cutting concern layered on top
+/// (likely T058's endpoint or a filter), not this use case's job. This use case is pure business
+/// logic: fetch, rename, save.
+/// </para>
+/// <para>
+/// <b>No concurrency handling here either:</b> this does not implement <c>If-Match</c>/ETag
+/// checking (that's T057/T058). EF Core's own optimistic concurrency, via
+/// <see cref="Tenant.RowVersion"/> (T025), throws <c>DbUpdateConcurrencyException</c> naturally
+/// if the row changed since it was loaded — this use case doesn't translate that into an HTTP
+/// status code, that's the HTTP layer's job.
+/// </para>
+/// </remarks>
+public class RenameTenant
+{
+    private readonly ITenantRepository _tenantRepository;
+
+    public RenameTenant(ITenantRepository tenantRepository)
+    {
+        _tenantRepository = tenantRepository;
+    }
+
+    /// <summary>
+    /// Renames the ambient tenant to <paramref name="newDisplayName"/> and persists the change.
+    /// Returns the updated <see cref="Tenant"/>, or <c>null</c> if it could not be found (which
+    /// would indicate a bug further upstream, not this use case's concern).
+    /// </summary>
+    /// <exception cref="DomainException">
+    /// Thrown by <see cref="Tenant.Rename"/> when <paramref name="newDisplayName"/> is null,
+    /// empty, or whitespace.
+    /// </exception>
+    public async Task<Tenant?> ExecuteAsync(string newDisplayName, CancellationToken ct)
+    {
+        var tenant = await _tenantRepository.GetCurrentAsync(ct);
+        if (tenant is null)
+        {
+            return null;
+        }
+
+        tenant.Rename(newDisplayName);
+
+        await _tenantRepository.SaveAsync(tenant, ct);
+
+        return tenant;
+    }
+}

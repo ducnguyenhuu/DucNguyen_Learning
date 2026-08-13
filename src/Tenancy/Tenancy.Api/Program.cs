@@ -78,6 +78,14 @@ builder.Services.AddScoped<IMembershipDirectory, MembershipDirectory>();
 builder.Services.AddScoped<ICreateTenantRepository, CreateTenantRepository>();
 builder.Services.AddScoped<CreateTenant>();
 
+// The third repository port in the codebase (T055) — one shared port for the read/rename-shaped
+// GetTenant/RenameTenant/ListTenants use cases, scoped to match TenancyDbContext's own scoped
+// lifetime.
+builder.Services.AddScoped<ITenantRepository, TenantRepository>();
+builder.Services.AddScoped<GetTenant>();
+builder.Services.AddScoped<RenameTenant>();
+builder.Services.AddScoped<ListTenants>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
