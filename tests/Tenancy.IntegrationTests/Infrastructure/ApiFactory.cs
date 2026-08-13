@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Respawn;
 using Tenancy.Domain.Abstractions;
+using Tenancy.Domain.Invitations;
 using Tenancy.Domain.Memberships;
 using Tenancy.Domain.Tenants;
 using Tenancy.Domain.Users;
@@ -380,6 +381,34 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             User: new SharedUserSeed(sharedUser.Id, sharedUser.EntraTenantId, sharedUser.EntraObjectId));
     }
 
+    /// <summary>
+    /// Seeds the same two-tenant/two-member fixture as <see cref="SeedTwoTenantsAsync"/>, plus
+    /// one genuinely-persisted, still-<see cref="InvitationStatus.Pending"/>
+    /// <see cref="Invitation"/> in Tenant B — the fixture T062's invitation-isolation tests
+    /// (invite/list/revoke) build on so that a cross-tenant "revoke Tenant B's invitation via
+    /// Tenant A's route" attempt targets an invitation id that legitimately exists, rather than
+    /// one that is merely absent.
+    /// </summary>
+    public async Task<TwoTenantSeedWithInvitation> SeedTwoTenantsWithInvitationInTenantBAsync()
+    {
+        var seed = await SeedTwoTenantsAsync();
+
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
+
+        db.CurrentTenantId = seed.TenantB.TenantId;
+        var invitation = Invitation.Create(
+            seed.TenantB.TenantId,
+            new EmailAddress("invitee@tenant-b.example.com"),
+            Role.Member,
+            tokenHash: "test-token-hash",
+            expiresAtUtc: DateTimeOffset.UtcNow.AddDays(7));
+        db.Invitations.Add(invitation);
+        await db.SaveChangesAsync();
+
+        return new TwoTenantSeedWithInvitation(seed.TenantA, seed.TenantB, invitation.Id);
+    }
+
     /// <inheritdoc />
     protected override void Dispose(bool disposing)
     {
@@ -420,6 +449,16 @@ public sealed record SeededTenant(
 /// cross-tenant read attempt against Tenant B.
 /// </summary>
 public sealed record TwoTenantSeed(SeededTenant TenantA, SeededTenant TenantB);
+
+/// <summary>
+/// The same two-tenant/two-member fixture as <see cref="TwoTenantSeed"/>, plus the id of a
+/// genuinely-persisted, still-pending <see cref="Invitation"/> that legitimately exists in
+/// Tenant B, as produced by <see cref="ApiFactory.SeedTwoTenantsWithInvitationInTenantBAsync"/>.
+/// </summary>
+public sealed record TwoTenantSeedWithInvitation(
+    SeededTenant TenantA,
+    SeededTenant TenantB,
+    InvitationId InvitationId);
 
 /// <summary>
 /// One tenant, and the shared user's active membership id within it, as produced by
