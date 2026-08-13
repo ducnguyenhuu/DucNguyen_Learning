@@ -87,22 +87,35 @@ public sealed class ForbiddenVersusNotFoundTests : IClassFixture<ApiFactory>
     {
         await _factory.InitializeDatabaseAsync();
         var seed = await SeedAdministratorAndMemberAsync();
+        var otherSeed = await SeedAdministratorAndMemberAsync();
 
         using var memberClient = CreateAuthenticatedClient(seed.Member);
-        memberClient.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
 
-        var response = await memberClient.PostAsJsonAsync(
-            $"/tenants/{seed.Administrator.TenantId.Value}/invitations",
-            new { email = "invited-by-wrong-role-member@forbidden-vs-not-found.example.com", role = "Member" },
-            TestContext.Current.CancellationToken);
+        var response = await PostInvitationAsync(memberClient, seed.Administrator.TenantId.Value);
+
+        // Reference: a different wrong-role member, refused for the identical operation against
+        // their own (different) tenant — same caller-shape (active member, wrong role, own
+        // tenant), different identity and tenant entirely. If the 403 body is genuinely generic,
+        // it must be byte-for-byte identical regardless of which tenant/caller produced it.
+        using var otherMemberClient = CreateAuthenticatedClient(otherSeed.Member);
+        var referenceResponse = await PostInvitationAsync(
+            otherMemberClient, otherSeed.Administrator.TenantId.Value);
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        referenceResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
-        // The refusal must not leak tenant-specific data (display name, member identities) —
-        // a 403 for a genuine active member proves nothing new about the tenant's existence
-        // (the caller already knows it, having proven membership), but it must still not carry
-        // more information than a generic "forbidden" response would.
         var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var referenceBody = await referenceResponse.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken);
+
+        // Primary rigor check — byte-for-byte indistinguishability, mirroring the 404 tests'
+        // technique: a 403 for this specific wrong-role-member-vs-tenant pairing must be
+        // identical to a 403 produced by an entirely different wrong-role member against an
+        // entirely different tenant. Any divergence would mean the response is leaking
+        // caller- or tenant-specific detail through the "generic" refusal.
+        body.Should().Be(referenceBody);
+
+        // Belt-and-suspenders substring checks retained for readability/failure diagnostics.
         body.Should().NotContain(seed.Administrator.EntraObjectId.ToString());
         body.Should().NotContain("Administrator And Member Tenant (403 vs 404)");
     }
