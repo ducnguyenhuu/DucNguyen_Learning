@@ -4,6 +4,7 @@ using Microsoft.Identity.Web;
 using Tenancy.Api.ErrorHandling;
 using Tenancy.Api.Middleware;
 using Tenancy.Application.Abstractions;
+using Tenancy.Application.Tenants;
 using Tenancy.Application.Users;
 using Tenancy.Infrastructure.Persistence;
 using Tenancy.Infrastructure.Persistence.Audited;
@@ -71,6 +72,11 @@ builder.Services.AddScoped<EnsureUserProvisioned>();
 // The one sanctioned cross-tenant bypass in the codebase (T037, ADR-017) — scoped to match
 // TenancyDbContext's own scoped lifetime, following T036's registration pattern.
 builder.Services.AddScoped<IMembershipDirectory, MembershipDirectory>();
+
+// The second repository port in the codebase (T054), following T036's minimal per-use-case
+// pattern — scoped to match TenancyDbContext's own scoped lifetime.
+builder.Services.AddScoped<ICreateTenantRepository, CreateTenantRepository>();
+builder.Services.AddScoped<CreateTenant>();
 
 var app = builder.Build();
 
