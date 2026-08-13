@@ -20,6 +20,10 @@
          which has a known high-severity vulnerability (GHSA-q939-rpr3-3284). Pin to the
          patched 2026.0.0 release directly. -->
     <PackageReference Include="SSH.NET" />
+    <!-- Database reset between tests (T042) without re-running migrations per test. -->
+    <PackageReference Include="Respawn" />
+    <!-- WebApplicationFactory<Program> — the in-process test host (T042). -->
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
   </ItemGroup>
 
   <ItemGroup>

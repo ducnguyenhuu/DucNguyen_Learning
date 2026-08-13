@@ -22,4 +22,10 @@
     <ProjectReference Include="..\Tenancy.Infrastructure\Tenancy.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Lets Tenancy.IntegrationTests' ApiFactory (T042) construct
+         WebApplicationFactory<Program> and reach internal test-seam types if ever needed. -->
+    <InternalsVisibleTo Include="Tenancy.IntegrationTests" />
+  </ItemGroup>
+
 </Project>

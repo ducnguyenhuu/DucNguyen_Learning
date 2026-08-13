@@ -128,3 +128,15 @@ record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
 {
     public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
 }
+
+/// <summary>
+/// The implicit top-level-statement <c>Program</c> class is <c>internal</c> by default, which
+/// hides it from other assemblies. Tenancy.IntegrationTests' <c>ApiFactory</c> (T042) needs
+/// <c>WebApplicationFactory&lt;Program&gt;</c> to reference this exact type, so it is declared
+/// <c>public partial</c> here — combined with the <c>InternalsVisibleTo</c> below, which is the
+/// belt-and-suspenders option since some tooling still expects it even when the type itself is
+/// public.
+/// </summary>
+public partial class Program
+{
+}
