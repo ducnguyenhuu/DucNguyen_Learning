@@ -177,27 +177,41 @@ public sealed class InviteAndManageMembersTests : IClassFixture<ApiFactory>
 
     /// <summary>
     /// Scenario 5: an authenticated tenant administrator removes an active member; that member
-    /// immediately loses the ability to read or modify any of the tenant's data. Exercised as
-    /// remove-then-attempt-read, both against the same tenant.
+    /// immediately loses the ability to read or modify any of the tenant's data. The caller here
+    /// is a genuine Administrator removing a *different* person's membership — not self-removal
+    /// by a non-admin — per spec.md's Scenario 5 wording. Exercised as remove-then-attempt-read,
+    /// both against the same tenant.
     /// </summary>
     [Fact]
     public async Task Delete_ActiveMember_ThenMemberAttemptsToReadTenantData_IsRefused()
     {
         await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsAsync();
+        var seed = await SeedAdministratorAndMemberAsync();
 
-        using var adminClient = CreateAuthenticatedClient(seed.TenantA);
+        using var adminClient = _factory.CreateClient();
+        adminClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
+        adminClient.DefaultRequestHeaders.Add("X-Test-Oid", seed.Administrator.EntraObjectId.ToString());
+        adminClient.DefaultRequestHeaders.Add("X-Test-Tid", seed.Administrator.EntraTenantId.ToString());
 
         var deleteResponse = await adminClient.DeleteAsync(
-            $"/tenants/{seed.TenantA.TenantId.Value}/members/{seed.TenantA.UserId.Value}",
+            $"/tenants/{seed.Administrator.TenantId.Value}/members/{seed.Member.UserId.Value}",
             TestContext.Current.CancellationToken);
 
         deleteResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        using var removedMemberClient = CreateAuthenticatedClient(seed.TenantA);
+        // Read-side check: the just-removed member attempts to read tenant data and is refused.
+        // Since no auth/authorization middleware distinguishes an ex-member from a stranger yet
+        // (that's what T075+ implements), this currently proves nothing beyond the absent-route
+        // 404 the whole file already discloses — kept anyway so the assertion goes meaningfully
+        // green (403/404 from real authorization, not ASP.NET Core's routing) once those
+        // endpoints land.
+        using var removedMemberClient = _factory.CreateClient();
+        removedMemberClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
+        removedMemberClient.DefaultRequestHeaders.Add("X-Test-Oid", seed.Member.EntraObjectId.ToString());
+        removedMemberClient.DefaultRequestHeaders.Add("X-Test-Tid", seed.Member.EntraTenantId.ToString());
 
         var readResponse = await removedMemberClient.GetAsync(
-            $"/tenants/{seed.TenantA.TenantId.Value}",
+            $"/tenants/{seed.Administrator.TenantId.Value}",
             TestContext.Current.CancellationToken);
 
         readResponse.StatusCode.Should().NotBe(HttpStatusCode.OK);
@@ -284,5 +298,51 @@ public sealed class InviteAndManageMembersTests : IClassFixture<ApiFactory>
         return new SeededTenant(tenant.Id, admin.Id, membership.Id, admin.EntraTenantId, admin.EntraObjectId);
     }
 
+    /// <summary>
+    /// Seeds a single tenant with two distinct active members: a <see cref="Role.Administrator"/>
+    /// (the caller) and a separate <see cref="Role.Member"/> (the target being removed). Scenario 5
+    /// needs a genuine admin-removes-someone-else narrative, not self-removal by a non-admin, which
+    /// is why this doesn't reuse <see cref="ApiFactory.SeedTwoTenantsAsync"/> (its two tenants each
+    /// have only one <see cref="Role.Member"/>, no administrator to act as caller).
+    /// </summary>
+    private async Task<AdministratorAndMemberSeed> SeedAdministratorAndMemberAsync()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
+
+        var tenant = Tenant.Create("Admin And Member Tenant");
+        var admin = User.Create(
+            entraTenantId: Guid.CreateVersion7(),
+            entraObjectId: Guid.CreateVersion7(),
+            email: new EmailAddress("admin@admin-and-member-tenant.example.com"));
+        var member = User.Create(
+            entraTenantId: Guid.CreateVersion7(),
+            entraObjectId: Guid.CreateVersion7(),
+            email: new EmailAddress("member@admin-and-member-tenant.example.com"));
+
+        db.Tenants.Add(tenant);
+        db.Users.Add(admin);
+        db.Users.Add(member);
+        await db.SaveChangesAsync();
+
+        db.CurrentTenantId = tenant.Id;
+        var adminMembership = Membership.Create(tenant.Id, admin.Id, Role.Administrator);
+        var memberMembership = Membership.Create(tenant.Id, member.Id, Role.Member);
+        db.Memberships.Add(adminMembership);
+        db.Memberships.Add(memberMembership);
+        await db.SaveChangesAsync();
+
+        return new AdministratorAndMemberSeed(
+            new SeededTenant(tenant.Id, admin.Id, adminMembership.Id, admin.EntraTenantId, admin.EntraObjectId),
+            new SeededTenant(tenant.Id, member.Id, memberMembership.Id, member.EntraTenantId, member.EntraObjectId));
+    }
+
     private sealed record InvitationResponse(string Token);
+
+    /// <summary>
+    /// A single tenant seeded with two distinct active members: an Administrator (the caller) and
+    /// a separate Member (the target). Both <see cref="SeededTenant"/> values share the same
+    /// <c>TenantId</c>; only the user/membership/Entra identity fields differ.
+    /// </summary>
+    private sealed record AdministratorAndMemberSeed(SeededTenant Administrator, SeededTenant Member);
 }
