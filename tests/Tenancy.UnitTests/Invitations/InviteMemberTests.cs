@@ -70,6 +70,15 @@ public class InviteMemberTests
 
         public Task SaveAcceptedAsync(Invitation invitation, Tenancy.Domain.Memberships.Membership membership, CancellationToken ct) =>
             throw new NotSupportedException("Not used by InviteMemberTests.");
+
+        public Task<IReadOnlyList<Invitation>> GetAllForCurrentTenantAsync(CancellationToken ct) =>
+            throw new NotSupportedException("Not used by InviteMemberTests.");
+
+        public Task<Invitation?> GetByIdForCurrentTenantAsync(InvitationId id, CancellationToken ct) =>
+            throw new NotSupportedException("Not used by InviteMemberTests.");
+
+        public Task SaveAsync(Invitation invitation, CancellationToken ct) =>
+            throw new NotSupportedException("Not used by InviteMemberTests.");
     }
 
     private static InviteMember CreateUseCase(

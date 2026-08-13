@@ -62,6 +62,15 @@ public class AcceptInvitationTests
             SavedMembership = membership;
             return Task.CompletedTask;
         }
+
+        public Task<IReadOnlyList<Invitation>> GetAllForCurrentTenantAsync(CancellationToken ct) =>
+            throw new NotSupportedException("Not used by AcceptInvitationTests.");
+
+        public Task<Invitation?> GetByIdForCurrentTenantAsync(InvitationId id, CancellationToken ct) =>
+            throw new NotSupportedException("Not used by AcceptInvitationTests.");
+
+        public Task SaveAsync(Invitation invitation, CancellationToken ct) =>
+            throw new NotSupportedException("Not used by AcceptInvitationTests.");
     }
 
     private sealed class FakeUserRepository : IUserRepository

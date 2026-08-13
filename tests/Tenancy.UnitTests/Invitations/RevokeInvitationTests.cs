@@ -1,0 +1,132 @@
+using AwesomeAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
+using Tenancy.Application.Abstractions;
+using Tenancy.Application.Invitations;
+using Tenancy.Domain.Abstractions;
+using Tenancy.Domain.Invitations;
+using Tenancy.Domain.Memberships;
+using Xunit;
+
+namespace Tenancy.UnitTests.Invitations;
+
+/// <summary>
+/// Unit tests for <see cref="RevokeInvitation"/> (T073), using hand-rolled in-memory fakes
+/// following <c>InviteMemberTests</c>' (T071) established convention.
+/// </summary>
+public class RevokeInvitationTests
+{
+    private static readonly TenantId TestTenantId = new(Guid.CreateVersion7());
+    private static readonly DateTimeOffset FixedNow = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+    private sealed class FakeTenantContext : ITenantContext
+    {
+        public TenantId TenantId { get; set; } = TestTenantId;
+
+        public Role Role { get; set; } = Role.Administrator;
+    }
+
+    private sealed class FakeInvitationRepository : IInvitationRepository
+    {
+        public Invitation? StoredInvitation { get; set; }
+
+        public Invitation? SavedInvitation { get; private set; }
+
+        public Task<bool> IsActiveMemberAsync(EmailAddress email, CancellationToken ct) =>
+            throw new NotSupportedException("Not used by RevokeInvitationTests.");
+
+        public Task<bool> HasPendingInvitationAsync(EmailAddress email, CancellationToken ct) =>
+            throw new NotSupportedException("Not used by RevokeInvitationTests.");
+
+        public Task AddAsync(Invitation invitation, CancellationToken ct) =>
+            throw new NotSupportedException("Not used by RevokeInvitationTests.");
+
+        public Task<Invitation?> FindByTokenHashAsync(string tokenHashBase64, CancellationToken ct) =>
+            throw new NotSupportedException("Not used by RevokeInvitationTests.");
+
+        public Task SaveAcceptedAsync(Invitation invitation, Membership membership, CancellationToken ct) =>
+            throw new NotSupportedException("Not used by RevokeInvitationTests.");
+
+        public Task<IReadOnlyList<Invitation>> GetAllForCurrentTenantAsync(CancellationToken ct) =>
+            throw new NotSupportedException("Not used by RevokeInvitationTests.");
+
+        public Task<Invitation?> GetByIdForCurrentTenantAsync(InvitationId id, CancellationToken ct) =>
+            Task.FromResult(StoredInvitation is not null && StoredInvitation.Id == id ? StoredInvitation : null);
+
+        public Task SaveAsync(Invitation invitation, CancellationToken ct)
+        {
+            SavedInvitation = invitation;
+            return Task.CompletedTask;
+        }
+    }
+
+    private static RevokeInvitation CreateUseCase(FakeInvitationRepository repository) =>
+        new(repository, new FakeTenantContext(), NullLogger<RevokeInvitation>.Instance);
+
+    private static Invitation CreatePendingInvitation() =>
+        Invitation.Create(
+            TestTenantId,
+            new EmailAddress("invitee@example.com"),
+            Role.Member,
+            "some-hash",
+            FixedNow + TimeSpan.FromDays(7));
+
+    [Fact]
+    public async Task ExecuteAsync_HappyPath_TransitionsToRevoked_AndSaves()
+    {
+        var invitation = CreatePendingInvitation();
+        var repository = new FakeInvitationRepository { StoredInvitation = invitation };
+        var useCase = CreateUseCase(repository);
+
+        var result = await useCase.ExecuteAsync(invitation.Id, UserId.New(), CancellationToken.None);
+
+        result.Kind.Should().Be(RevokeInvitationResultKind.Success);
+        invitation.Status.Should().Be(InvitationStatus.Revoked);
+        repository.SavedInvitation.Should().BeSameAs(invitation);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_UnknownId_ReturnsNotFound_AndNeverSaves()
+    {
+        var repository = new FakeInvitationRepository();
+        var useCase = CreateUseCase(repository);
+
+        var result = await useCase.ExecuteAsync(InvitationId.New(), UserId.New(), CancellationToken.None);
+
+        result.Kind.Should().Be(RevokeInvitationResultKind.NotFound);
+        repository.SavedInvitation.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_AlreadyAccepted_ReturnsConflict_AndNeverSaves()
+    {
+        var invitation = CreatePendingInvitation();
+        invitation.Accept(new FixedClock());
+        var repository = new FakeInvitationRepository { StoredInvitation = invitation };
+        var useCase = CreateUseCase(repository);
+
+        var result = await useCase.ExecuteAsync(invitation.Id, UserId.New(), CancellationToken.None);
+
+        result.Kind.Should().Be(RevokeInvitationResultKind.Conflict);
+        invitation.Status.Should().Be(InvitationStatus.Accepted);
+        repository.SavedInvitation.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_AlreadyRevoked_ReturnsConflict_AndNeverSaves()
+    {
+        var invitation = CreatePendingInvitation();
+        invitation.Revoke();
+        var repository = new FakeInvitationRepository { StoredInvitation = invitation };
+        var useCase = CreateUseCase(repository);
+
+        var result = await useCase.ExecuteAsync(invitation.Id, UserId.New(), CancellationToken.None);
+
+        result.Kind.Should().Be(RevokeInvitationResultKind.Conflict);
+        repository.SavedInvitation.Should().BeNull();
+    }
+
+    private sealed class FixedClock : IClock
+    {
+        public DateTimeOffset UtcNow => FixedNow;
+    }
+}

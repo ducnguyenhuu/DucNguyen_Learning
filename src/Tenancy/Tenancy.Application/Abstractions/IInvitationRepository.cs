@@ -103,4 +103,38 @@ public interface IInvitationRepository
     /// CLR default.
     /// </summary>
     Task SaveAcceptedAsync(Invitation invitation, Membership membership, CancellationToken ct);
+
+    /// <summary>
+    /// Returns every <see cref="InvitationStatus.Pending"/>-stored <see cref="Invitation"/> in the
+    /// current tenant, for <c>GET /tenants/{tenantId}/invitations</c> (T073). Scoped implicitly by
+    /// the ambient <c>"TenantFilter"</c> query filter — no explicit <c>TenantId</c> parameter
+    /// needed, mirroring every other method on this port.
+    /// </summary>
+    /// <remarks>
+    /// Filters to <c>Status == InvitationStatus.Pending</c> only — per the contract's "List
+    /// pending invitations" summary (FR-014), <c>Accepted</c>/<c>Revoked</c> rows are not
+    /// returned. Note that some rows returned here may already be expired by wall-clock time even
+    /// though their stored <see cref="Invitation.Status"/> is still <c>Pending</c> — expiry is
+    /// derived, not swept (data-model.md) — so <c>ListInvitations</c> (T073) recomputes the
+    /// effective status against <see cref="IClock"/> before returning, mirroring
+    /// <see cref="Invitation.Accept"/>'s own lazy-expiry-check pattern.
+    /// </remarks>
+    Task<IReadOnlyList<Invitation>> GetAllForCurrentTenantAsync(CancellationToken ct);
+
+    /// <summary>
+    /// Finds the <see cref="Invitation"/> with the given <paramref name="id"/> in the current
+    /// tenant, or <see langword="null"/> if none exists (either because no invitation with that id
+    /// exists at all, or because one exists but belongs to a different tenant — both
+    /// indistinguishable here, same as every other tenant-scoped lookup on this port). For
+    /// <c>DELETE /tenants/{tenantId}/invitations/{invitationId}</c> (T073).
+    /// </summary>
+    Task<Invitation?> GetByIdForCurrentTenantAsync(InvitationId id, CancellationToken ct);
+
+    /// <summary>
+    /// Persists an already-mutated, single <paramref name="invitation"/> (e.g. after
+    /// <see cref="Invitation.Revoke"/>). Unlike <see cref="SaveAcceptedAsync"/>, this only ever
+    /// touches the one <see cref="Invitation"/> aggregate — no second aggregate is involved, so no
+    /// atomicity concern beyond EF Core's own single-<c>SaveChangesAsync</c> call.
+    /// </summary>
+    Task SaveAsync(Invitation invitation, CancellationToken ct);
 }
