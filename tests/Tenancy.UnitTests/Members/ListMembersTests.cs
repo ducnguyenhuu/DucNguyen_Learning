@@ -36,6 +36,9 @@ public class ListMembersTests
 
         public Task RemoveMembershipAsync(MembershipId membershipId, CancellationToken ct) =>
             throw new NotSupportedException("Not used by ListMembersTests.");
+
+        public Task SaveAsync(Membership membership, CancellationToken ct) =>
+            throw new NotSupportedException("Not used by ListMembersTests.");
     }
 
     private sealed class FakeUserRepository : IUserRepository

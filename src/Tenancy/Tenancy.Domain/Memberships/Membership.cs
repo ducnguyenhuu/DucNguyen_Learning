@@ -43,7 +43,7 @@ public class Membership : ITenantOwned
     /// <summary>
     /// The role granted to the user within the tenant.
     /// </summary>
-    public Role Role { get; }
+    public Role Role { get; private set; }
 
     /// <summary>
     /// The lifecycle state of the membership.
@@ -97,5 +97,24 @@ public class Membership : ITenantOwned
 
         Status = MembershipStatus.Removed;
         RemovedAtUtc = clock.UtcNow;
+    }
+
+    /// <summary>
+    /// Changes the role granted by this membership to <paramref name="newRole"/>.
+    /// </summary>
+    /// <remarks>
+    /// Unlike <see cref="Accept"/>/<see cref="Revoke"/>'s status-transition guards, this method
+    /// does not itself throw <see cref="DomainException"/> for the last-administrator invariant
+    /// (FR-015) — that check depends on the tenant's full set of active memberships, which this
+    /// entity does not have access to, so it is enforced upstream by
+    /// <see cref="Tenancy.Domain.Tenants.TenantAdministration.EnsureRoleChangeAllowed"/> before
+    /// this method is called (T086's <c>ChangeMemberRole</c> use case). This method itself is a
+    /// plain setter-with-validation: no role transition is otherwise invalid for a
+    /// <see cref="Membership"/>.
+    /// </remarks>
+    /// <param name="newRole">The role to grant.</param>
+    public void ChangeRole(Role newRole)
+    {
+        Role = newRole;
     }
 }

@@ -68,4 +68,18 @@ public interface IMembershipRepository
     /// <exception cref="DomainException">Thrown if removing this membership would leave the
     /// tenant with zero active administrators.</exception>
     Task RemoveMembershipAsync(MembershipId membershipId, CancellationToken ct);
+
+    /// <summary>
+    /// Persists changes already applied to <paramref name="membership"/> (e.g.
+    /// <see cref="Domain.Memberships.Membership.ChangeRole"/>, T086's <c>ChangeMemberRole</c> use
+    /// case). Mirrors <c>ITenantRepository.SaveAsync</c>'s (T055) minimal shape — a plain
+    /// <c>SaveChangesAsync</c> against the already-tracked entity, with no
+    /// <c>RowVersion</c>/<c>If-Match</c> pinning of its own; that mechanics belongs at the endpoint
+    /// layer (T087), which pins the tracked entity's original <c>RowVersion</c> before calling this
+    /// use case's save path, exactly as <c>TenantEndpoints.cs</c>'s
+    /// <c>RenameWithOriginalRowVersionAsync</c> already does for <c>Tenant</c>.
+    /// </summary>
+    /// <param name="membership">The already-tracked, modified membership to save.</param>
+    /// <param name="ct">Cancellation token.</param>
+    Task SaveAsync(Membership membership, CancellationToken ct);
 }

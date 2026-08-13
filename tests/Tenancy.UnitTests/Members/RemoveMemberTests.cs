@@ -49,6 +49,9 @@ public class RemoveMemberTests
             RemovedMembershipId = membershipId;
             return Task.CompletedTask;
         }
+
+        public Task SaveAsync(Membership membership, CancellationToken ct) =>
+            throw new NotSupportedException("Not used by RemoveMemberTests.");
     }
 
     private static RemoveMember CreateUseCase(FakeMembershipRepository repository) =>

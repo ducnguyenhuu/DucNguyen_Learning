@@ -123,4 +123,9 @@ public class MembershipRepository : IMembershipRepository
         await _dbContext.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
     }
+
+    public Task SaveAsync(Membership membership, CancellationToken ct)
+    {
+        return _dbContext.SaveChangesAsync(ct);
+    }
 }
