@@ -1,5 +1,6 @@
 using Tenancy.Domain.Abstractions;
 using Tenancy.Domain.Invitations;
+using Tenancy.Domain.Memberships;
 
 namespace Tenancy.Application.Abstractions;
 
@@ -69,4 +70,37 @@ public interface IInvitationRepository
     /// check-then-insert pre-check above, which alone would leave a TOCTOU race window.
     /// </exception>
     Task AddAsync(Invitation invitation, CancellationToken ct);
+
+    /// <summary>
+    /// Finds the <see cref="Invitation"/> whose <see cref="Invitation.TokenHash"/> equals
+    /// <paramref name="tokenHashBase64"/>, across every tenant, or <see langword="null"/> if none
+    /// exists — the lookup <c>AcceptInvitation</c> (T072) needs when a bare token arrives with no
+    /// ambient tenant context yet (the third ADR-017 exception, alongside
+    /// <c>CreateTenant</c>/T054 and <see cref="ITenantRepository.GetManyByIdsAsync"/>/T055).
+    /// </summary>
+    /// <remarks>
+    /// Implementations must call <c>IgnoreQueryFilters()</c> to bypass the automatic
+    /// <c>"TenantFilter"</c> query filter <see cref="Invitation"/> is normally subject to as an
+    /// <c>ITenantOwned</c> entity. This is safe precisely because the lookup predicate is an exact
+    /// match on <see cref="Invitation.TokenHash"/> — a SHA-256 hash, effectively unguessable and
+    /// unique per invitation — so there is no risk of leaking one tenant's invitations to another;
+    /// the caller learns only whether their presented token matches a real invitation, and if so,
+    /// which tenant it belongs to (which is exactly what accepting an invitation requires them to
+    /// learn). This mirrors <see cref="ITenantRepository.GetManyByIdsAsync"/>'s documented
+    /// bypass-by-exact-id-match precedent (T055) — narrow, deliberate, and explained here rather
+    /// than left to be rediscovered from a filter-less query.
+    /// </remarks>
+    Task<Invitation?> FindByTokenHashAsync(string tokenHashBase64, CancellationToken ct);
+
+    /// <summary>
+    /// Persists the given, already-<see cref="Invitation.Accept"/>ed <paramref name="invitation"/>
+    /// together with the new <paramref name="membership"/> created for the accepting user, in a
+    /// single <c>SaveChangesAsync</c> call — mirroring <see cref="ICreateTenantRepository.AddAsync"/>'s
+    /// (T054) "one transaction, two aggregates" precedent for the same "no ambient tenant context
+    /// yet" situation. Implementations must set <c>TenancyDbContext.CurrentTenantId =
+    /// invitation.TenantId</c> before calling <c>SaveChangesAsync</c>, so <c>TenantSaveChangesInterceptor</c>
+    /// (T027) stamps the new <paramref name="membership"/> with the correct tenant rather than the
+    /// CLR default.
+    /// </summary>
+    Task SaveAcceptedAsync(Invitation invitation, Membership membership, CancellationToken ct);
 }

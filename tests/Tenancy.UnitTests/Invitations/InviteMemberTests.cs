@@ -64,6 +64,12 @@ public class InviteMemberTests
             SavedInvitation = invitation;
             return Task.CompletedTask;
         }
+
+        public Task<Invitation?> FindByTokenHashAsync(string tokenHashBase64, CancellationToken ct) =>
+            throw new NotSupportedException("Not used by InviteMemberTests.");
+
+        public Task SaveAcceptedAsync(Invitation invitation, Tenancy.Domain.Memberships.Membership membership, CancellationToken ct) =>
+            throw new NotSupportedException("Not used by InviteMemberTests.");
     }
 
     private static InviteMember CreateUseCase(
