@@ -20,6 +20,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Tenancy/Tenancy.Domain/Tenancy.Domain.csproj" />
     <ProjectReference Include="../../src/Tenancy/Tenancy.Application/Tenancy.Application.csproj" />
+    <ProjectReference Include="../../src/Tenancy/Tenancy.Api/Tenancy.Api.csproj" />
   </ItemGroup>
 
 </Project>
