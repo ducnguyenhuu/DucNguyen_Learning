@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Web;
+using Tenancy.Api.Configuration;
 using Tenancy.Api.Endpoints;
 using Tenancy.Api.ErrorHandling;
 using Tenancy.Api.Middleware;
@@ -14,6 +15,18 @@ using Tenancy.Infrastructure.Persistence.Interceptors;
 using Tenancy.Infrastructure.Security;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// FR-016/Assumption 7's revocation-staleness trade-off, made an operationally checked
+// expectation rather than a design note nobody will find later (see RevocationWindowTests,
+// T069, and TokenLifetimeValidation's remarks): this API performs no per-request token
+// revocation check, so a member removed from a tenant retains access until their already-issued
+// token expires. The actual token lifetime is set on the Entra ID app registration (external to
+// this codebase) — TokenLifetime:ExpectedMaxLifetimeMinutes below just records this system's
+// operational expectation of that value. Fail fast at boot, before accepting any requests, if
+// that expectation has silently grown past the one-hour bound the trade-off assumes.
+var expectedMaxLifetimeMinutes = builder.Configuration.GetValue<int>(
+    "TokenLifetime:ExpectedMaxLifetimeMinutes");
+TokenLifetimeValidation.AssertWithinRevocationWindow(expectedMaxLifetimeMinutes);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
