@@ -397,11 +397,21 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
 
         db.CurrentTenantId = seed.TenantB.TenantId;
+
+        // The raw token value below must match exactly what UnscopedOperationTests presents on
+        // the wire ("some-valid-token-for-tenant-b-invitee") so that AcceptInvitation's real
+        // SHA-256-hash-and-lookup (Tenancy.Application.Invitations.InvitationToken) actually
+        // resolves this row — a fixed, unrelated placeholder hash here would make every accept
+        // attempt silently miss regardless of the presented token, masking both the 403
+        // (wrong-identity) and 200 (correct-identity) target-spec assertions those tests make.
+        var tokenHashBase64 = Convert.ToBase64String(
+            Tenancy.Application.Invitations.InvitationToken.Hash("some-valid-token-for-tenant-b-invitee"));
+
         var invitation = Invitation.Create(
             seed.TenantB.TenantId,
             new EmailAddress("invitee@tenant-b.example.com"),
             Role.Member,
-            tokenHash: "test-token-hash",
+            tokenHash: tokenHashBase64,
             expiresAtUtc: DateTimeOffset.UtcNow.AddDays(7));
         db.Invitations.Add(invitation);
         await db.SaveChangesAsync();
