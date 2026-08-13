@@ -117,6 +117,7 @@ builder.Services.AddScoped<IMembershipRepository, MembershipRepository>();
 // (same "port lands ahead of its use case's DI registration" shape as InviteMember et al. above).
 builder.Services.AddScoped<Tenancy.Application.Members.ListMembers>();
 builder.Services.AddScoped<Tenancy.Application.Members.RemoveMember>();
+builder.Services.AddScoped<Tenancy.Application.Members.ChangeMemberRole>();
 
 // The fifth repository port in the codebase (T071-T073, wired here at T078 per that task's own
 // deferral note) — one shared port for the invite/accept/list/revoke invitation use cases,

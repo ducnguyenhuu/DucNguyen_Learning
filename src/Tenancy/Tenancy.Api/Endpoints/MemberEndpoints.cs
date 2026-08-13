@@ -1,9 +1,12 @@
+using Microsoft.EntityFrameworkCore;
 using Tenancy.Api.ETags;
 using Tenancy.Application.Abstractions;
 using Tenancy.Api.Middleware;
 using Tenancy.Application.Members;
 using Tenancy.Application.Users;
 using Tenancy.Domain.Abstractions;
+using Tenancy.Domain.Memberships;
+using Tenancy.Infrastructure.Persistence;
 
 namespace Tenancy.Api.Endpoints;
 
@@ -73,6 +76,8 @@ public static class MemberEndpoints
         scopedMembers.MapGet("/", ListMembersAsync);
 
         scopedMembers.MapDelete("/{userId}", RemoveMemberAsync);
+
+        scopedMembers.MapPatch("/{userId}", PatchMemberRoleAsync);
 
         return app;
     }
@@ -174,6 +179,203 @@ public static class MemberEndpoints
     }
 
     /// <summary>
+    /// <c>PATCH /tenants/{tenantId}/members/{userId}</c> (T087) — changes the target member's
+    /// role, wiring T086's <see cref="ChangeMemberRole"/> use case. Mirrors
+    /// <c>TenantEndpoints.PatchTenantAsync</c>'s (T058) exact 428/400/412/409 <c>If-Match</c>
+    /// disambiguation shape:
+    /// </summary>
+    /// <remarks>
+    /// <list type="bullet">
+    /// <item>Missing <c>If-Match</c>: <c>428</c>.</item>
+    /// <item>Malformed <c>If-Match</c>: <c>400</c>.</item>
+    /// <item>Malformed/unknown <c>role</c> in the request body: <c>400</c>.</item>
+    /// <item>No active membership for <c>userId</c> in the current tenant: <c>404</c>, checked
+    /// before the precondition logic (nothing to condition a role change on when the target
+    /// doesn't exist).</item>
+    /// <item>
+    /// A fresh, pre-update read of the target membership's current <c>RowVersion</c>, compared
+    /// against the decoded <c>If-Match</c> bytes before attempting the change at all: mismatch
+    /// here means the caller's view was already stale before this request tried to write —
+    /// <c>412</c>.
+    /// </item>
+    /// <item>
+    /// If they matched at read time, the tracked entity's original <c>RowVersion</c> is pinned to
+    /// the decoded <c>If-Match</c> bytes (mirroring <c>RenameWithOriginalRowVersionAsync</c>)
+    /// before calling <see cref="ChangeMemberRole.ExecuteAsync"/>. If that save still throws
+    /// <see cref="DbUpdateConcurrencyException"/>, a second, unrelated write landed between the
+    /// fresh read and the update — a genuine race at save time: <c>409</c>.
+    /// </item>
+    /// <item><see cref="ChangeMemberRoleResultKind.Conflict"/> (last-administrator invariant):
+    /// <c>409</c> — per the contract's own text, collapsed with the save-time race case, same as
+    /// T079's <c>DELETE</c> precedent.</item>
+    /// <item><see cref="ChangeMemberRoleResultKind.NotFound"/>: <c>404</c>.</item>
+    /// <item>Success: <c>200</c> with the updated <see cref="MemberDto"/> shape and a fresh
+    /// <c>ETag</c>.</item>
+    /// </list>
+    /// </remarks>
+    private static async Task<IResult> PatchMemberRoleAsync(
+        HttpContext httpContext,
+        Guid userId,
+        ChangeMemberRoleRequest request,
+        ChangeMemberRole changeMemberRole,
+        EnsureUserProvisioned ensureUserProvisioned,
+        IMembershipRepository membershipRepository,
+        TenancyDbContext dbContext,
+        CancellationToken ct)
+    {
+        var caller = await ProvisionCallerAsync(httpContext, ensureUserProvisioned, ct);
+        if (caller is null)
+        {
+            return Results.Problem(
+                title: "Caller could not be resolved",
+                detail: "No usable identity claims were present on the token.",
+                statusCode: StatusCodes.Status401Unauthorized);
+        }
+
+        if (!Enum.TryParse<Role>(request.Role, ignoreCase: true, out var newRole) ||
+            !Enum.IsDefined(newRole))
+        {
+            return Results.Problem(
+                title: "Invalid role",
+                detail: $"'{request.Role}' is not a recognized role.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        var targetUserId = new UserId(userId);
+
+        // Existence check first, ahead of the If-Match precondition logic: per T083's own test
+        // (Patch_MemberRole_ForUserWithNoActiveMembership_ReturnsNotFound — no If-Match header
+        // supplied at all, still expects 404, not 428), there is nothing to condition a role
+        // change on when the target does not exist as an active member at all.
+        var currentMembership = await membershipRepository.GetActiveMembershipForUserAsync(targetUserId, ct);
+        if (currentMembership is null)
+        {
+            return Results.NotFound();
+        }
+
+        if (!httpContext.Request.Headers.TryGetValue("If-Match", out var ifMatchValues) ||
+            string.IsNullOrWhiteSpace(ifMatchValues.ToString()))
+        {
+            return Results.Problem(
+                title: "If-Match header required",
+                detail: "This operation requires an If-Match header naming the version being updated.",
+                statusCode: StatusCodes.Status428PreconditionRequired);
+        }
+
+        byte[] decodedIfMatch;
+        try
+        {
+            decodedIfMatch = RowVersionETag.FromIfMatch(ifMatchValues.ToString());
+        }
+        catch (FormatException ex)
+        {
+            return Results.Problem(
+                title: "Malformed If-Match header",
+                detail: ex.Message,
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        if (!decodedIfMatch.AsSpan().SequenceEqual(currentMembership.RowVersion))
+        {
+            // Already stale relative to what a fresh read shows, before any write was attempted.
+            return Results.Problem(
+                title: "Precondition failed",
+                detail: "The supplied If-Match value is stale.",
+                statusCode: StatusCodes.Status412PreconditionFailed);
+        }
+
+        // Pin the tracked entity's original RowVersion to the caller's decoded If-Match bytes
+        // (EF's concurrency-check baseline) before ChangeMemberRole mutates and saves it, mirroring
+        // TenantEndpoints.RenameWithOriginalRowVersionAsync (T058).
+        var tracked = await dbContext.Memberships
+            .SingleOrDefaultAsync(m => m.UserId == targetUserId && m.Status == MembershipStatus.Active, ct);
+        if (tracked is null)
+        {
+            return Results.NotFound();
+        }
+
+        var trackedEntry = dbContext.Entry(tracked);
+        trackedEntry.Property(nameof(Membership.RowVersion)).OriginalValue = decodedIfMatch;
+
+        // Force a real UPDATE (and thus the optimistic-concurrency check against the pinned
+        // OriginalValue above) even when the caller's requested role happens to equal the
+        // membership's current role: without this, EF's change tracker sees zero modified scalar
+        // properties for a same-value "change" and skips SaveChanges' UPDATE entirely — silently
+        // "succeeding" without the concurrency check ever running against the database at all.
+        // T084's concurrent-race test exercises exactly this (one racing caller requests the
+        // member's already-current role), so this can't be left to chance.
+        trackedEntry.State = EntityState.Modified;
+
+        ChangeMemberRoleResult result;
+        try
+        {
+            result = await changeMemberRole.ExecuteAsync(targetUserId, newRole, caller.Id, ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // The If-Match value matched a fresh read moments ago, yet the save still lost the
+            // optimistic-concurrency check: someone else's write landed in between. A genuine
+            // race at save time, not a stale caller.
+            return Results.Problem(
+                title: "Concurrency conflict",
+                detail: "The membership was modified by another request while this update was in flight.",
+                statusCode: StatusCodes.Status409Conflict);
+        }
+
+        if (result.Kind == ChangeMemberRoleResultKind.Success)
+        {
+            var targetUser = await dbContext.Users.SingleOrDefaultAsync(u => u.Id == targetUserId, ct);
+            var dto = new MemberDto(
+                targetUserId.Value,
+                targetUser?.Email.Value ?? string.Empty,
+                DisplayName: string.Empty,
+                result.Membership!.Role.ToString(),
+                result.Membership!.Status.ToString());
+
+            return Results.Ok(dto).WithHeader("ETag", RowVersionETag.ToETag(result.Membership!.RowVersion));
+        }
+
+        return result.Kind switch
+        {
+            ChangeMemberRoleResultKind.NotFound => Results.NotFound(),
+            ChangeMemberRoleResultKind.Conflict => Results.Problem(
+                title: "Member conflict",
+                detail: "Changing this member's role would leave the tenant with no Administrator, " +
+                    "or the membership was concurrently modified.",
+                statusCode: StatusCodes.Status409Conflict),
+            _ => Results.Problem(statusCode: StatusCodes.Status500InternalServerError),
+        };
+    }
+
+    private static IResult WithHeader(this IResult result, string name, string value) =>
+        new HeaderDecoratedResult(result, name, value);
+
+    /// <summary>
+    /// Wraps an inner <see cref="IResult"/> to add one response header when executed — a private
+    /// duplicate of <c>TenantEndpoints.HeaderDecoratedResult</c> (T058), same precedent this file
+    /// already follows for <c>ProvisionCallerAsync</c>.
+    /// </summary>
+    private sealed class HeaderDecoratedResult : IResult
+    {
+        private readonly IResult _inner;
+        private readonly string _headerName;
+        private readonly string _headerValue;
+
+        public HeaderDecoratedResult(IResult inner, string headerName, string headerValue)
+        {
+            _inner = inner;
+            _headerName = headerName;
+            _headerValue = headerValue;
+        }
+
+        public Task ExecuteAsync(HttpContext httpContext)
+        {
+            httpContext.Response.Headers[_headerName] = _headerValue;
+            return _inner.ExecuteAsync(httpContext);
+        }
+    }
+
+    /// <summary>
     /// Same JIT-provisioning shape as <c>TenantEndpoints.ProvisionCallerAsync</c> (T058) and
     /// <c>InvitationEndpoints.ProvisionCallerAsync</c> (T078) — kept as a private duplicate here
     /// rather than a shared helper, following the same precedent those two files already set.
@@ -219,3 +421,6 @@ public sealed record MemberDto(
             member.Role.ToString(),
             member.Status.ToString());
 }
+
+/// <summary>Request body for <c>PATCH /tenants/{tenantId}/members/{userId}</c>, per openapi.yaml.</summary>
+public sealed record ChangeMemberRoleRequest(string Role);
