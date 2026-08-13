@@ -92,6 +92,12 @@ builder.Services.AddScoped<GetTenant>();
 builder.Services.AddScoped<RenameTenant>();
 builder.Services.AddScoped<ListTenants>();
 
+// The fourth repository port in the codebase (T075) — landed ahead of the RemoveMember/role-change
+// use cases (T076) that will consume it, following T036's minimal per-use-case pattern. Guards the
+// last-administrator invariant against genuine concurrent removals via a tenant row lock (see
+// MembershipRepository's remarks) — scoped to match TenancyDbContext's own scoped lifetime.
+builder.Services.AddScoped<IMembershipRepository, MembershipRepository>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
