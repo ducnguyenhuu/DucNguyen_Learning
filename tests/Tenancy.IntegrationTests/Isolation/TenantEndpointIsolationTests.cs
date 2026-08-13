@@ -123,13 +123,14 @@ public sealed class TenantEndpointIsolationTests : IClassFixture<ApiFactory>
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", Guid.NewGuid().ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", Guid.NewGuid().ToString());
+        client.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
 
         var response = await client.PostAsync(
             "/tenants",
             JsonContent("New Tenant"),
             TestContext.Current.CancellationToken);
 
-        response.StatusCode.Should().NotBe(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
     }
 
     // Get_Tenants_DoesNotLeakAcrossTenants was removed here (T061): it asserted
@@ -156,5 +157,5 @@ public sealed class TenantEndpointIsolationTests : IClassFixture<ApiFactory>
     }
 
     private static System.Net.Http.Json.JsonContent JsonContent(object payload) =>
-        System.Net.Http.Json.JsonContent.Create(new { name = payload });
+        System.Net.Http.Json.JsonContent.Create(new { displayName = payload });
 }
