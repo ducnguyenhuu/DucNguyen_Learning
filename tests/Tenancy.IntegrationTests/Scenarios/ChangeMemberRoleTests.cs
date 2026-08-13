@@ -129,12 +129,16 @@ public sealed class ChangeMemberRoleTests : TenancyIntegrationTestBase
         var seed = await SeedAdministratorAndMemberAsync();
 
         using var adminClient = CreateAuthenticatedClient(seed.Administrator);
-        adminClient.DefaultRequestHeaders.Add("If-Match", "not-a-valid-etag");
 
-        var response = await adminClient.PatchAsJsonAsync(
-            $"/tenants/{seed.Administrator.TenantId.Value}/members/{seed.Member.UserId.Value}",
-            new { role = "Reader" },
-            TestContext.Current.CancellationToken);
+        using var request = new HttpRequestMessage(
+            HttpMethod.Patch,
+            $"/tenants/{seed.Administrator.TenantId.Value}/members/{seed.Member.UserId.Value}")
+        {
+            Content = JsonContent.Create(new { role = "Reader" }),
+        };
+        request.Headers.TryAddWithoutValidation("If-Match", "not-a-valid-etag");
+
+        var response = await adminClient.SendAsync(request, TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }

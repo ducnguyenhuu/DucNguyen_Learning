@@ -148,25 +148,45 @@ public sealed class InviteAndManageMembersTests : TenancyIntegrationTestBase
     /// <summary>
     /// Scenario 4: an invitation issued to one email address cannot be accepted by a person
     /// authenticated as a different email address. Per <c>contracts/openapi.yaml</c> this is a
-    /// distinct 403 (the token is valid, the caller simply isn't its subject) — not a 404.
+    /// distinct 403 (the token is valid, the caller simply isn't its subject) — not a 404. This
+    /// requires a genuinely valid, pending invitation token: an unrecognized/never-issued token
+    /// always resolves to 404 first (lookup precedes identity comparison, per FR-013 — 404 for
+    /// unknown tokens so token validity can't be probed), so the test seeds a real invitation via
+    /// the invite endpoint (mirroring <see cref="Post_Invitation_ThenAccept_ThenListMembers_ShowsNewActiveMemberWithInvitedRole"/>)
+    /// and then attempts to accept that valid token while authenticated as a different email.
     /// </summary>
     [Fact]
     public async Task Post_AcceptInvitation_AsDifferentEmailThanInvited_IsRefused()
     {
         await Factory.InitializeDatabaseAsync();
-        var seed = await Factory.SeedTwoTenantsWithInvitationInTenantBAsync();
+        var seed = await Factory.SeedTwoTenantsAsync();
 
-        // The invitation seeded by SeedTwoTenantsWithInvitationInTenantBAsync targets
-        // invitee@tenant-b.example.com; here the caller authenticates as a different identity
-        // entirely (Tenant A's member) and attempts to accept it anyway.
+        using var adminClient = CreateAuthenticatedClient(seed.TenantA);
+        adminClient.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
+
+        const string invitedEmail = "invited-member@tenant-a.example.com";
+        var inviteResponse = await adminClient.PostAsJsonAsync(
+            $"/tenants/{seed.TenantA.TenantId.Value}/invitations",
+            new { email = invitedEmail, role = "Member" },
+            TestContext.Current.CancellationToken);
+
+        inviteResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var inviteBody = await inviteResponse.Content.ReadFromJsonAsync<InvitationResponse>(
+            TestContext.Current.CancellationToken);
+        inviteBody.Should().NotBeNull();
+        inviteBody!.Token.Should().NotBeNullOrWhiteSpace();
+
+        // The invitation above targets invitedEmail; here the caller authenticates as a
+        // different identity entirely and attempts to accept that same, genuinely valid token.
         using var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
-        client.DefaultRequestHeaders.Add("X-Test-Oid", seed.TenantA.EntraObjectId.ToString());
-        client.DefaultRequestHeaders.Add("X-Test-Tid", seed.TenantA.EntraTenantId.ToString());
-        client.DefaultRequestHeaders.Add("X-Test-Email", "member-a@tenant-a.example.com");
+        client.DefaultRequestHeaders.Add("X-Test-Oid", Guid.NewGuid().ToString());
+        client.DefaultRequestHeaders.Add("X-Test-Tid", Guid.NewGuid().ToString());
+        client.DefaultRequestHeaders.Add("X-Test-Email", "different-person@tenant-a.example.com");
 
         var response = await client.PostAsync(
-            "/invitations/some-opaque-token/accept",
+            $"/invitations/{inviteBody.Token}/accept",
             content: null,
             TestContext.Current.CancellationToken);
 
