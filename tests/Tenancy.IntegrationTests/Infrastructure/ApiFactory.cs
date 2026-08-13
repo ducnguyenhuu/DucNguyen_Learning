@@ -280,6 +280,65 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             TenantB: new SeededTenant(tenantB.Id, userB.Id, membershipB.Id, userB.EntraTenantId, userB.EntraObjectId));
     }
 
+    /// <summary>
+    /// Seeds two independent tenants and <b>one</b> <see cref="User"/> with an active
+    /// <see cref="Membership"/> in <b>each</b> tenant — the fixture T049's multi-tenant
+    /// membership test builds on. Unlike <see cref="SeedTwoTenantsAsync"/> (distinct members
+    /// per tenant), this models a single real user who legitimately belongs to both tenants, so
+    /// a test can authenticate once (via <see cref="TestAuthHandler"/>'s
+    /// <c>X-Test-Oid</c>/<c>X-Test-Tid</c> headers, populated from
+    /// <see cref="SharedUserSeed.EntraTenantId"/>/<see cref="SharedUserSeed.EntraObjectId"/>) and
+    /// assert both tenants' data comes back correctly separated, never blended. Both memberships
+    /// use <see cref="Role.Member"/>; the role is incidental to this test's isolation concern, so
+    /// there's no need for it to vary.
+    /// </summary>
+    /// <remarks>
+    /// <b>Why two <c>SaveChangesAsync</c> calls, each preceded by setting
+    /// <see cref="TenancyDbContext.CurrentTenantId"/>.</b> <see cref="TenantSaveChangesInterceptor"/>
+    /// (T017's write-side isolation guard) stamps <b>every</b> newly-added <c>ITenantOwned</c>
+    /// entity's <c>TenantId</c> with the context's ambient <c>CurrentTenantId</c> before it hits
+    /// the database — it does not trust whatever <c>TenantId</c> the caller constructed the
+    /// entity with. A single batched save (as <see cref="SeedTwoTenantsAsync"/> does) works there
+    /// only because each membership's user is distinct, so the two rows never collide on the
+    /// unique <c>(TenantId, UserId)</c> index even when both get stamped with the same ambient
+    /// value. Here the same user holds both memberships, so both rows genuinely need different
+    /// <c>TenantId</c> values — this seeds each membership in its own save, switching
+    /// <see cref="TenancyDbContext.CurrentTenantId"/> in between so the interceptor stamps each
+    /// with the tenant it actually belongs to.
+    /// </remarks>
+    public async Task<OneUserTwoTenantsSeed> SeedOneUserInTwoTenantsAsync()
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
+
+        var tenantX = Tenant.Create("Tenant X");
+        var tenantY = Tenant.Create("Tenant Y");
+
+        var sharedUser = User.Create(
+            entraTenantId: Guid.CreateVersion7(),
+            entraObjectId: Guid.CreateVersion7(),
+            email: new EmailAddress("shared-member@multi-tenant.example.com"));
+
+        db.Tenants.AddRange(tenantX, tenantY);
+        db.Users.Add(sharedUser);
+        await db.SaveChangesAsync();
+
+        db.CurrentTenantId = tenantX.Id;
+        var membershipX = Membership.Create(tenantX.Id, sharedUser.Id, Role.Member);
+        db.Memberships.Add(membershipX);
+        await db.SaveChangesAsync();
+
+        db.CurrentTenantId = tenantY.Id;
+        var membershipY = Membership.Create(tenantY.Id, sharedUser.Id, Role.Member);
+        db.Memberships.Add(membershipY);
+        await db.SaveChangesAsync();
+
+        return new OneUserTwoTenantsSeed(
+            TenantX: new TenantMembership(tenantX.Id, "Tenant X", membershipX.Id),
+            TenantY: new TenantMembership(tenantY.Id, "Tenant Y", membershipY.Id),
+            User: new SharedUserSeed(sharedUser.Id, sharedUser.EntraTenantId, sharedUser.EntraObjectId));
+    }
+
     /// <inheritdoc />
     protected override void Dispose(bool disposing)
     {
@@ -320,3 +379,32 @@ public sealed record SeededTenant(
 /// cross-tenant read attempt against Tenant B.
 /// </summary>
 public sealed record TwoTenantSeed(SeededTenant TenantA, SeededTenant TenantB);
+
+/// <summary>
+/// One tenant, and the shared user's active membership id within it, as produced by
+/// <see cref="ApiFactory.SeedOneUserInTwoTenantsAsync"/>.
+/// </summary>
+/// <param name="TenantId">The platform tenant aggregate's id.</param>
+/// <param name="DisplayName">The tenant's seeded display name — used by T049's test to assert
+/// each <c>GET /tenants/{id}</c> response reflects the correct tenant and never the other one.</param>
+/// <param name="MembershipId">The shared user's active membership id in this tenant.</param>
+public sealed record TenantMembership(TenantId TenantId, string DisplayName, MembershipId MembershipId);
+
+/// <summary>
+/// The single user shared across both tenants in <see cref="OneUserTwoTenantsSeed"/>, identified
+/// by the Entra claims a test presents via <see cref="TestAuthHandler"/>'s headers.
+/// </summary>
+/// <param name="UserId">The shared member's platform user id.</param>
+/// <param name="EntraTenantId">The <c>tid</c> claim value to present when authenticating as this
+/// user.</param>
+/// <param name="EntraObjectId">The <c>oid</c> claim value to present when authenticating as this
+/// user.</param>
+public sealed record SharedUserSeed(UserId UserId, Guid EntraTenantId, Guid EntraObjectId);
+
+/// <summary>
+/// Two independent tenants sharing one active member, as produced by
+/// <see cref="ApiFactory.SeedOneUserInTwoTenantsAsync"/>. The shared <see cref="User"/>
+/// authenticates once and is expected to operate against each tenant in turn, with each
+/// response reflecting only that tenant's own data (FR-010).
+/// </summary>
+public sealed record OneUserTwoTenantsSeed(TenantMembership TenantX, TenantMembership TenantY, SharedUserSeed User);
