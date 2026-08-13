@@ -43,6 +43,7 @@ public sealed class EstablishTenantTests : IClassFixture<ApiFactory>
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
         client.DefaultRequestHeaders.Add("X-Test-Oid", Guid.NewGuid().ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", Guid.NewGuid().ToString());
+        client.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
 
         var response = await client.PostAsync(
             "/tenants",
@@ -92,10 +93,20 @@ public sealed class EstablishTenantTests : IClassFixture<ApiFactory>
 
         const string updatedName = "Renamed Tenant A";
 
-        var patchResponse = await client.PatchAsync(
+        var initialGetResponse = await client.GetAsync(
             $"/tenants/{seed.TenantA.TenantId.Value}",
-            JsonContent(updatedName),
             TestContext.Current.CancellationToken);
+        initialGetResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var etag = initialGetResponse.Headers.ETag;
+        etag.Should().NotBeNull();
+
+        using var patchRequest = new HttpRequestMessage(HttpMethod.Patch, $"/tenants/{seed.TenantA.TenantId.Value}")
+        {
+            Content = JsonContent(updatedName),
+        };
+        patchRequest.Headers.IfMatch.Add(etag!);
+
+        var patchResponse = await client.SendAsync(patchRequest, TestContext.Current.CancellationToken);
 
         patchResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 

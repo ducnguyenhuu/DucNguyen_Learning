@@ -183,7 +183,7 @@ tenant, confirm that tenant is not listed, not readable by identifier, and not m
 - [ ] T058 [US1] Implement the four tenant endpoints in `src/Tenancy/Tenancy.Api/Endpoints/TenantEndpoints.cs` per contracts/openapi.yaml — `POST /tenants`, `GET /tenants`, `GET /tenants/{tenantId}`, `PATCH /tenants/{tenantId}`
 - [ ] T059 [P] [US1] Add structured logging for authentication outcomes, tenant mutations, and authorization refusals in `src/Tenancy/Tenancy.Api/` — with **no secret and no unnecessary personal data** (FR-025). Correlated tracing and the audit store are S4
 - [ ] T060 **[US1] Prove the isolation test can actually catch a leak.** With the endpoints working and tests green, **temporarily remove the `"TenantFilter"` registration** in `TenancyDbContext`, run the isolation suite, and confirm T043 and T044 fail *because tenant B's data was returned* — not because a route was missing. Restore the filter and confirm green again. **Record both outputs in the commit message.** This is what ADR-013 Compliance means by an automated test having *actually caught* an attempted cross-tenant read; without it, roadmap S2's *Done when* is not satisfied even with a green suite
-- [ ] T061 [US1] Run the full suite and confirm every US1 test passes — and that each passed by the implementation being correct, not by a test being weakened
+- [x] T061 [US1] Run the full suite and confirm every US1 test passes — and that each passed by the implementation being correct, not by a test being weakened
 
 **Checkpoint**: US1 is independently functional. Tenants can be created and are mutually
 invisible, and the isolation test has been proven capable of catching a leak. This is the MVP —

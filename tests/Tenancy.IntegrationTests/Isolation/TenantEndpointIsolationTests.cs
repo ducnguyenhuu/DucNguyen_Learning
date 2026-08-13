@@ -132,22 +132,19 @@ public sealed class TenantEndpointIsolationTests : IClassFixture<ApiFactory>
         response.StatusCode.Should().NotBe(HttpStatusCode.OK);
     }
 
-    /// <summary>
-    /// Minimal coverage for the two ADR-017-exception endpoints — see remarks on
-    /// <see cref="Post_Tenants_DoesNotErrorRegardlessOfOtherTenants"/>.
-    /// </summary>
-    [Fact]
-    public async Task Get_Tenants_DoesNotLeakAcrossTenants()
-    {
-        await _factory.InitializeDatabaseAsync();
-        var seed = await _factory.SeedTwoTenantsAsync();
-
-        using var client = CreateAuthenticatedClient(seed);
-
-        var response = await client.GetAsync("/tenants", TestContext.Current.CancellationToken);
-
-        response.StatusCode.Should().NotBe(HttpStatusCode.OK);
-    }
+    // Get_Tenants_DoesNotLeakAcrossTenants was removed here (T061): it asserted
+    // `NotBe(HttpStatusCode.OK)` for a legitimate member's `GET /tenants`, contradicting
+    // openapi.yaml's documented 200 for that case (`GET /tenants` is one of the two
+    // deliberately unscoped, ADR-017-exception endpoints — a member listing their own
+    // tenants is expected to succeed, not fail). Correcting the assertion to `200 OK` plus a
+    // genuine isolation check (body contains Tenant A's data, not Tenant B's) would have made
+    // this test a near-duplicate of two already-correct siblings:
+    // <see cref="UnscopedOperationTests.Get_Tenants_ForTenantAMember_ReturnsOnlyTenantA_NotTenantB"/>
+    // and
+    // <see cref="Scenarios.MultiTenantMembershipTests.Get_Tenants_ForUserInBothTenants_ReturnsBothTenants_CorrectlySeparated"/>,
+    // both of which already assert 200 plus the same "contains A, not B" body check against
+    // the identical two-tenant seed. Rather than keep a third near-identical case, it was
+    // deleted; the two siblings retain full coverage of this endpoint's isolation behavior.
 
     private HttpClient CreateAuthenticatedClient(TwoTenantSeed seed)
     {
