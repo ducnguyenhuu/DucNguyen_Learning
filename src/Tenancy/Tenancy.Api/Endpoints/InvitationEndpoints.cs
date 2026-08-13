@@ -1,3 +1,4 @@
+using Tenancy.Api.Authorization;
 using Tenancy.Api.Idempotency;
 using Tenancy.Api.Middleware;
 using Tenancy.Application.Invitations;
@@ -46,11 +47,14 @@ public static class InvitationEndpoints
             .WithTenantContextResolution();
 
         scopedInvitations.MapPost("/", CreateInvitationAsync)
+            .RequireTenantAdministrator()
             .WithIdempotency();
 
-        scopedInvitations.MapGet("/", ListInvitationsAsync);
+        scopedInvitations.MapGet("/", ListInvitationsAsync)
+            .RequireTenantAdministrator();
 
-        scopedInvitations.MapDelete("/{invitationId}", RevokeInvitationAsync);
+        scopedInvitations.MapDelete("/{invitationId}", RevokeInvitationAsync)
+            .RequireTenantAdministrator();
 
         // Not tenant-scoped (ADR-017 exception 3) — the caller has no membership yet.
         app.MapPost("/invitations/{token}/accept", AcceptInvitationAsync)

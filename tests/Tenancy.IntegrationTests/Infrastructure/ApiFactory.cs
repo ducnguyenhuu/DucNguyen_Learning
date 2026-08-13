@@ -292,8 +292,16 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             entraObjectId: Guid.CreateVersion7(),
             email: new EmailAddress("member-b@tenant-b.example.com"));
 
-        var membershipA = Membership.Create(tenantA.Id, userA.Id, Role.Member);
-        var membershipB = Membership.Create(tenantB.Id, userB.Id, Role.Member);
+        // T088: each is the sole member of their own tenant, so — mirroring real
+        // CreateTenant/CreateTenantAsync behavior, where the creator becomes Administrator —
+        // both are seeded as Administrator rather than Member. Several pre-existing tests using
+        // this fixture exercise administrator-only operations (PATCH /tenants/{tenantId}, invite,
+        // etc.) that only became role-gated once T088 wired the TenantAdministrator policy;
+        // Administrator is a strict superset of what those tests' non-administrator-agnostic
+        // assertions (isolation/"not Forbidden" checks) already required, so this does not weaken
+        // any existing assertion.
+        var membershipA = Membership.Create(tenantA.Id, userA.Id, Role.Administrator);
+        var membershipB = Membership.Create(tenantB.Id, userB.Id, Role.Administrator);
 
         db.Tenants.AddRange(tenantA, tenantB);
         db.Users.AddRange(userA, userB);

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Tenancy.Api.Authorization;
 using Tenancy.Api.ETags;
 using Tenancy.Application.Abstractions;
 using Tenancy.Api.Middleware;
@@ -73,11 +74,14 @@ public static class MemberEndpoints
             .RequireAuthorization()
             .WithTenantContextResolution();
 
-        scopedMembers.MapGet("/", ListMembersAsync);
+        scopedMembers.MapGet("/", ListMembersAsync)
+            .RequireTenantAdministrator();
 
-        scopedMembers.MapDelete("/{userId}", RemoveMemberAsync);
+        scopedMembers.MapDelete("/{userId}", RemoveMemberAsync)
+            .RequireTenantAdministrator();
 
-        scopedMembers.MapPatch("/{userId}", PatchMemberRoleAsync);
+        scopedMembers.MapPatch("/{userId}", PatchMemberRoleAsync)
+            .RequireTenantAdministrator();
 
         return app;
     }

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Tenancy.Api.Authorization;
 using Tenancy.Api.ETags;
 using Tenancy.Api.Idempotency;
 using Tenancy.Api.Middleware;
@@ -80,7 +81,8 @@ public static class TenantEndpoints
             .WithTenantContextResolution();
 
         scopedTenant.MapGet("/", GetTenantAsync);
-        scopedTenant.MapPatch("/", PatchTenantAsync);
+        scopedTenant.MapPatch("/", PatchTenantAsync)
+            .RequireTenantAdministrator();
 
         return app;
     }
