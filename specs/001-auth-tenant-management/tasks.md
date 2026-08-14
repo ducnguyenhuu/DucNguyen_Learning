@@ -266,7 +266,7 @@ unauthorised rather than failing obscurely.
 - [ ] T094 [P] Record the real timing for SC-001 and SC-002 along the API path, and note explicitly that the *"without documentation"* clause stays **unverified** until a UI exists (plan.md Complexity Tracking)
 - [ ] T095 Audit for the research.md R3 bypass list — confirm **no** `Find`/`FindAsync` on tenant-scoped entities, **no** bare `IgnoreQueryFilters()`, **no** raw SQL, and **no** `ExecuteUpdate`/`ExecuteDelete`. Write down what you found; S3 turns this manual audit into a build gate
 - [ ] T096 [P] Confirm every background-job-shaped code path either does not exist or establishes tenant context explicitly — the likeliest cross-tenant leak route under ADR-013, currently unguarded (traceability U12, assigned to S3)
-- [ ] T097 Note anything in the plan, research, or ADRs that proved wrong during implementation, in `specs/001-auth-tenant-management/plan.md` or a new ADR (SC-009). Silently working around a recorded decision is prohibited (Principle II)
+- [x] T097 Note anything in the plan, research, or ADRs that proved wrong during implementation, in `specs/001-auth-tenant-management/plan.md` or a new ADR (SC-009). Silently working around a recorded decision is prohibited (Principle II)
 
 ---
 
