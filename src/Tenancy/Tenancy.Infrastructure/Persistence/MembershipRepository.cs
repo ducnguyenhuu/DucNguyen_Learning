@@ -79,7 +79,7 @@ public class MembershipRepository : IMembershipRepository
         // the one place responsible for discovering the owning tenant and then scoping itself to
         // it explicitly.
         var membership = await _dbContext.Memberships
-            .IgnoreQueryFilters()
+            .IgnoreQueryFilters(new[] { "TenantFilter" })
             .SingleOrDefaultAsync(m => m.Id == membershipId, ct);
 
         if (membership is null)
@@ -102,7 +102,7 @@ public class MembershipRepository : IMembershipRepository
             ct);
 
         var activeMemberships = await _dbContext.Memberships
-            .IgnoreQueryFilters()
+            .IgnoreQueryFilters(new[] { "TenantFilter" })
             .Where(m => m.TenantId == membership.TenantId && m.Status == MembershipStatus.Active)
             .ToListAsync(ct);
 

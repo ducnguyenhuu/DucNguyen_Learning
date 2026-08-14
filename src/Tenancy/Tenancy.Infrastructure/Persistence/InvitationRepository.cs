@@ -54,7 +54,7 @@ public class InvitationRepository : IInvitationRepository
         // leaks nothing beyond "does this exact token match a real invitation, and if so, which
         // tenant" — precisely what accepting an invitation requires the caller to learn.
         return _dbContext.Invitations
-            .IgnoreQueryFilters()
+            .IgnoreQueryFilters(new[] { "TenantFilter" })
             .SingleOrDefaultAsync(i => i.TokenHash == tokenHashBase64, ct);
     }
 
