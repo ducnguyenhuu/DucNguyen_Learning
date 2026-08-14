@@ -137,4 +137,37 @@ regexes = ["e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b85"]
 
 **Status**: COMPLETE — False positive confirmed, allowlisted, and clean scan verified.
 
+---
+
+## T094: SC-001 / SC-002 API-Path Timing (Proxy, No UI/Human Factor)
+
+**Measurement date**: 2026-08-13
+**Method**: `Tenancy.IntegrationTests.Scenarios.SuccessCriteriaApiPathTimingTests` — real HTTP
+calls through `ApiFactory`'s in-process `TestServer`, real EF Core, real SQL Server
+Testcontainer, `TestAuthHandler` standing in only for a real Entra token (no live Entra tenant
+available, as already documented in T093's report).
+
+Per `plan.md`'s Complexity Tracking, SC-001 and SC-002 both literally describe a **human using a
+UI without documentation** — this slice is API-only, so that dimension cannot be exercised here.
+What was measured instead is the **mechanical API-path sequence** a UI would eventually drive:
+
+| Success Criterion | Sequence measured | Real measured wall-clock time |
+|---|---|---|
+| **SC-001** (proxy) | authenticate → `POST /tenants` (create) → `POST /tenants/{tenantId}/invitations` (invite one colleague) | **~0.021–0.025s** |
+| **SC-002** (proxy) | authenticate as invitee → `POST /invitations/{token}/accept` → `GET /tenants/{tenantId}` (reach tenant data) | **~0.045s** |
+
+Both labeled explicitly as **"API-path timing (proxy, no UI/human factor)"** — not a literal
+SC-001/SC-002 pass/fail. The mechanical sequence is, unsurprisingly, orders of magnitude under
+the human-facing 5-minute (SC-001) and 2-minute (SC-002) budgets; that headroom says nothing about
+a real user's experience, since it excludes sign-in UX, page loads, human decision time, and any
+"without documentation" friction.
+
+**The "without documentation or assistance" / "from opening the invitation" human-usability
+dimension of SC-001 and SC-002 remains genuinely unverified and stays unverified until a UI
+exists**, consistent with `plan.md`'s own Complexity Tracking framing — this task does not, and
+cannot, claim otherwise.
+
+**Status**: COMPLETE for the measurable API-path portion; human/UI dimension explicitly and
+permanently out of scope for this slice. Full detail: `.superpowers/sdd/tasks/task-94-report.md`.
+
 For full analysis and decision trail, see `.superpowers/sdd/tasks/task-92-report.md`.
