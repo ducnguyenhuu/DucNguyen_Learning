@@ -64,3 +64,26 @@ Assumption 5 (K3), which this matrix treats as a documented exception rather tha
 
 Full detail, literal test output, and the exact `dotnet test` verification runs: see
 `.superpowers/sdd/tasks/task-89-report.md`.
+
+---
+
+## S3 Runtime Baseline (T091)
+
+**Measurement date**: 2026-08-13
+**Baseline commit**: `a9cef78f2469fa6ca63dc0808508b98ee9679d81`
+**Requirement**: Full suite runs unattended in under 5 minutes (SC-006)
+
+### Timings (3 runs, macOS arm64)
+
+| Run | Duration | Test Results |
+|-----|----------|--------------|
+| 1 (cold start) | **18.445s** | 190/190 ✅ |
+| 2 (warm cache) | 20.826s | 190/190 ✅ |
+| 3 (warm cache) | 21.040s | 190/190 ✅ |
+
+- **Min**: 18.445s
+- **Median**: 20.826s
+- **Max**: 21.040s
+- **Margin vs. 5-min bar**: ✅ ~21s vs 300s (92% under bar)
+
+The suite has ample headroom for growth as new tests are added. Full measurement detail and run output: `.superpowers/sdd/tasks/task-91-report.md`.
