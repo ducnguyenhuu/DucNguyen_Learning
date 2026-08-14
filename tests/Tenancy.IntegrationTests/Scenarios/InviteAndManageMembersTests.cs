@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using AwesomeAssertions;
 using Microsoft.Extensions.DependencyInjection;
+using Tenancy.Api.ETags;
 using Tenancy.Domain.Abstractions;
 using Tenancy.Domain.Invitations;
 using Tenancy.Domain.Memberships;
@@ -211,6 +212,9 @@ public sealed class InviteAndManageMembersTests : TenancyIntegrationTestBase
         adminClient.DefaultRequestHeaders.Add("X-Test-Oid", seed.Administrator.EntraObjectId.ToString());
         adminClient.DefaultRequestHeaders.Add("X-Test-Tid", seed.Administrator.EntraTenantId.ToString());
 
+        var ifMatch = await GetMembershipIfMatchAsync(seed.Administrator.TenantId, seed.Member.MembershipId);
+        adminClient.DefaultRequestHeaders.Add("If-Match", ifMatch);
+
         var deleteResponse = await adminClient.DeleteAsync(
             $"/tenants/{seed.Administrator.TenantId.Value}/members/{seed.Member.UserId.Value}",
             TestContext.Current.CancellationToken);
@@ -252,11 +256,31 @@ public sealed class InviteAndManageMembersTests : TenancyIntegrationTestBase
         client.DefaultRequestHeaders.Add("X-Test-Oid", seed.EntraObjectId.ToString());
         client.DefaultRequestHeaders.Add("X-Test-Tid", seed.EntraTenantId.ToString());
 
+        var ifMatch = await GetMembershipIfMatchAsync(seed.TenantId, seed.MembershipId);
+        client.DefaultRequestHeaders.Add("If-Match", ifMatch);
+
         var response = await client.DeleteAsync(
             $"/tenants/{seed.TenantId.Value}/members/{seed.UserId.Value}",
             TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    /// <summary>
+    /// Builds a valid <c>If-Match</c> value directly from the membership's current, persisted
+    /// <c>RowVersion</c> — mirrors <c>RolePermissionMatrixTests.GetMembershipIfMatchAsync</c>,
+    /// since <c>DELETE /tenants/{tenantId}/members/{userId}</c> requires a genuine If-Match
+    /// precondition (contracts/openapi.yaml, FR-021) and there is no per-member ETag exposed via
+    /// <c>GET /tenants/{tenantId}/members</c> to round-trip through HTTP instead.
+    /// </summary>
+    private async Task<string> GetMembershipIfMatchAsync(TenantId tenantId, MembershipId membershipId)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
+        db.CurrentTenantId = tenantId;
+        var membership = await db.Memberships.FindAsync(
+            [membershipId], TestContext.Current.CancellationToken);
+        return RowVersionETag.ToETag(membership!.RowVersion);
     }
 
     private HttpClient CreateAuthenticatedClient(SeededTenant seededTenant)

@@ -84,6 +84,19 @@ public sealed class TestAuthHandler : AuthenticationHandler<AuthenticationScheme
             claims.Add(new Claim("scp", scpValues.ToString()));
         }
 
+        // Claim name is literal "email" to match InvitationEndpoints.AcceptInvitationAsync's
+        // (T078) claim lookup order ("email", then "preferred_username", then "upn"). Tests that
+        // exercise the accept-invitation identity check (InviteAndManageMembersTests,
+        // InvitationRefusalTests, UnscopedOperationTests) set X-Test-Email and need it to surface
+        // as this claim — without it, every caller resolves to the "{oid}@unresolved.invalid"
+        // fallback and the wrong-identity check either always fails (403) or only "passes"
+        // wrong-identity assertions by accident.
+        if (Request.Headers.TryGetValue("X-Test-Email", out var emailValues)
+            && !string.IsNullOrWhiteSpace(emailValues.ToString()))
+        {
+            claims.Add(new Claim("email", emailValues.ToString()));
+        }
+
         var identity = new ClaimsIdentity(claims, SchemeName);
         var principal = new ClaimsPrincipal(identity);
         var ticket = new AuthenticationTicket(principal, SchemeName);
