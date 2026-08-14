@@ -115,6 +115,18 @@ public sealed class SignedTokenHarness : IDisposable
             {
                 ["tid"] = tid.ToString(),
                 ["oid"] = oid.ToString(),
+
+                // Microsoft.Identity.Web's AddMicrosoftIdentityWebApi wires an OnTokenValidated
+                // handler (IDW10201) that runs *after* the standard JwtBearer validation
+                // (signature/audience/issuer/lifetime) succeeds, and unconditionally rejects any
+                // otherwise-valid token that carries neither a "scp" (delegated) nor "roles"
+                // (app-only) claim — a real Entra-issued access token always carries one of the
+                // two. Without this, every token this harness mints fails validation for a reason
+                // that has nothing to do with signature/audience/issuer/lifetime, which T047's
+                // negative tests never notice (they're already rejected earlier, before
+                // OnTokenValidated runs) but a positive/neutral test like RevocationWindowTests'
+                // Half 2 does.
+                ["scp"] = "access_as_user",
             },
         };
 
