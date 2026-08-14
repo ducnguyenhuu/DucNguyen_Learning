@@ -160,6 +160,53 @@ public sealed class LoggingCoverageTests : TenancyIntegrationTestBase
             "log line.");
     }
 
+    /// <summary>
+    /// FR-025's "authorisation refusal" category, at the role-check layer: a caller who *is* a
+    /// member of the tenant but lacks the Administrator role must produce a structured log entry
+    /// documenting the refusal (see <see cref="Tenancy.Api.Authorization.AdministratorOnlyAuthorizationHandler"/>'s
+    /// <c>_logger.LogWarning("Authorization refused: tenant {TenantId}, user {UserId}, required
+    /// role {RequiredRole}, actual role {ActualRole}", ...)</c> call, added to close this gap).
+    /// Distinct from <see cref="Get_TenantById_ForOtherTenant_LogsMembershipResolutionFailure"/>,
+    /// which covers the earlier "not a member at all" refusal — this covers "is a member, but the
+    /// wrong role", which is refused by <c>RequireTenantAdministratorFilter</c>/
+    /// <c>AdministratorOnlyAuthorizationHandler</c> (T085/T088), not by
+    /// <c>TenantContextResolutionMiddleware</c>.
+    /// </summary>
+    [Fact]
+    public async Task Delete_Member_AsNonAdministrator_LogsAuthorizationRefusal()
+    {
+        await Factory.InitializeDatabaseAsync();
+        var seed = await SeedAdministratorAndMemberAsync();
+
+        using var memberClient = Factory.CreateClient();
+        memberClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
+        memberClient.DefaultRequestHeaders.Add("X-Test-Oid", seed.Member.EntraObjectId.ToString());
+        memberClient.DefaultRequestHeaders.Add("X-Test-Tid", seed.Member.EntraTenantId.ToString());
+
+        Factory.ClearCapturedLogs();
+
+        var deleteResponse = await memberClient.DeleteAsync(
+            $"/tenants/{seed.Administrator.TenantId.Value}/members/{seed.Administrator.UserId.Value}",
+            TestContext.Current.CancellationToken);
+
+        deleteResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        var capturedLogs = Factory.CapturedLogMessages;
+
+        capturedLogs.Should().Contain(
+            message => message.Contains("Authorization refused", StringComparison.Ordinal)
+                && message.Contains(seed.Administrator.TenantId.Value.ToString(), StringComparison.OrdinalIgnoreCase)
+                && message.Contains("Member", StringComparison.Ordinal),
+            "FR-025 requires role-based authorization refusals to be logged server-side with " +
+            "enough structured detail (tenant, required role, actual role) to diagnose them.");
+
+        capturedLogs.Should().NotContain(
+            message => message.Contains("member@admin-and-member-tenant.example.com", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("admin@admin-and-member-tenant.example.com", StringComparison.OrdinalIgnoreCase),
+            "FR-025 forbids logging unnecessary personal data — no email address must appear in " +
+            "the authorization-refusal log line.");
+    }
+
     private async Task<string> GetMembershipIfMatchAsync(TenantId tenantId, MembershipId membershipId)
     {
         using var scope = Factory.Services.CreateScope();

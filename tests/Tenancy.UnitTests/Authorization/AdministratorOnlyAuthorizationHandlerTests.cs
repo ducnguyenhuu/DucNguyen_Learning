@@ -1,5 +1,7 @@
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Tenancy.Api.Authorization;
 using Tenancy.Application.Abstractions;
 using Tenancy.Domain.Abstractions;
@@ -37,9 +39,38 @@ public class AdministratorOnlyAuthorizationHandlerTests
         public Role Role => throw new InvalidOperationException("Tenant context has not been resolved.");
     }
 
-    private static async Task<AuthorizationHandlerContext> EvaluateAsync(ITenantContext tenantContext)
+    /// <summary>
+    /// Minimal capturing fake for <see cref="ILogger{TCategoryName}"/> — following this test
+    /// file's own established pattern of hand-rolled fakes over a mocking library — used to prove
+    /// the FR-025 authorization-refusal log call actually fires with templated arguments, not
+    /// string interpolation.
+    /// </summary>
+    private sealed class CapturingLogger : ILogger<AdministratorOnlyAuthorizationHandler>
     {
-        var handler = new AdministratorOnlyAuthorizationHandler(tenantContext);
+        public List<string> Messages { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Messages.Add(formatter(state, exception));
+        }
+    }
+
+    private static async Task<AuthorizationHandlerContext> EvaluateAsync(
+        ITenantContext tenantContext,
+        ILogger<AdministratorOnlyAuthorizationHandler>? logger = null)
+    {
+        var handler = new AdministratorOnlyAuthorizationHandler(
+            tenantContext,
+            logger ?? NullLogger<AdministratorOnlyAuthorizationHandler>.Instance);
         var requirement = new AdministratorOnlyRequirement();
         var context = new AuthorizationHandlerContext(
             [requirement],
@@ -66,6 +97,41 @@ public class AdministratorOnlyAuthorizationHandlerTests
         var context = await EvaluateAsync(new FakeTenantContext { Role = role });
 
         context.HasSucceeded.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// FR-025 gap closure: a role-based refusal must produce a structured log entry — tenant id,
+    /// required role, and actual role — via a templated <c>LogWarning</c> call, not string
+    /// interpolation. Mirrors <c>TenantContextResolutionMiddleware</c>'s (T059) established
+    /// logging convention for the earlier "not a member at all" refusal path.
+    /// </summary>
+    [Fact]
+    public async Task HandleRequirementAsync_NonAdministratorRole_LogsAuthorizationRefusal()
+    {
+        var logger = new CapturingLogger();
+
+        var context = await EvaluateAsync(new FakeTenantContext { Role = Role.Member }, logger);
+
+        context.HasSucceeded.Should().BeFalse();
+        logger.Messages.Should().ContainSingle(
+            message => message.Contains("Authorization refused", StringComparison.Ordinal)
+                && message.Contains(TestTenantId.Value.ToString(), StringComparison.OrdinalIgnoreCase)
+                && message.Contains(nameof(Role.Administrator), StringComparison.Ordinal)
+                && message.Contains(nameof(Role.Member), StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Guards against a regression where the success path starts logging too — an authorization
+    /// grant is not a refusal, and FR-025's refusal-logging requirement should not fire here.
+    /// </summary>
+    [Fact]
+    public async Task HandleRequirementAsync_AdministratorRole_DoesNotLogRefusal()
+    {
+        var logger = new CapturingLogger();
+
+        await EvaluateAsync(new FakeTenantContext { Role = Role.Administrator }, logger);
+
+        logger.Messages.Should().BeEmpty();
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Logging;
 using Tenancy.Application.Abstractions;
 using Tenancy.Domain.Abstractions;
 
@@ -49,10 +50,14 @@ public sealed class AdministratorOnlyAuthorizationHandler
     : AuthorizationHandler<AdministratorOnlyRequirement>
 {
     private readonly ITenantContext _tenantContext;
+    private readonly ILogger<AdministratorOnlyAuthorizationHandler> _logger;
 
-    public AdministratorOnlyAuthorizationHandler(ITenantContext tenantContext)
+    public AdministratorOnlyAuthorizationHandler(
+        ITenantContext tenantContext,
+        ILogger<AdministratorOnlyAuthorizationHandler> logger)
     {
         _tenantContext = tenantContext;
+        _logger = logger;
     }
 
     protected override Task HandleRequirementAsync(
@@ -62,6 +67,28 @@ public sealed class AdministratorOnlyAuthorizationHandler
         if (_tenantContext.Role == Role.Administrator)
         {
             context.Succeed(requirement);
+        }
+        else
+        {
+            // FR-025's "authorization refusal" category: this is the only place in the
+            // request pipeline that knows both *why* the caller was refused (their actual,
+            // membership-resolved role) and the tenant the refusal happened in — the calling
+            // filter (RequireTenantAdministratorFilter) only ever sees a bare
+            // AuthorizationResult.Succeeded == false, with no role detail to log. Logging here,
+            // not there, keeps the log entry as close as possible to the actual decision.
+            // ITenantContext exposes no UserId, so the caller's identity is read from the "oid"
+            // claim already on this AuthorizationHandlerContext — the same claim
+            // TenantContextResolutionMiddleware (T035/T059) uses to identify the caller, never an
+            // email or token. Only ids/role are logged — matching the same "no unnecessary
+            // personal data" discipline already established there and by CreateTenant/RemoveMember
+            // (T089).
+            var callerObjectId = context.User.FindFirst("oid")?.Value;
+            _logger.LogWarning(
+                "Authorization refused: tenant {TenantId}, user {UserId}, required role {RequiredRole}, actual role {ActualRole}",
+                _tenantContext.TenantId,
+                callerObjectId,
+                Role.Administrator,
+                _tenantContext.Role);
         }
 
         return Task.CompletedTask;
