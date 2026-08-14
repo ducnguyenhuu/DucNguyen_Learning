@@ -90,12 +90,17 @@ public sealed class ConcurrentRoleEditTests : TenancyIntegrationTestBase
 
         var statusCodes = new[] { responseA.StatusCode, responseB.StatusCode };
 
-        // Target-spec property: exactly one caller's write lands (200), and the other must see
-        // its If-Match no longer matches the now-changed row (409) — a race-at-save, not a
-        // stale-at-read (412). Today, neither request can succeed at all (absent route), so this
-        // fails until T086/T087 land — which is the point: it documents the target spec now.
+        // Target-spec property: exactly one caller's write lands (200). The other must be
+        // refused as a concurrency conflict, but depending on exact timing that refusal may
+        // surface as either 409 (race-at-save: the loser's If-Match matched at read time but the
+        // winner's write landed first) or 412 (the loser's own fresh pre-check read at the
+        // endpoint already observed the winner's new RowVersion before the loser's write raced) —
+        // both are correct concurrency refusals for the same real race, so either is accepted here.
+        // What must NOT vary is that exactly one request succeeds, and the no-lost-update
+        // assertion below stays strict.
         statusCodes.Should().ContainSingle(code => code == HttpStatusCode.OK);
-        statusCodes.Should().ContainSingle(code => code == HttpStatusCode.Conflict);
+        statusCodes.Should().ContainSingle(code =>
+            code == HttpStatusCode.Conflict || code == HttpStatusCode.PreconditionFailed);
 
         var winningRole = responseA.StatusCode == HttpStatusCode.OK ? roleA : roleB;
         var finalRole = await ReadFinalRoleAsync(seed.TenantId, seed.Target.MembershipId);

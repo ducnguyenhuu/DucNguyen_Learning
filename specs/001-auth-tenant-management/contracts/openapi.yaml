@@ -493,11 +493,17 @@ components:
 
     Member:
       type: object
-      required: [userId, email, displayName, role, status]
+      required: [userId, email, role, status]
       properties:
         userId: { type: string, format: uuid }
         email: { type: string, format: email }
-        displayName: { type: string }
+        displayName:
+          type: string
+          nullable: true
+          description: >-
+            Reserved for future use. Not currently populated by the API
+            (Domain.Users.User has no DisplayName property yet) — see
+            plan.md's Post-Implementation Corrections.
         role: { $ref: '#/components/schemas/Role' }
         status: { type: string, enum: [Active, Removed] }
         createdAtUtc: { type: string, format: date-time }
