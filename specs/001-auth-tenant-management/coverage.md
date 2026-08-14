@@ -87,3 +87,54 @@ Full detail, literal test output, and the exact `dotnet test` verification runs:
 - **Margin vs. 5-min bar**: ✅ ~21s vs 300s (92% under bar)
 
 The suite has ample headroom for growth as new tests are added. Full measurement detail and run output: `.superpowers/sdd/tasks/task-91-report.md`.
+
+---
+
+## T092: gitleaks Secret Detection Scan
+
+**Execution date**: 2026-08-13  
+**Operator**: Claude Code  
+**Tool**: gitleaks 8.30.1 (Homebrew)  
+**Initial scan result**: 1 finding detected
+
+### Finding & Analysis
+
+**Flagged value**: SHA-256 hash `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b85`  
+**Location**: `tests/Tenancy.UnitTests/Invitations/InvitationTests.cs`, line 44  
+**Rule**: generic-api-key  
+**Status**: Confirmed false positive
+
+**Justification**:
+- This is the SHA-256 hash of an empty string (well-known, publicly-documented test constant)
+- Used as a test fixture constant (`private const string SampleTokenHash`)
+- Not a real credential, API key, token, or secret material
+- Appropriate and safe for test code
+
+### Resolution Applied
+
+A `.gitleaks.toml` configuration file was created at the repository root with a narrowly-scoped allowlist entry:
+
+```toml
+[allowlist]
+# SHA-256 hash of an empty string (e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b85) used as a test fixture constant in InvitationTests — not a real credential, confirmed false positive
+commits = ["0ecc91076efc6c45039441f556e73d075d4119fb"]
+paths = ["tests/Tenancy.UnitTests/Invitations/InvitationTests.cs"]
+regexes = ["e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b85"]
+```
+
+**Scope**: Allowlist is narrowly constrained to the specific commit, file, and exact hash value to prevent over-suppression of future genuine findings elsewhere in the codebase.
+
+### Verification
+
+**Command**: `gitleaks detect --no-git=false --verbose`  
+**Result**: ✅ **CLEAN** (0 findings, exit code 0)
+
+```
+9:14PM INF 124 commits scanned.
+9:14PM INF scanned ~1377465 bytes (1.38 MB) in 293ms
+9:14PM INF no leaks found
+```
+
+**Status**: COMPLETE — False positive confirmed, allowlisted, and clean scan verified.
+
+For full analysis and decision trail, see `.superpowers/sdd/tasks/task-92-report.md`.
