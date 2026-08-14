@@ -74,7 +74,7 @@ cd src/Tenancy/Tenancy.Api
 dotnet user-secrets init
 dotnet user-secrets set "AzureAd:TenantId"  "<entra-tenant-guid>"
 dotnet user-secrets set "AzureAd:ClientId"  "<api-client-id>"
-dotnet user-secrets set "ConnectionStrings:Tenancy" \
+dotnet user-secrets set "ConnectionStrings:TenancyDb" \
   "Server=localhost,1433;Database=Tenancy;User Id=sa;Password=<local-dev-password>;TrustServerCertificate=true"
 ```
 
