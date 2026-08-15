@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/Tenancy/">
+    <Project Path="src/Tenancy/Tenancy.Api/Tenancy.Api.csproj" />
+    <Project Path="src/Tenancy/Tenancy.Application/Tenancy.Application.csproj" />
+    <Project Path="src/Tenancy/Tenancy.Domain/Tenancy.Domain.csproj" />
+    <Project Path="src/Tenancy/Tenancy.Infrastructure/Tenancy.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Tenancy.IntegrationTests/Tenancy.IntegrationTests.csproj" />
+    <Project Path="tests/Tenancy.UnitTests/Tenancy.UnitTests.csproj" />
+  </Folder>
+</Solution>
