@@ -15,8 +15,8 @@ Full reasoning in [idea.md §46](idea.md) · rules in the
 | # | Slice | Status | Est. |
 |---|-------|--------|------|
 | **S1** | Constitution + ADRs + foundation | ✅ **done** | — |
-| **S2** | Auth + tenant + persistence (local) | ▶ **next** — [spec ready](specs/001-auth-tenant-management/spec.md) | 2–3 w |
-| S3 | Architecture tests | ⬜ | 1 w |
+| **S2** | Auth + tenant + persistence (local) | ✅ **done** — [spec](specs/001-auth-tenant-management/spec.md) | 2–3 w |
+| **S3** | Architecture tests | ▶ **next** | 1 w |
 | S4 | Observability | ⬜ | 1.5–2 w |
 | S5 | Containerization | ⬜ | 1 w |
 | S6 | Terraform → Azure | ⬜ | **3–4 w** |
@@ -43,12 +43,13 @@ Full reasoning in [idea.md §46](idea.md) · rules in the
    [contracts](specs/001-auth-tenant-management/contracts/openapi.yaml),
    [quickstart](specs/001-auth-tenant-management/quickstart.md), and
    [ADR-017](docs/adr/ADR-017-tenant-context-resolution.md) (Accepted)
-2. ⬜ Create the Entra app registrations ([quickstart](specs/001-auth-tenant-management/quickstart.md) §1)
-   — the only remaining blocker, and it needs a human
-3. ⬜ `/speckit.tasks`
-4. ⬜ Implement S2, checking off its *Done when* list
+2. ✅ Create the Entra app registrations ([quickstart](specs/001-auth-tenant-management/quickstart.md) §1)
+   — done 2026-08-15, verified with a real access token against the running API
+3. ✅ `/speckit.tasks` — done, 97 tasks
+4. ✅ Implement S2, checking off its *Done when* list — done 2026-08-15
 5. Optional: merge this branch to `main` — constitution and ADRs are project-level, not
    feature-level
+6. ▶ Start S3 — Architecture tests
 
 Open decisions in [docs/traceability.md](docs/traceability.md#open-decisions). None blocks
 S2. **U12 must be done in S3.** U6's performance gap was closed into S7 during S2 planning.
@@ -91,12 +92,12 @@ a container · unit + integration tests
 UI beyond what proves the scenarios
 
 **Done when**
-- [ ] All 15 acceptance scenarios in [spec 001](specs/001-auth-tenant-management/spec.md) pass
-- [ ] **A test proves cross-tenant read is refused — for every tenant-scoped operation**
-- [ ] An inaccessible tenant is indistinguishable from one that does not exist
-- [ ] Removing the last administrator is refused
-- [ ] Migrations apply to an empty database; app starts clean
-- [ ] No secret in git history (scan history, not just the working tree)
+- [x] All 15 acceptance scenarios in [spec 001](specs/001-auth-tenant-management/spec.md) pass
+- [x] **A test proves cross-tenant read is refused — for every tenant-scoped operation**
+- [x] An inaccessible tenant is indistinguishable from one that does not exist
+- [x] Removing the last administrator is refused
+- [x] Migrations apply to an empty database; app starts clean
+- [x] No secret in git history (scan history, not just the working tree)
 
 ---
 
