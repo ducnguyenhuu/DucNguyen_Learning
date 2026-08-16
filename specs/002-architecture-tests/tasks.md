@@ -3,7 +3,7 @@
 **Input**: Design documents from `/specs/002-architecture-tests/`
 **Prerequisites**: [spec.md](spec.md) (27 FRs, 6 user stories), [plan.md](plan.md), [research.md](research.md), [quickstart.md](quickstart.md), [checklists/](checklists/)
 
-**Tests**: Tests are not optional here — they **are** the deliverable. This slice ships sixteen
+**Tests**: Tests are not optional here — they **are** the deliverable. This slice ships seventeen
 gates, which are ordinary xUnit tests. FR-023 additionally requires every gate to be demonstrated
 red before acceptance, so each gate carries a paired proof task rather than a "write the test"
 task followed by hope.
@@ -46,7 +46,7 @@ reference rather than re-listed as pending work.
 
 **Purpose**: Create the project the gates live in. FR-001/FR-003.
 
-- [ ] T001 Create `tests/ArchitectureTests/ArchitectureTests.csproj` targeting `net10.0`, referencing `xunit.v3` and `AwesomeAssertions` from `Directory.Packages.props` with no new package versions added
+- [ ] T001 (FR-001) Create `tests/ArchitectureTests/ArchitectureTests.csproj` targeting `net10.0`, referencing `xunit.v3` and `AwesomeAssertions` from `Directory.Packages.props` with no new package versions added
 - [ ] T002 Add project references from `tests/ArchitectureTests/ArchitectureTests.csproj` to all four `src/Tenancy/*` projects, and add the project to the solution file
 - [ ] T003 Add `tests/ArchitectureTests/AssemblyInfo.cs` with `[assembly: CollectionBehavior(DisableTestParallelization = true)]`, matching `Tenancy.IntegrationTests`' existing setting, since gates read shared files from disk
 - [ ] T004 Record in `tests/ArchitectureTests/README.md` that `ContractTests/` and `EndToEndTests/` are deliberately absent per FR-003, naming S9 and S7 as their first consumers, so a later reader does not create them speculatively
@@ -65,7 +65,7 @@ helpers, and the migration must land before new gates are added alongside it.
 - [ ] T007 [P] Create `tests/ArchitectureTests/Support/RepoRoot.cs` by lifting `CapabilityBoundaryTests.FindRepoRoot()` unchanged, so the depth-independent walk is shared rather than duplicated
 - [ ] T008 Migrate all five tests from `tests/Tenancy.UnitTests/Architecture/CapabilityBoundaryTests.cs` into `tests/ArchitectureTests/CapabilityBoundaryGates.cs`, preserving every assertion, then delete the original file and its now-empty `Architecture/` folder (FR-002)
 - [ ] T009 Verify FR-002's "no loss of coverage" concretely: record the five migrated test names and their assertion counts in the PR description, and confirm `dotnet test` reports the same total as before the move — this answers CHK019, which flagged that "no loss of coverage" named no verification mechanism
-- [ ] T010 Decide and document where FR-023's failure demonstrations are recorded — resolving CHK001, which found the requirement says "MUST be recorded" without naming an artifact. Record the decision in `specs/002-architecture-tests/quickstart.md` §2 and use it consistently for every proof task below
+- [ ] T010 (FR-023, SC-001) Decide and document where FR-023's failure demonstrations are recorded — resolving CHK001, which found the requirement says "MUST be recorded" without naming an artifact. Record the decision in `specs/002-architecture-tests/quickstart.md` §2 and use it consistently for every proof task below
 
 **Checkpoint**: Shared helpers exist, the five S2 gates run from their correct home, and there is
 one agreed place to record proofs.
@@ -86,7 +86,7 @@ verified. T014 must follow T012, or the gate is red for the whole slice.
 
 - [ ] T011 [US1] Write `tests/Tenancy.UnitTests/Users/EnsureUserProvisionedTests.cs` covering the get-or-create race — inject a `DbUpdateException` via a fake `IUserRepository`, assert the existing row is returned — and **run it green against today's `DbUpdateException` behaviour before touching any production code** (FR-007a)
 - [ ] T012 [US1] Add an `Application`-owned concurrency-conflict exception type in `src/Tenancy/Tenancy.Application/Abstractions/`, and translate EF Core's `DbUpdateException` into it at the `Infrastructure` boundary in `src/Tenancy/Tenancy.Infrastructure/Persistence/UserRepository.cs` and `InvitationRepository.cs` (FR-006)
-- [ ] T013 [US1] Replace all three `Tenancy.Application` references to `DbUpdateException` with the translated type — `Users/EnsureUserProvisioned.cs:73`, `Invitations/InviteMember.cs:129`, and `Abstractions/IInvitationRepository.cs:62`'s `<exception>` doc — then remove the `<PackageReference Include="Microsoft.EntityFrameworkCore" />` and its now-false comment from `Tenancy.Application.csproj` (FR-006)
+- [ ] T013 [US1] (SC-002) Replace all three `Tenancy.Application` references to `DbUpdateException` with the translated type — `Users/EnsureUserProvisioned.cs:73`, `Invitations/InviteMember.cs:129`, and `Abstractions/IInvitationRepository.cs:62`'s `<exception>` doc — then remove the `<PackageReference Include="Microsoft.EntityFrameworkCore" />` and its now-false comment from `Tenancy.Application.csproj` (FR-006)
 - [ ] T014 [US1] Update `tests/Tenancy.UnitTests/Invitations/InviteMemberTests.cs:176` to inject the translated exception type instead of `DbUpdateException`, keeping its assertion that the race yields the same conflict signal as the pre-check (FR-007b)
 - [ ] T015 [US1] Implement the FR-004 gate in `tests/ArchitectureTests/LayeringGates.cs`: assert `Tenancy.Domain` declares no project or package reference to `Microsoft.EntityFrameworkCore`, `Azure.*`, or `Microsoft.AspNetCore.*`, failing with the offending project and package named (FR-024)
 - [ ] T016 [US1] Implement the FR-005 gate in the same file for `Tenancy.Application`, over both reference kinds
@@ -110,7 +110,7 @@ the suite, confirm it fails naming file and member, revert.
 - [ ] T020 [US2] Define what "member" means for the allow-list key and document the choice inline — resolving CHK033, which noted overloads, local functions, and lambdas are all plausibly "the member" and are not interchangeable for catching relocation
 - [ ] T021 [US2] Implement the FR-010 gate using `Support/SourceScanner`, matching `FromSqlRaw`, `FromSqlInterpolated`, `ExecuteSqlRaw`, `ExecuteSqlInterpolated`, their async forms, and `Database.SqlQuery`, scoped to `src/` per the spec's stated scope
 - [ ] T022 [US2] Require a justification comment adjacent to each allow-list entry and assert its presence, so adding an entry cannot be a silent one-line diff — resolving CHK034, which observed nothing made "audited" mean anything
-- [ ] T023 [US2] Prove T021 red twice per FR-023: once by adding an unlisted raw-SQL call, and once by moving the audited call to a new method without updating the allow-list (FR-011's relocation case). Record both
+- [ ] T023 [US2] Prove T021 red twice per FR-023: once by adding an unlisted raw-SQL call, and once by moving the audited call to a new method without updating the allow-list (FR-011's relocation case — FR-023 now names FR-011 explicitly, per analyze finding I1). Record both
 - [ ] T024 [US2] Record in `RawSqlGates.cs` remarks that formatting-sensitivity is a known residual risk per research.md R4, with a Roslyn analyzer as the escalation path rather than a looser regex
 
 **Checkpoint**: Raw SQL is gated, and the one legitimate exception is visible and justified.
@@ -185,7 +185,7 @@ requirement, run the suite, confirm it fails naming that requirement, restore.
 
 - [ ] T039 [US6] Create `tests/ArchitectureTests/Support/CoversRequirementAttribute.cs` per research.md R3 — a purpose-built attribute rather than `[Trait]`, so a typo is a failure rather than silent non-coverage. Record in its remarks that this choice is R3's, resolving CHK013's question of whether a different mechanism would be non-compliant
 - [ ] T040 [US6] Apply `[CoversRequirement("FR-0NN")]` across the existing unit and integration suites using `specs/001-auth-tenant-management/coverage.md`'s matrix as the source of truth, covering all 26 of spec 001's functional requirements
-- [ ] T041 [US6] Implement the FR-020 and FR-021 gates in `tests/ArchitectureTests/RequirementCoverageGates.cs`: enumerate declarations by reflection over both test assemblies, assert every FR-001–FR-026 of spec 001 has at least one, and fail naming the specific requirement
+- [ ] T041 [US6] (SC-003) Implement the FR-020 and FR-021 gates in `tests/ArchitectureTests/RequirementCoverageGates.cs`: enumerate declarations by reflection over both test assemblies, assert every one of spec 001's twenty-six functional requirements (`001-FR-001` through `001-FR-026`) has at least one, and fail naming the specific requirement
 - [ ] T042 [US6] Implement the FR-022 gate asserting no declaration names an identifier absent from spec 001, parsing the valid set from `specs/001-auth-tenant-management/spec.md` rather than hardcoding it
 - [ ] T043 [US6] State the gate's limits in `RequirementCoverageGates.cs` remarks per FR-020's own text — it detects loss of declared coverage, not whether a declaring test meaningfully exercises its requirement (CHK010/CHK011) — and record whether spec 002's own requirements are in scope, resolving CHK012
 - [ ] T044 [US6] Prove T041 and T042 red per FR-023 by removing one declaration and then adding a bogus identifier, confirming each failure names the requirement, restoring both, and recording the demonstrations
@@ -202,18 +202,18 @@ after the stories were written. No `[Story]` label, per the note at the top of t
 
 - [ ] T045 Add central `DomainException` → `400` and `ConflictException` → `409` mapping to `src/Tenancy/Tenancy.Api/ErrorHandling/ProblemDetailsHandler.cs`, which currently sets `Status500InternalServerError` unconditionally (FR-019)
 - [ ] T046 Write the FR-019 proof: a unit test asserting the handler's mapping, plus an integration test proving an unhandled `DomainException` yields `400` not `500`. Both **must be seen to fail against today's blanket-500 behaviour before T045 lands** — FR-023 requires this proof take that form since FR-019 is a behavioural guarantee, not a structural gate
-- [ ] T047 Confirm every existing endpoint `catch (DomainException)` block still produces its own more specific message after T045, by re-running the full suite and comparing pass counts rather than assuming additivity
+- [ ] T047 (FR-019, SC-004) Confirm every existing endpoint `catch (DomainException)` block still produces its own more specific message after T045, by re-running the full suite and comparing pass counts rather than assuming additivity
 - [ ] T048 Implement the FR-026 gate in `tests/ArchitectureTests/TenantIsolationGates.cs`: fail when `IgnoreQueryFilters()` appears with no arguments under `src/`, permitting the named form. Seed its remarks with the four currently-compliant call sites
 - [ ] T049 Prove T048 red per FR-023 by changing one named call to the bare form, confirming failure names file and member, reverting, and recording it
 - [x] T050 FR-027's runtime fail-closed guard for inserts with no tenant context — **done in commit `3aebea6`**, with `tests/Tenancy.IntegrationTests/Scenarios/UnsetTenantContextWriteTests.cs` written red-first (1 failed / 84 passed before the guard)
 
-**Checkpoint**: All sixteen gates exist and all have been demonstrated red.
+**Checkpoint**: All seventeen gates exist and all have been demonstrated red.
 
 ---
 
 ## Phase 10: Polish & Cross-Cutting Concerns
 
-- [ ] T051 [P] Assert failure-message content for every gate, so FR-024 is verified rather than eyeballed — resolving CHK006, which found the requirement satisfiable by a human glance at output
+- [ ] T051 [P] (SC-006) Assert failure-message content for every gate, so FR-024 is verified rather than eyeballed — resolving CHK006, which found the requirement satisfiable by a human glance at output
 - [ ] T052 [P] Measure the full suite's runtime three times and record min/median/max in `specs/002-architecture-tests/coverage.md` against SC-005's five-minute bar, naming the hardware — resolving CHK020, which found a wall-clock bound with no stated reference environment is not reproducible
 - [ ] T053 Update `docs/traceability.md`'s U12 table: mark the raw-SQL/background-job row and the provider-SDK row as addressed by this slice, and record that FR-012 closes the direct route while FR-027 closes the property. Resolves CHK041, which found no task owned this edit
 - [ ] T054 [P] Correct U12's framing in the same edit — its "most plausible route to a cross-tenant leak" overstates the background-job gap against this implementation, where reads and update/delete already fail closed and only insert did not
@@ -290,8 +290,13 @@ CHK015 (T034), CHK016 (T035), CHK017 (T034), CHK018 (T037), CHK019 (T009), CHK02
 CHK027 (T030), CHK028 (T028), CHK033 (T020), CHK034 (T022), CHK036 (T019), CHK041 (T053).
 T056 sweeps the remainder so none is silently dropped.
 
+**Success-criteria coverage** (added after analyze finding G1, which found four of six were
+covered in substance but cited by no task): SC-001 → T010 plus every proof task (T017, T023, T027,
+T032, T038, T044, T046, T049); SC-002 → T013, T015, T016; SC-003 → T041, T042; SC-004 → T018,
+T047; SC-005 → T052; SC-006 → T051.
+
 **Coverage check**: all 27 functional requirements map to at least one task — FR-001/003 (T001,
 T004), FR-002 (T008, T009), FR-004/005 (T015–T017), FR-006/007 (T011–T014), FR-008/009
-(T025–T027), FR-010/011 (T019–T024), FR-012/013 (T028–T032), FR-014/016/017/018 (T033–T038),
+(T025–T027), FR-010/011 (T019–T024, FR-011's relocation proof in T023), FR-012/013 (T028–T032), FR-014/016/017/018 (T033–T038),
 FR-015 (T036), FR-019 (T045–T047), FR-020/021/022 (T039–T044), FR-023 (every proof task),
 FR-024 (T051), FR-025 (T052), FR-026 (T048, T049), FR-027 (T050, done).

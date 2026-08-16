@@ -5,7 +5,7 @@
 
 ## Summary
 
-Turn sixteen architectural rules from documented intent into build failures, and clear the two
+Turn seventeen architectural rules from documented intent into build failures, and clear the two
 live gaps the new rules expose.
 
 Most are new enforcement over code that already exists; FR-020-FR-022 guard spec 001's
@@ -43,10 +43,12 @@ build" means "fails `dotnet test`" in this slice
 slice: 112 unit + 83 integration tests, ~27s integration / ~0.2s unit
 **Constraints**: every gate must name the offending project, package, call site, type, or
 requirement (FR-024); every gate must be demonstrated red before acceptance (FR-023)
-**Scale/Scope**: 27 functional requirements, 16 gates, 6 user stories, 1 capability, 4 source
-projects. Three gates pin the *absence* of something (no second capability, no background job,
-no provider SDK) rather than validating an instance; two (FR-019, FR-027) are runtime guarantees
-rather than structural gates
+**Scale/Scope**: 27 functional requirements, 17 gates, 6 user stories, 1 capability, 4 source
+projects. Three are **absence pins** (no second capability, no background job, no provider SDK)
+rather than validations of an instance; two (FR-019, FR-027) are runtime guarantees rather than
+structural gates. FR-012's forbidden set is defined as any **persistence port** — a port whose
+implementation lives in a persistence namespace — so capabilities added at S9/S11 are covered
+without curating a list
 
 ## Constitution Check
 
@@ -90,7 +92,7 @@ specs/002-architecture-tests/
 ├── quickstart.md        # Phase 1 — running the gates, and proving each can fail
 ├── checklists/
 │   └── requirements.md  # Spec quality + ADR-021 consistency check
-└── tasks.md             # Phase 2 output (/speckit.tasks — NOT created here)
+└── tasks.md             # Phase 2 output — 57 tasks across 10 phases
 ```
 
 No `data-model.md` and no `contracts/` are generated for this slice. There is no entity and
@@ -116,7 +118,7 @@ tests/
 │   ├── CapabilityBoundaryGates.cs#   FR-008, FR-009 (migrated from Tenancy.UnitTests)
 │   ├── RawSqlGates.cs            #   FR-010, FR-011
 │   ├── BackgroundJobGates.cs     #   FR-012, FR-013
-│   ├── DependencyPinGates.cs     #   FR-014, FR-017, FR-018 — ONE pinned package set
+│   ├── DependencyPinGates.cs     #   FR-014, FR-017, FR-018 — one **pinned dependency set**
 │   │                             #     (clarified: a deny-list cannot enumerate "equivalent")
 │   ├── ModelNamingGates.cs       #   FR-015, FR-016
 │   ├── TenantIsolationGates.cs   #   FR-026 (no bare IgnoreQueryFilters)

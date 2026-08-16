@@ -12,7 +12,7 @@ database for the gates themselves. Only FR-019's behavioural test needs the SQL 
 | Requirement | Notes |
 |---|---|
 | .NET 10 SDK | `dotnet --version` → 10.0.x. Confirmed present: 10.0.105 |
-| Docker Desktop or OrbStack | **Only** for FR-019's integration test and the existing S2 suite. Fourteen of the sixteen gates read only files and assembly metadata, so they need nothing running |
+| Docker Desktop or OrbStack | **Only** for FR-019's integration test and the existing S2 suite. Fifteen of the seventeen gates read only files and assembly metadata, so they need nothing running |
 
 No new NuGet package is required. [research.md](research.md) R1 rejected adding an
 architecture-testing library, so the gates use only what the solution already has.
@@ -46,7 +46,7 @@ so they should add well under a second — if they add meaningfully more, someth
 
 ## 2. Prove every gate can actually fail
 
-**This is the step that makes the slice worth anything.** FR-023 requires each of the sixteen
+**This is the step that makes the slice worth anything.** FR-023 requires each of the seventeen
 gates to be demonstrated red against a deliberate violation before it is accepted. The
 `testing` skill states the reason plainly: *an architecture test that never could have failed
 is decoration*, and *a test that passed the first time it was ever run* is a red flag.
@@ -68,18 +68,23 @@ the offender** (FR-024), then revert with `git checkout -- .`
 | FR-018 | Add `<PackageReference Include="MediatR" />` anywhere | Fails — ADR-021 ruling 2 |
 | FR-020 | Delete the coverage declaration from the only test covering one spec-001 requirement | Fails, naming that requirement |
 
-Three more (FR-009, FR-013, FR-016) pin the *absence* of something rather than validating an
-instance, so their proof is the same exercise in reverse: introduce a second capability, a
-background job, or a provider SDK **under `src/`**, confirm the pin fails, revert. FR-023 now
-names all sixteen explicitly — an earlier draft listed only eleven here, which disagreed with the
-spec (CHK002).
+The three absence pins (FR-009, FR-013, FR-016) prove the same way in reverse — introduce the
+thing, confirm the pin fails, revert — and are given rows below. FR-023 now
+names all seventeen explicitly — earlier drafts listed eleven, then sixteen, both disagreeing with
+this file (CHK002, and analyze finding I1 which caught that FR-011 was proven here but absent there).
 
-Two more were added by the checklist review:
+Two more were added by the checklist review, and the remaining four complete the seventeen — they
+are listed as rows rather than left in prose, so counting rows gives the right number (analyze
+finding I4):
 
 | Gate | Introduce this violation | Expect |
 |---|---|---|
 | FR-026 | Change any `IgnoreQueryFilters(["TenantFilter"])` call to the bare `IgnoreQueryFilters()` | Fails, naming file + member |
 | FR-027 | Insert a `Membership` via `TenancyDbContext` without setting `CurrentTenantId` | Throws `DomainException` — already covered by `UnsetTenantContextWriteTests` |
+| FR-009 | Add a second capability directory under `src/` | Absence pin fails, instructing you to extend FR-008's gate |
+| FR-013 | Add any `BackgroundService` under `src/` | Absence pin fails |
+| FR-016 | Add a model-provider SDK package reference | Absence pin fails, naming which of its two facts changed |
+| FR-019 | See §3 — its proof is behavioural, not structural | Test fails against today's blanket `500` |
 
 **FR-012 has no positive case while no background job exists.** Its proof is therefore a
 temporary fixture that gets reverted, not a permanent test. That is inherent to writing the

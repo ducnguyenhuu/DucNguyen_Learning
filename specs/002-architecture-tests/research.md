@@ -155,7 +155,7 @@ schema, it reads identically whether the key is `FR`, `Fr`, or `fr`, and nothing
 tests using different key spellings — so the gate would end up validating trait keys as well
 as values. The CLI-filtering benefit is real but incidental to this requirement.
 
-Spec 001's requirement identifiers are FR-001 through FR-026 — **verified**: 26 definitions,
+Spec 001's requirement identifiers are `001-FR-001` through `001-FR-026` — **verified**: 26 definitions,
 contiguous, with `old-FR-0NN` entries in its Deferred Requirements table being separate
 historical identifiers that must not be accepted by the gate.
 

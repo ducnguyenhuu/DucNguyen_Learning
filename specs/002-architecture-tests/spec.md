@@ -305,7 +305,7 @@ requirement, run the suite, confirm it fails naming that requirement, then resto
 
 **Acceptance Scenarios**:
 
-1. **Given** every requirement FR-001 through FR-026 of spec 001 has at least one test
+1. **Given** every one of spec 001's twenty-six functional requirements (`001-FR-001` through `001-FR-026`) has at least one test
    declaring that it covers it, **When** the gate runs, **Then** it passes.
 2. **Given** the last test declaring coverage for one requirement is deleted or its
    declaration removed, **When** the gate runs, **Then** it fails naming that specific
@@ -483,7 +483,7 @@ below — reproducing it as a gate would be theatre.
 
 **Requirement coverage (roadmap S3 "every FR in spec 001 maps to a test")**
 
-- **FR-020**: Every functional requirement FR-001 through FR-026 of spec 001 MUST have at
+- **FR-020**: Every functional requirement of spec 001 — `001-FR-001` through `001-FR-026` — MUST have at
   least one test that declares, in a machine-readable form attached to the test itself,
   that it covers that requirement.
 
@@ -501,9 +501,9 @@ below — reproducing it as a gate would be theatre.
 
 **Gate quality**
 
-- **FR-023**: Every gate specified in FR-004, FR-005, FR-008, FR-010, FR-012, FR-014,
-  FR-009, FR-013, FR-015, FR-016, FR-017, FR-018, FR-019, FR-020, FR-026, and FR-027 —
-  **sixteen in total, including the three absence pins** — MUST be demonstrated to
+- **FR-023**: Every gate specified in FR-004, FR-005, FR-008, FR-009, FR-010, FR-011, FR-012,
+  FR-013, FR-014, FR-015, FR-016, FR-017, FR-018, FR-019, FR-020, FR-026, and FR-027 —
+  **seventeen in total, including the three absence pins** — MUST be demonstrated to
   fail against a deliberately introduced violation before being accepted, and that
   demonstration MUST be recorded. FR-019's proof takes a different form from the rest, since
   it is a behavioural guarantee rather than a structural gate: its test MUST be seen to fail
@@ -567,7 +567,7 @@ below — reproducing it as a gate would be theatre.
 
 ### Measurable Outcomes
 
-- **SC-001**: Each of the sixteen gates named in FR-023 rejects a deliberately introduced
+- **SC-001**: Each of the seventeen gates named in FR-023 rejects a deliberately introduced
   violation, demonstrated once per gate, with the failure output naming the offending
   location — 100% of gates proven capable of failing, none accepted on a first-run green.
 - **SC-002**: `Tenancy.Domain` and `Tenancy.Application` depend on zero infrastructure
@@ -592,7 +592,7 @@ receiving slice named. **Renumber on adoption.**
 
 | Deferred | Requirement | Target slice |
 |---|---|---|
-| `old-FR-029` | The sixteen gates in FR-023 MUST run in the pipeline, so enforcement no longer depends on a developer choosing to run `dotnet test` (closes the Principle VII gap recorded above FR-001) | **S7** |
+| `old-FR-029` | The seventeen gates in FR-023 MUST run in the pipeline, so enforcement no longer depends on a developer choosing to run `dotnet test` (closes the Principle VII gap recorded above FR-001) | **S7** |
 | `old-FR-030` | A background job MUST obtain tenant-scoped data access through a sanctioned abstraction that establishes tenant context; this slice specifies only the prohibition (FR-012) and a runtime backstop (FR-027), because the abstraction's shape is fixed by its first real consumer | **S8 / S10** |
 
 ## Assumptions
@@ -677,7 +677,7 @@ was accepted, added the gates that ADR names this slice as responsible for:
     validation-library package), FR-018 (no mediator package), and FR-019 (`DomainException`
     must map to 4xx, closing the convention ADR-021 leaves load-bearing). Downstream
     requirements renumbered accordingly; FR-023's proof list and SC-001's count grew from
-    eight gates to eleven. *(Later grown to sixteen — see notes 14-15.)*
+    eight gates to eleven. *(Later grown to seventeen — see notes 14-18.)*
 
 A fourth pass, `/speckit.checklist`, produced [gate-efficacy.md](checklists/gate-efficacy.md) and
 [tenant-isolation.md](checklists/tenant-isolation.md) — 42 items. It found defects the three
@@ -695,10 +695,22 @@ consistent?" but "what would go wrong if this were built exactly as written?"
     instances than raw SQL has, and T095 had already fixed three of them by hand. **FR-026** added.
 16. **Five inter-document conflicts** (CHK002, 007, 029, 032, 042) resolved by deciding which side
     was right rather than by softening wording: the absence pins *do* need failure proofs (so
-    FR-023 grew to sixteen), gates scan `src/` only (so proof fixtures in `tests/` cannot collide
+    FR-023 grew to seventeen), gates scan `src/` only (so proof fixtures in `tests/` cannot collide
     with absence pins), and "the build MUST fail" now has one definition plus an S7 deferral
     instead of nine unqualified claims.
-17. **FR-020's coverage gate is gameable and now says so** (CHK010). It detects *loss* of declared
+17. **A numbering hazard, found by `/speckit.analyze` biting its own analysis.** This spec's
+    FR-026 and FR-027 collide with references to *spec 001's* FR-026 under substring matching. It
+    is not hypothetical: the analyze pass mis-attributed FR-026's proof task because T041 contained
+    the string `FR-001–FR-026 of spec 001`. The risk was raised when FR-026/FR-027 were appended
+    and dismissed as manageable — wrongly. References to spec 001's requirements now carry a
+    `001-` prefix, following the `old-FR-0NN` prefixing spec 001 itself uses for exactly this
+    purpose. **Any tooling that greps requirement identifiers across these documents must treat a
+    bare `FR-0NN` as belonging to spec 002.**
+18. **FR-011 was proven in `quickstart.md` but absent from FR-023's list** — the same conflict as
+    note 16's CHK002, incompletely fixed: the three absence pins were added, FR-011 was missed.
+    quickstart was right again; detecting a relocated allow-list entry is a distinct provable
+    behaviour. **FR-023 grew from sixteen to seventeen.**
+19. **FR-020's coverage gate is gameable and now says so** (CHK010). It detects *loss* of declared
     coverage, not whether a declaring test meaningfully exercises its requirement. T089's hand
     audit remains the substantive evidence; this gate only stops it rotting.
 12. **ADR-021's ruling 3 is deliberately not specified as a gate.** The ADR records that no
