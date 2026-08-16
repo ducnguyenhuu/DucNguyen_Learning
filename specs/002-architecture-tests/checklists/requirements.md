@@ -48,6 +48,17 @@ because the first draft's failures were all overclaims:
 | spec 001 defers work to S3 | Read spec 001's Deferred Requirements table | `old-FR-028`, `old-SC-008` both S3-assigned ✅ |
 | Numbering integrity of this spec | Enumerated all FR/SC definitions and cross-references | FR-001..FR-022, SC-001..SC-006, no gaps or duplicates; all spec-001 references explicitly qualified ✅ |
 
+## Amendments from planning (Phase 0)
+
+| Requirement | Change | Driver |
+|---|---|---|
+| FR-019 | Structural gate → central exception-to-status mapping in `ProblemDetailsHandler`, proven by test | [research.md](../research.md) R2: the structural form needs a Roslyn analyzer, and central mapping removes the failure mode rather than gating it |
+
+The mechanism question this checklist left open for planning is resolved: **no
+architecture-testing library is added.** NetArchTest was tested first (the `testing` skill
+writes its slice-3 example in that syntax) and rejected on evidence — run against this
+codebase it reported one of two structurally identical violations. See research.md R1.
+
 ## Consistency with higher-authority documents
 
 Principle II places ADRs above specs, so the spec must not contradict or lag an ADR that

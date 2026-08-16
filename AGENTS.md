@@ -124,5 +124,6 @@ is the single agent instruction file — there is no `CLAUDE.md`, deliberately.*
 ## Active Technologies
 - C# 14 / .NET 10 LTS + ASP.NET Core 10, EF Core 10, Microsoft.Identity.Web 4.14.2 (001-auth-tenant-management)
 - SQL Server 2022 (container) (001-auth-tenant-management)
+- No new dependencies — architecture gates use .csproj parsing, source scanning, and reflection; NetArchTest rejected on evidence, see specs/002-architecture-tests/research.md R1 (002-architecture-tests)
 
 ## Recent Changes

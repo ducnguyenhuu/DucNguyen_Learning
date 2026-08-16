@@ -389,11 +389,19 @@ below — reproducing it as a gate would be theatre.
   equivalent) is referenced by any project, enforcing ADR-021 ruling 1.
 - **FR-018**: The build MUST fail when a mediator/dispatcher package (MediatR or
   equivalent) is referenced by any project, enforcing ADR-021 ruling 2.
-- **FR-019**: Every endpoint MUST map `DomainException` to a 4xx status rather than letting
-  it reach `ProblemDetailsHandler`, which maps every uncaught exception to `500`. The build
-  MUST fail when an endpoint handler can surface a `DomainException` as a `500`. ADR-021
-  records this convention as a known weakness left load-bearing by its ruling 1; this is the
-  gate that closes it.
+- **FR-019**: An unhandled `DomainException` MUST NOT reach a client as a `500`.
+  `ProblemDetailsHandler` MUST map `DomainException` to `400` and `ConflictException` to
+  `409` centrally, so that an endpoint which omits its own `catch` still produces a correct
+  status. Existing endpoint-level mapping MUST continue to work unchanged. ADR-021 records
+  this convention as a known weakness left load-bearing by its ruling 1; this closes it.
+
+  *Amended by [research.md](research.md) R2.* The original wording required a gate that fails
+  when an endpoint handler *can* surface a `DomainException` as `500`. That is a method-body
+  dataflow question, answerable only by a Roslyn analyzer — disproportionate for one
+  convention, and it would leave `ProblemDetailsHandler`'s blanket `500` as the underlying
+  defect regardless. Removing the failure mode is the stronger form of Principle VII: a gate
+  detects the mistake, central mapping means there is no mistake to detect. The
+  client-visible guarantee is unchanged.
 
 **Requirement coverage (roadmap S3 "every FR in spec 001 maps to a test")**
 
@@ -410,7 +418,9 @@ below — reproducing it as a gate would be theatre.
 - **FR-023**: Every gate specified in FR-004, FR-005, FR-008, FR-010, FR-012, FR-014,
   FR-015, FR-017, FR-018, FR-019, and FR-020 — eleven in total — MUST be demonstrated to
   fail against a deliberately introduced violation before being accepted, and that
-  demonstration MUST be recorded.
+  demonstration MUST be recorded. FR-019's proof takes a different form from the rest, since
+  it is a behavioural guarantee rather than a structural gate: its test MUST be seen to fail
+  against the current blanket-`500` behaviour before the central mapping is added.
 - **FR-024**: Every failure produced by those gates MUST name the specific offending
   project, package, call site, type, or requirement — a bare pass/fail is not actionable.
 - **FR-025**: The full test suite (unit, integration, and architecture together) MUST
@@ -534,6 +544,13 @@ was accepted, added the gates that ADR names this slice as responsible for:
     separate read model exists and that this is not mechanically checkable while one context
     exists. Reproducing it as an architecture test would be a test that could never fail —
     the exact thing FR-023 exists to prevent.
+
+13. **FR-019 was amended during planning, not silently rebuilt.** Research (R2) established
+    that the structural form it originally required — a gate detecting an endpoint that *could*
+    let a `DomainException` escape — needs method-body dataflow analysis, i.e. a Roslyn
+    analyzer. Rather than build that, or quietly ship something weaker, the requirement was
+    rewritten to remove the failure mode: `ProblemDetailsHandler` maps the exception types
+    centrally, so a forgetful endpoint is harmless. The client-visible guarantee is identical.
 
 One item from ADR-021 was fixed outside this spec rather than folded into it: the
 display-name length guard, where `TenantConfiguration` declared `HasMaxLength(200)` while
