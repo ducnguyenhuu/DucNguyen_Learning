@@ -1,8 +1,8 @@
 # ADR-021: Application-layer pattern machinery is adopted at its first real consumer
 
-**Status**: Proposed
+**Status**: Accepted
 **Date**: 2026-08-15
-**Deciders**: Duc Nguyen (pending acceptance)
+**Deciders**: Duc Nguyen
 **Relates to**: Constitution Principle IX (final rule) and Principle X (rule 5),
 [ADR-002](ADR-002-dotnet-first.md), [ADR-003](ADR-003-service-oriented-architecture.md),
 roadmap S9 and S11

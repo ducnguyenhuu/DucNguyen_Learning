@@ -68,4 +68,43 @@ public class TenantTests
         tenant.Id.Should().NotBe(default(TenantId));
         tenant.Settings.Should().NotBeNull();
     }
+
+    /// <summary>
+    /// The domain must enforce the same upper bound the database column declares. Before
+    /// ADR-021, <c>TenantConfiguration</c> set <c>HasMaxLength(200)</c> while
+    /// <c>EnsureValidDisplayName</c> checked only null/whitespace — so an over-long name passed
+    /// the domain, reached SQL Server, and surfaced as a <c>500</c> rather than a <c>400</c>.
+    /// ADR-021 records that deferring a validation library does not excuse this gap.
+    /// </summary>
+    [Fact]
+    public void Create_WithDisplayNameAtMaxLength_Succeeds()
+    {
+        var atLimit = new string('a', Tenant.DisplayNameMaxLength);
+
+        var tenant = Tenant.Create(atLimit);
+
+        tenant.DisplayName.Should().Be(atLimit);
+    }
+
+    [Fact]
+    public void Create_WithDisplayNameExceedingMaxLength_ThrowsDomainException()
+    {
+        var overLimit = new string('a', Tenant.DisplayNameMaxLength + 1);
+
+        Action act = () => Tenant.Create(overLimit);
+
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void Rename_WithDisplayNameExceedingMaxLength_ThrowsDomainExceptionAndLeavesNameUnchanged()
+    {
+        var tenant = Tenant.Create("Acme Corp");
+        var overLimit = new string('a', Tenant.DisplayNameMaxLength + 1);
+
+        Action act = () => tenant.Rename(overLimit);
+
+        act.Should().Throw<DomainException>();
+        tenant.DisplayName.Should().Be("Acme Corp");
+    }
 }

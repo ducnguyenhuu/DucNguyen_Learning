@@ -8,6 +8,15 @@ namespace Tenancy.Domain.Tenants;
 /// </summary>
 public class Tenant
 {
+    /// <summary>
+    /// Upper bound on <see cref="DisplayName"/>'s length. The domain owns this rule and
+    /// <c>TenantConfiguration</c> derives its column length from it, rather than the two
+    /// declaring the limit independently — see ADR-021, which records the drift this closes:
+    /// the database column enforced 200 while the domain checked only null/whitespace, so an
+    /// over-long name reached SQL Server and surfaced as a 500 instead of a 400.
+    /// </summary>
+    public const int DisplayNameMaxLength = 200;
+
     private Tenant(TenantId id, string displayName, TenantStatus status)
     {
         Id = id;
@@ -56,7 +65,8 @@ public class Tenant
     /// Creates a new, active tenant with the given display name.
     /// </summary>
     /// <param name="displayName">The tenant's display name. Required, but not globally unique.</param>
-    /// <exception cref="DomainException">Thrown when <paramref name="displayName"/> is null, empty, or whitespace.</exception>
+    /// <exception cref="DomainException">Thrown when <paramref name="displayName"/> is null, empty,
+    /// whitespace, or longer than <see cref="DisplayNameMaxLength"/>.</exception>
     public static Tenant Create(string displayName)
     {
         EnsureValidDisplayName(displayName);
@@ -68,7 +78,8 @@ public class Tenant
     /// Renames the tenant.
     /// </summary>
     /// <param name="newDisplayName">The new display name. Required, but not globally unique.</param>
-    /// <exception cref="DomainException">Thrown when <paramref name="newDisplayName"/> is null, empty, or whitespace.</exception>
+    /// <exception cref="DomainException">Thrown when <paramref name="newDisplayName"/> is null, empty,
+    /// whitespace, or longer than <see cref="DisplayNameMaxLength"/>.</exception>
     public void Rename(string newDisplayName)
     {
         EnsureValidDisplayName(newDisplayName);
@@ -81,6 +92,12 @@ public class Tenant
         if (string.IsNullOrWhiteSpace(displayName))
         {
             throw new DomainException("Tenant display name is required.");
+        }
+
+        if (displayName.Length > DisplayNameMaxLength)
+        {
+            throw new DomainException(
+                $"Tenant display name must be {DisplayNameMaxLength} characters or fewer.");
         }
     }
 }

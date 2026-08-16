@@ -9,19 +9,13 @@ namespace Tenancy.Infrastructure.Persistence.Configurations;
 /// </summary>
 public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
 {
-    /// <summary>
-    /// Reasonable upper bound for a tenant display name. Not enforced anywhere else in the
-    /// domain — chosen here purely as a sane database column bound.
-    /// </summary>
-    private const int DisplayNameMaxLength = 200;
-
     public void Configure(EntityTypeBuilder<Tenant> builder)
     {
         builder.HasKey(t => t.Id);
 
         builder.Property(t => t.DisplayName)
             .IsRequired()
-            .HasMaxLength(DisplayNameMaxLength);
+            .HasMaxLength(Tenant.DisplayNameMaxLength);
 
         // Persisted as a string, not an ordinal, so the column stays human-readable and stable
         // across future enum reordering.
