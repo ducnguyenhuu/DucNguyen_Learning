@@ -16,6 +16,14 @@ public sealed record PackageReference(string Name, string? Version);
 /// </summary>
 public static class ProjectFile
 {
+    /// <summary>
+    /// Walks up from the test assembly's output directory to the repository root, identified by
+    /// the presence of src/Tenancy. Exposed publicly so callers that need to scan directories
+    /// under the repo root directly (rather than through a project-name lookup) don't have to
+    /// duplicate this walk themselves.
+    /// </summary>
+    public static string GetRepoRoot() => FindRepoRoot();
+
     public static string[] GetProjectReferences(string projectName)
     {
         var csprojPath = FindCsproj(projectName);
@@ -29,6 +37,7 @@ public static class ProjectFile
 
         return document
             .Descendants("ProjectReference")
+            // MSBuild schema guarantees Include on ProjectReference/PackageVersion elements.
             .Select(element => element.Attribute("Include")!.Value.Replace('\\', '/'))
             .Select(path => Path.GetFileNameWithoutExtension(path)!)
             .ToArray();

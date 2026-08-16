@@ -1,6 +1,6 @@
 using System.IO;
 using System.Linq;
-using System.Xml.Linq;
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Xunit;
 
@@ -39,12 +39,12 @@ namespace Tenancy.UnitTests.Architecture;
 /// </remarks>
 public sealed class CapabilityBoundaryTests
 {
-    private static readonly string RepoRoot = FindRepoRoot();
+    private static readonly string RepoRoot = ProjectFile.GetRepoRoot();
 
     [Fact]
     public void TenancyDomain_HasNoProjectReferences()
     {
-        var references = GetProjectReferences("Tenancy.Domain");
+        var references = ProjectFile.GetProjectReferences("Tenancy.Domain");
 
         references.Should().BeEmpty(
             "FR-024 requires the domain layer to depend on nothing, least of all infrastructure — " +
@@ -54,7 +54,7 @@ public sealed class CapabilityBoundaryTests
     [Fact]
     public void TenancyApplication_OnlyReferencesDomain()
     {
-        var references = GetProjectReferences("Tenancy.Application");
+        var references = ProjectFile.GetProjectReferences("Tenancy.Application");
 
         references.Should().BeEquivalentTo(
             new[] { "Tenancy.Domain" },
@@ -65,8 +65,8 @@ public sealed class CapabilityBoundaryTests
     [Fact]
     public void TenancyInfrastructure_NeverReferencedByDomainOrApplication()
     {
-        GetProjectReferences("Tenancy.Domain").Should().NotContain("Tenancy.Infrastructure");
-        GetProjectReferences("Tenancy.Application").Should().NotContain("Tenancy.Infrastructure");
+        ProjectFile.GetProjectReferences("Tenancy.Domain").Should().NotContain("Tenancy.Infrastructure");
+        ProjectFile.GetProjectReferences("Tenancy.Application").Should().NotContain("Tenancy.Infrastructure");
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public sealed class CapabilityBoundaryTests
 
         var referencersOfInfrastructure = csprojFiles
             .Where(path => !string.Equals(Path.GetFileNameWithoutExtension(path), "Tenancy.Infrastructure", StringComparison.Ordinal))
-            .Where(path => GetProjectReferenceNames(path).Contains("Tenancy.Infrastructure"))
+            .Where(path => ProjectFile.GetProjectReferences(new FileInfo(path)).Contains("Tenancy.Infrastructure"))
             .Select(path => Path.GetFileNameWithoutExtension(path)!)
             .ToArray();
 
@@ -110,46 +110,5 @@ public sealed class CapabilityBoundaryTests
             "deliberately contains exactly one capability. If this fails because a second " +
             "capability was legitimately added, update this expectation and add a real " +
             "cross-capability-access test for FR-023 alongside it — don't just delete this test.");
-    }
-
-    private static string[] GetProjectReferences(string projectName)
-    {
-        var csprojPath = Directory.GetFiles(
-                Path.Combine(RepoRoot, "src"),
-                $"{projectName}.csproj",
-                SearchOption.AllDirectories)
-            .Single();
-
-        return GetProjectReferenceNames(csprojPath);
-    }
-
-    private static string[] GetProjectReferenceNames(string csprojPath)
-    {
-        var document = XDocument.Load(csprojPath);
-
-        return document
-            .Descendants("ProjectReference")
-            .Select(element => element.Attribute("Include")!.Value.Replace('\\', '/'))
-            .Select(path => Path.GetFileNameWithoutExtension(path)!)
-            .ToArray();
-    }
-
-    private static string FindRepoRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-
-        while (directory is not null)
-        {
-            if (Directory.Exists(Path.Combine(directory.FullName, "src", "Tenancy")))
-            {
-                return directory.FullName;
-            }
-
-            directory = directory.Parent;
-        }
-
-        throw new InvalidOperationException(
-            "Could not locate repository root (a directory containing src/Tenancy) by walking " +
-            $"up from {AppContext.BaseDirectory}.");
     }
 }
