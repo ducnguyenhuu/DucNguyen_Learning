@@ -71,7 +71,7 @@ you can point at the sentence that satisfies it. "That's obviously implied" is a
 - [x] CHK010 **Does FR-020 conflate "declares coverage" with "covers"?** It requires each spec-001
       requirement to have "at least one test that declares... that it covers that requirement".
       A test that declares `FR-007` and asserts something unrelated satisfies this literally.
-      The gate is trivially gameable by attribute-spraying. [Gap, Measurability, Spec §FR-020] — **Resolved 2026-08-15**: 
+      The gate is trivially gameable by attribute-spraying. [Gap, Measurability, Spec §FR-020] — **Resolved 2026-08-15**:
       confirmed and **stated in FR-020** rather than fixed — verifying substance needs human
       judgement. The gate detects *loss* of declared coverage; T089's hand audit remains the
       substantive evidence and SC-003 must not be read as claiming more.

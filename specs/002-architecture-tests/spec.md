@@ -6,12 +6,7 @@
 **Status**: Draft
 **Input**: User description: "S3 — Architecture tests. Per roadmap.md: enforce domain≠infrastructure layering, no cross-service data access, no provider SDK outside AI Platform boundary, raw SQL restricted to audited helpers, background jobs must set tenant context (U12, docs/traceability.md). Done when: a deliberate domain→infrastructure reference fails the build; a deliberate cross-service data access fails the build; every FR in spec 001 maps to a test; full suite runs unattended under 5 minutes. Builds on existing tests/Tenancy.UnitTests/Architecture/CapabilityBoundaryTests.cs from S2's T089."
 
-This slice has no end user. Its "user" is the **developer working in this repository**
-(including a future AI agent) — the person whose accidental boundary violation must be
-caught before merge rather than discovered later as a cross-tenant leak or an
-unmaintainable dependency graph. Constitution Principle VII is the governing rule:
-*anything that must always be true is enforced by a gate that fails the build; human
-review does not scale and does not remember.*
+This slice has no end user. Its "user" is the **developer working in this repository**(including a future AI agent) — the person whose accidental boundary violation must be caught before merge rather than discovered later as a cross-tenant leak or an unmaintainable dependency graph. Constitution Principle VII is the governing rule: *anything that must always be true is enforced by a gate that fails the build; human review does not scale and does not remember.*
 
 ## Clarifications
 
@@ -29,8 +24,7 @@ review does not scale and does not remember.*
 
 ## Inherited Requirements
 
-Spec 001 explicitly deferred two requirements to this slice, with an instruction to
-renumber on adoption. They are adopted here rather than restated loosely:
+Spec 001 explicitly deferred two requirements to this slice, with an instruction to renumber on adoption. They are adopted here rather than restated loosely:
 
 | Deferred from spec 001 | Original text | Adopted here as |
 |---|---|---|
@@ -55,8 +49,7 @@ The other two U12 gaps (portal infrastructure changes → ADR-012; `.claude/skil
 ## What Already Exists
 
 S2's T089 shipped [`tests/Tenancy.UnitTests/Architecture/CapabilityBoundaryTests.cs`](../../tests/Tenancy.UnitTests/Architecture/CapabilityBoundaryTests.cs)
-with five passing tests that already cover part of this slice's intent. This spec does
-**not** re-specify them as new work. What they do and do not cover:
+with five passing tests that already cover part of this slice's intent. This spec does **not** re-specify them as new work. What they do and do not cover:
 
 | Existing test | Covers | Gap this slice closes |
 |---|---|---|
@@ -238,15 +231,15 @@ discard.
 2. **Given** a type implementing `IHostedService` or deriving from `BackgroundService`
    whose constructor takes `TenancyDbContext` or any persistence port, **When** the gate
    runs, **Then** it fails naming that type and the offending dependency.
-2a. **Given** such a job whose constructor takes only `ITenantContext`, **When** the gate
+3. **Given** such a job whose constructor takes only `ITenantContext`, **When** the gate
    runs, **Then** it passes — establishing tenant context is the sanctioned direction, not the
    violation. **Passing this gate does not make the job safe**: if it never actually sets the
    context and reaches data through a use case or a resolved scope, FR-027 is what refuses the
    write at runtime. FR-012 refuses the obvious mistake cheaply; it does not certify correctness.
-3. **Given** a background job that takes no tenant-scoped data-access dependency at all,
+4. **Given** a background job that takes no tenant-scoped data-access dependency at all,
    **When** the gate runs, **Then** it passes — the gate refuses the unsafe construction, it
    does not require a specific replacement.
-4. **Given** the gate fails on such a job, **When** the developer reads the failure output,
+5. **Given** the gate fails on such a job, **When** the developer reads the failure output,
    **Then** it names the offending type *and* states what to do instead, citing ADR-013 —
    a gate that blocks without guidance is one a developer disables.
 
@@ -677,7 +670,23 @@ was accepted, added the gates that ADR names this slice as responsible for:
     validation-library package), FR-018 (no mediator package), and FR-019 (`DomainException`
     must map to 4xx, closing the convention ADR-021 leaves load-bearing). Downstream
     requirements renumbered accordingly; FR-023's proof list and SC-001's count grew from
-    eight gates to eleven. *(Later grown to seventeen — see notes 14-18.)*
+    eight gates to eleven. *(Later grown to seventeen — see notes 14-19.)*
+12. **ADR-021's ruling 3 is deliberately not specified as a gate.** The ADR records that no
+    separate read model exists and that this is not mechanically checkable while one context
+    exists. Reproducing it as an architecture test would be a test that could never fail —
+    the exact thing FR-023 exists to prevent.
+13. **FR-019 was amended during planning, not silently rebuilt.** Research (R2) established
+    that the structural form it originally required — a gate detecting an endpoint that *could*
+    let a `DomainException` escape — needs method-body dataflow analysis, i.e. a Roslyn
+    analyzer. Rather than build that, or quietly ship something weaker, the requirement was
+    rewritten to remove the failure mode: `ProblemDetailsHandler` maps the exception types
+    centrally, so a forgetful endpoint is harmless. The client-visible guarantee is identical.
+
+A further item from that ADR was fixed outside this spec rather than folded into it: the
+display-name length guard, where `TenantConfiguration` declared `HasMaxLength(200)` while the
+domain checked only null/whitespace. That is an S2 domain defect, not architecture-test work, so
+it was closed in its own commit (written red-first: two over-limit tests failed before the guard
+was added), and `Tenant.DisplayNameMaxLength` is now the single source the schema derives from.
 
 A fourth pass, `/speckit.checklist`, produced [gate-efficacy.md](checklists/gate-efficacy.md) and
 [tenant-isolation.md](checklists/tenant-isolation.md) — 42 items. It found defects the three
@@ -695,10 +704,18 @@ consistent?" but "what would go wrong if this were built exactly as written?"
     instances than raw SQL has, and T095 had already fixed three of them by hand. **FR-026** added.
 16. **Five inter-document conflicts** (CHK002, 007, 029, 032, 042) resolved by deciding which side
     was right rather than by softening wording: the absence pins *do* need failure proofs (so
-    FR-023 grew to seventeen), gates scan `src/` only (so proof fixtures in `tests/` cannot collide
+    FR-023 grew to sixteen), gates scan `src/` only (so proof fixtures in `tests/` cannot collide
     with absence pins), and "the build MUST fail" now has one definition plus an S7 deferral
     instead of nine unqualified claims.
-17. **A numbering hazard, found by `/speckit.analyze` biting its own analysis.** This spec's
+17. **FR-020's coverage gate is gameable and now says so** (CHK010). It detects *loss* of declared
+    coverage, not whether a declaring test meaningfully exercises its requirement. T089's hand
+    audit remains the substantive evidence; this gate only stops it rotting.
+
+A fifth pass, `/speckit.analyze`, cross-checked spec against plan against tasks once `tasks.md`
+existed. Both of its substantive findings were consequences of decisions taken earlier in this
+same document:
+
+18. **A numbering hazard, caught by the analysis biting itself.** This spec's
     FR-026 and FR-027 collide with references to *spec 001's* FR-026 under substring matching. It
     is not hypothetical: the analyze pass mis-attributed FR-026's proof task because T041 contained
     the string `FR-001–FR-026 of spec 001`. The risk was raised when FR-026/FR-027 were appended
@@ -706,28 +723,7 @@ consistent?" but "what would go wrong if this were built exactly as written?"
     `001-` prefix, following the `old-FR-0NN` prefixing spec 001 itself uses for exactly this
     purpose. **Any tooling that greps requirement identifiers across these documents must treat a
     bare `FR-0NN` as belonging to spec 002.**
-18. **FR-011 was proven in `quickstart.md` but absent from FR-023's list** — the same conflict as
+19. **FR-011 was proven in `quickstart.md` but absent from FR-023's list** — the same conflict as
     note 16's CHK002, incompletely fixed: the three absence pins were added, FR-011 was missed.
     quickstart was right again; detecting a relocated allow-list entry is a distinct provable
     behaviour. **FR-023 grew from sixteen to seventeen.**
-19. **FR-020's coverage gate is gameable and now says so** (CHK010). It detects *loss* of declared
-    coverage, not whether a declaring test meaningfully exercises its requirement. T089's hand
-    audit remains the substantive evidence; this gate only stops it rotting.
-12. **ADR-021's ruling 3 is deliberately not specified as a gate.** The ADR records that no
-    separate read model exists and that this is not mechanically checkable while one context
-    exists. Reproducing it as an architecture test would be a test that could never fail —
-    the exact thing FR-023 exists to prevent.
-
-13. **FR-019 was amended during planning, not silently rebuilt.** Research (R2) established
-    that the structural form it originally required — a gate detecting an endpoint that *could*
-    let a `DomainException` escape — needs method-body dataflow analysis, i.e. a Roslyn
-    analyzer. Rather than build that, or quietly ship something weaker, the requirement was
-    rewritten to remove the failure mode: `ProblemDetailsHandler` maps the exception types
-    centrally, so a forgetful endpoint is harmless. The client-visible guarantee is identical.
-
-One item from ADR-021 was fixed outside this spec rather than folded into it: the
-display-name length guard, where `TenantConfiguration` declared `HasMaxLength(200)` while
-the domain checked only null/whitespace. That is an S2 domain defect, not architecture-test
-work, so it was closed in its own commit (written red-first: two over-limit tests failed
-before the guard was added) and `Tenant.DisplayNameMaxLength` is now the single source the
-schema derives from.
