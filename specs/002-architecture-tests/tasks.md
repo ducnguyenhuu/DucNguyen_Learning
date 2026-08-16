@@ -83,7 +83,7 @@ reference rather than re-listed as pending work.
 **⚠️ CRITICAL**: No gate task can begin until this phase is complete — every gate uses these
 helpers, and the migration must land before new gates are added alongside it.
 
-- [ ] T005 Create `tests/ArchitectureTests/Support/ProjectFile.cs` exposing project-reference and package-reference readers over `src/**/*.csproj` plus `Directory.Packages.props`, replacing the private `XDocument` helpers currently inside `CapabilityBoundaryTests`
+- [x] T005 Create `tests/ArchitectureTests/Support/ProjectFile.cs` exposing project-reference and package-reference readers over `src/**/*.csproj` plus `Directory.Packages.props`, replacing the private `XDocument` helpers currently inside `CapabilityBoundaryTests`
 - [ ] T006 [P] Create `tests/ArchitectureTests/Support/SourceScanner.cs` that enumerates `.cs` files under `src/` only — excluding `bin/`, `obj/`, and `.git/` — and reports each match as file path plus enclosing member name, since FR-011 requires both
 - [ ] T007 [P] Create `tests/ArchitectureTests/Support/RepoRoot.cs` by lifting `CapabilityBoundaryTests.FindRepoRoot()` unchanged, so the depth-independent walk is shared rather than duplicated
 - [ ] T008 Migrate all five tests from `tests/Tenancy.UnitTests/Architecture/CapabilityBoundaryTests.cs` into `tests/ArchitectureTests/CapabilityBoundaryGates.cs`, preserving every assertion, then delete the original file and its now-empty `Architecture/` folder (FR-002)
@@ -296,7 +296,7 @@ red flag list names "an architecture test nobody has verified can actually fail"
 | Phase | Story | Tasks | Count |
 |---|---|---|---|
 | 1 Setup | — | T001–T004 | 4 (done) |
-| 2 Foundational | — | T005–T010 | 6 |
+| 2 Foundational | — | T005–T010 | 6 (1 done) |
 | 3 | US1 (P1) 🎯 MVP | T011–T018 | 8 |
 | 4 | US2 (P1) | T019–T024 | 6 |
 | 5 | US3 (P1) | T025–T027 | 3 |
@@ -305,7 +305,7 @@ red flag list names "an architecture test nobody has verified can actually fail"
 | 8 | US6 (P3) | T039–T044 | 6 |
 | 9 Unowned | — | T045–T050 | 6 (1 done) |
 | 10 Polish | — | T051–T057 | 7 |
-| **Total** | | | **57** (5 done, 52 open) |
+| **Total** | | | **57** (6 done, 51 open) |
 
 **Checklist items resolved by tasks**: 17 of the 28 still open are assigned to a specific task —
 CHK001 (T010), CHK005 (T032), CHK006 (T051), CHK010/011 (T043), CHK012 (T043), CHK013 (T039),
