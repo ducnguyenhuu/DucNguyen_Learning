@@ -22,6 +22,11 @@ review does not scale and does not remember.*
 - Q: Which types does FR-012's "tenant-scoped repository" cover? → A: `TenancyDbContext` plus every persistence port — identified mechanically as any port whose implementation lives in a persistence namespace, so ports added by S9/S11 are covered without curating a list. `ITenantContext` is excluded: it is not a persistence port and is what a job would legitimately use.
 - Q: What counts as a "model identifier string" for FR-015, and over what scope? → A: A small explicit pattern list (`gpt-`, `claude-`, `gemini-`, `llama-`, `text-embedding-`, `o1-`) scanned over `src/**/*.cs` only — not docs, specs, or tests, which legitimately name models throughout.
 
+### Session 2026-08-15 (checklist findings)
+
+- Q: FR-012's structural gate cannot see a job that resolves data access at runtime — a `BackgroundService` is a singleton and must use `IServiceScopeFactory`, so constructor inspection is blind by construction. Expand the gate, or close the property another way? → A: Do not expand the gate. Add a runtime fail-closed guard instead (FR-027), which holds regardless of how the job obtained its context, and record FR-012's limits honestly.
+- Q: Four `IgnoreQueryFilters` call sites are live and the spec gates none of them. Add a gate? → A: Yes — forbid the bare no-arg form, permit the named form (FR-026). No allow-list needed; all four existing sites already comply.
+
 ## Inherited Requirements
 
 Spec 001 explicitly deferred two requirements to this slice, with an instruction to
@@ -400,6 +405,14 @@ requirement, run the suite, confirm it fails naming that requirement, then resto
   consumer at S8/S10, not by this slice. The gate's failure message MUST therefore state what
   to do instead and cite ADR-013, so the first background-job author is redirected rather than
   merely blocked.
+
+  *Known limits, established by checklist review (CHK023-CHK025) and recorded rather than
+  glossed:* this gate closes the **direct constructor route only**. It cannot see a job that
+  resolves `TenancyDbContext` through `IServiceScopeFactory` — which a `BackgroundService`,
+  being a singleton, is *required* to do — nor a job that depends on an Application use case
+  instead of a port. No constructor-level gate can. FR-027 closes the underlying property at
+  runtime, where those routes converge; FR-012 remains worthwhile because it refuses the
+  obvious mistake at the cheapest possible point.
 - **FR-013**: The build MUST pass today recording that no such type exists yet.
 
 **Provider SDK and model naming (adopts U12/ADR-001, ADR-008, ADR-009)**
@@ -464,7 +477,8 @@ below — reproducing it as a gate would be theatre.
 **Gate quality**
 
 - **FR-023**: Every gate specified in FR-004, FR-005, FR-008, FR-010, FR-012, FR-014,
-  FR-015, FR-017, FR-018, FR-019, and FR-020 — eleven in total — MUST be demonstrated to
+  FR-015, FR-017, FR-018, FR-019, FR-020, FR-026, and FR-027 — thirteen in total — MUST be
+  demonstrated to
   fail against a deliberately introduced violation before being accepted, and that
   demonstration MUST be recorded. FR-019's proof takes a different form from the rest, since
   it is a behavioural guarantee rather than a structural gate: its test MUST be seen to fail
@@ -473,6 +487,31 @@ below — reproducing it as a gate would be theatre.
   project, package, call site, type, or requirement — a bare pass/fail is not actionable.
 - **FR-025**: The full test suite (unit, integration, and architecture together) MUST
   complete unattended in under 5 minutes.
+
+**Tenant-isolation defence in depth (added 2026-08-15 from checklist review)**
+
+- **FR-026**: The build MUST fail when `IgnoreQueryFilters()` is called with **no arguments**
+  anywhere under `src/`. The named form — `IgnoreQueryFilters(["TenantFilter"])` — MUST remain
+  permitted. Spec 001's research R3 prohibits the bare form because it disables *every* filter,
+  not only tenancy; T095 found and corrected three such calls by hand. Four call sites are live
+  today and all already comply, so no allow-list is required — which is why this is a plain
+  prohibition rather than an FR-010-style allow-list.
+- **FR-027**: Inserting an `ITenantOwned` entity while no tenant context is established MUST be
+  refused at runtime, not silently stamped with `default(TenantId)`. This closes the property
+  FR-012's structural gate provably cannot reach.
+
+  *Verified behaviour this rests on, rather than assumed:* `CurrentTenantId` is a non-nullable
+  struct, so "unset" is `Guid.Empty`. Reads already fail closed (the filter matches no row) and
+  update/delete already throw (original tenant differs from ambient). **Insert was the only
+  direction that did not** — it produced a row owned by a tenant that does not exist. Note this
+  makes the defect a silent orphan rather than a cross-tenant leak, so U12's framing of the
+  background-job gap as *"the most plausible route to a cross-tenant leak"* **overstates it
+  against this implementation**; recorded here rather than left for the next reader to
+  rediscover.
+
+  The two operations that legitimately insert a tenant-owned entity outside a tenant-scoped
+  request — create-tenant and accept-invitation — already set the context first and both document
+  why, so this requirement converts an existing convention into enforcement (Principle VII).
 
 ### Key Entities
 
@@ -499,7 +538,7 @@ below — reproducing it as a gate would be theatre.
 
 ### Measurable Outcomes
 
-- **SC-001**: Each of the eleven gates named in FR-023 rejects a deliberately introduced
+- **SC-001**: Each of the thirteen gates named in FR-023 rejects a deliberately introduced
   violation, demonstrated once per gate, with the failure output naming the offending
   location — 100% of gates proven capable of failing, none accepted on a first-run green.
 - **SC-002**: `Tenancy.Domain` and `Tenancy.Application` depend on zero infrastructure

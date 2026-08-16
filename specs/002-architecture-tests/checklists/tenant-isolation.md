@@ -22,23 +22,35 @@ mark the item failed.
 
 ## Does FR-012 actually close the gap U12 describes?
 
-- [ ] CHK023 **U12's stated danger is "a background job running without tenant context". FR-012
+- [x] CHK023 **U12's stated danger is "a background job running without tenant context". FR-012
       forbids a job from *taking a persistence dependency*. Are those the same property?** A job
       that takes only `ITenantContext` (explicitly permitted), never sets it, and calls an
       Application use case such as `ListMembers` passes FR-012's gate and still queries with
-      unset tenant context. [Coverage, Gap, Spec §FR-012 vs U12]
-- [ ] CHK024 Does FR-012 cover a job that obtains data access **without a constructor parameter**
+      unset tenant context. [Coverage, Gap, Spec §FR-012 vs U12] — **Resolved 2026-08-15**: no, they are not the same
+      property. FR-012 now records that limit explicitly, and **FR-027** closes the property at
+      runtime instead: inserting an `ITenantOwned` entity with unset context throws. Verified
+      red-first (1 failed / 84 passed before the guard).
+- [x] CHK024 Does FR-012 cover a job that obtains data access **without a constructor parameter**
       — resolving `TenancyDbContext` from `IServiceProvider`, or from a static/ambient accessor?
       Constructor inspection is blind to service-locator style, and no requirement forbids it.
-      [Gap, Coverage, Spec §FR-012]
-- [ ] CHK025 Does FR-012 cover a job that depends on an **Application use case** rather than a
+      [Gap, Coverage, Spec §FR-012] — **Resolved 2026-08-15**: confirmed **unclosable** by a structural gate — a
+      `BackgroundService` is a singleton and *must* use `IServiceScopeFactory` to reach scoped
+      services, so forbidding that pattern would forbid the correct one. Closed by FR-027 at
+      runtime instead.
+- [x] CHK025 Does FR-012 cover a job that depends on an **Application use case** rather than a
       persistence port? Use cases are not persistence ports under the clarified mechanical
       definition, so `ListMembers`, `RemoveMember`, and `ChangeMemberRole` are all permitted
-      dependencies today. [Gap, Coverage, Spec §FR-012, Clarifications 2026-08-15]
-- [ ] CHK026 Is there any **runtime** requirement backing the structural gate — that a
-      tenant-scoped query executed with no tenant context fails loudly rather than returning an
-      empty or wrong-tenant result? The spec specifies only a compile/test-time gate, so a job
-      that evades it has no second line of defence. [Gap, Coverage, Principle IV]
+      dependencies today. [Gap, Coverage, Spec §FR-012, Clarifications 2026-08-15] — **Resolved 2026-08-15**: correct,
+      use cases remain permitted dependencies. Not closed structurally (that would forbid a job
+      doing anything useful); closed by FR-027, which fires wherever the write originates.
+- [x] CHK026 Is there any **runtime** requirement backing the structural gate — that a
+      tenant-scoped operation with no tenant context fails loudly rather than silently? The spec
+      specified only a compile/test-time gate, so a job that evades it had no second line of
+      defence. [Gap, Coverage, Principle IV] — **Resolved 2026-08-15**: **FR-027 added.** This item as originally
+      written said "returning an empty or **wrong-tenant** result" — the second half was wrong and
+      is corrected here: `CurrentTenantId` is a non-nullable struct, so unset means `Guid.Empty`,
+      against which reads match no row and update/delete already throw. Only *insert* failed open,
+      producing an orphan rather than a leak. The verified behaviour is now recorded on FR-027.
 - [ ] CHK027 Does the spec state what a background job **should** do, now that the clarification
       removed the sanctioned abstraction? FR-012 requires the failure message to "state what to do
       instead and cite ADR-013", but ADR-013 predates this question and describes request-scoped
@@ -98,14 +110,16 @@ mark the item failed.
       permits zero exceptions. Do FR-010/FR-012 claim to complete that, or only to close two named
       routes? The spec should not let a reader infer the stronger claim. [Clarity, Traceability,
       Spec §FR-010, §FR-012 vs spec-001 §FR-008]
-- [ ] CHK040 Is there a requirement covering the **third** route U12 does not name — a cross-tenant
+- [x] CHK040 Is there a requirement covering the **third** route U12 does not name — a cross-tenant
       read through `IgnoreQueryFilters`? **Four such call sites are live today**
       (`InvitationRepository.cs:57`, `MembershipRepository.cs:82` and `:105`,
       `MembershipDirectory.cs:40`), all correctly passing the named `"TenantFilter"` after T095's
       audit. The spec mentions `IgnoreQueryFilters` **zero times**, so nothing stops a fifth call
       site from using the bare no-arg form that T095 existed to remove — a construct that disables
       every filter, not just tenancy. This is the same shape as FR-010's raw-SQL gate and has more
-      existing instances than raw SQL does. [Gap, Coverage, research-001 §R3]
+      existing instances than raw SQL does. [Gap, Coverage, research-001 §R3] — **Resolved 2026-08-15**: **FR-026
+      added** — the bare no-arg form is forbidden under `src/`, the named form stays permitted. No
+      allow-list needed since all four live sites already comply.
 - [ ] CHK041 Does the spec say whether these two gates are considered sufficient to mark U12's
       first row **closed**, or only partially addressed? `docs/traceability.md` will need updating
       either way, and no requirement or task owns that edit. [Gap, Traceability, U12]
