@@ -48,6 +48,19 @@ because the first draft's failures were all overclaims:
 | spec 001 defers work to S3 | Read spec 001's Deferred Requirements table | `old-FR-028`, `old-SC-008` both S3-assigned ✅ |
 | Numbering integrity of this spec | Enumerated all FR/SC definitions and cross-references | FR-001..FR-022, SC-001..SC-006, no gaps or duplicates; all spec-001 references explicitly qualified ✅ |
 
+## Consistency with higher-authority documents
+
+Principle II places ADRs above specs, so the spec must not contradict or lag an ADR that
+names it. Checked after ADR-021 was accepted:
+
+| ADR-021 ruling | Spec 002 coverage | Status |
+|---|---|---|
+| 1 — no validation library | FR-017 | ✅ enforced |
+| 2 — no mediator/dispatcher | FR-018 | ✅ enforced |
+| 3 — no separate read model | *deliberately none* | ✅ correct — ADR records it as not mechanically checkable with one context; a gate here could never fail |
+| Known weakness: `DomainException` → 4xx convention unenforced | FR-019 | ✅ closed |
+| Negative consequence: domain/schema length drift | Fixed outside this spec, own commit | ✅ closed |
+
 ## Notes
 
 - This slice's "user" is the developer working in the repository, not an end user — stated

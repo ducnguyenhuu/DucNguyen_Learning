@@ -301,10 +301,10 @@ requirement, run the suite, confirm it fails naming that requirement, then resto
 - **S13 adds the first legitimate provider SDK reference.** FR-016's pin fails, which is
   the intended behaviour: extending the allow-list to name the AI Platform assembly is a
   reviewable diff.
-- **The suite's runtime creeps as gates are added.** FR-021/SC-005 keep it bounded. S2's
+- **The suite's runtime creeps as gates are added.** FR-025/SC-005 keep it bounded. S2's
   measured baseline is ~21s against a 5-minute bar, so the headroom is large — but these
   new gates must be included in the next measurement, not treated as free.
-- **A gate is written that could never fail.** Explicitly guarded by FR-019: every gate in
+- **A gate is written that could never fail.** Explicitly guarded by FR-023: every gate in
   this slice must be demonstrated red before being accepted green.
 
 ## Requirements *(mandatory)*
@@ -378,24 +378,42 @@ requirement, run the suite, confirm it fails naming that requirement, then resto
 - **FR-016**: The build MUST pass today recording that no provider SDK is referenced and
   no AI Platform capability exists yet.
 
+**Application-layer patterns (enforces [ADR-021](../../docs/adr/ADR-021-application-layer-patterns-at-first-consumer.md))**
+
+ADR-021 names this slice as the intended enforcement point for its rulings 1 and 2, so
+those gates belong here. Its ruling 3 (no separate read model) is explicitly recorded there
+as not mechanically checkable while one context exists, and is therefore *not* specified
+below — reproducing it as a gate would be theatre.
+
+- **FR-017**: The build MUST fail when a validation-library package (FluentValidation or
+  equivalent) is referenced by any project, enforcing ADR-021 ruling 1.
+- **FR-018**: The build MUST fail when a mediator/dispatcher package (MediatR or
+  equivalent) is referenced by any project, enforcing ADR-021 ruling 2.
+- **FR-019**: Every endpoint MUST map `DomainException` to a 4xx status rather than letting
+  it reach `ProblemDetailsHandler`, which maps every uncaught exception to `500`. The build
+  MUST fail when an endpoint handler can surface a `DomainException` as a `500`. ADR-021
+  records this convention as a known weakness left load-bearing by its ruling 1; this is the
+  gate that closes it.
+
 **Requirement coverage (roadmap S3 "every FR in spec 001 maps to a test")**
 
-- **FR-017**: Every functional requirement FR-001 through FR-026 of spec 001 MUST have at
+- **FR-020**: Every functional requirement FR-001 through FR-026 of spec 001 MUST have at
   least one test that declares, in a machine-readable form attached to the test itself,
   that it covers that requirement.
-- **FR-018**: The gate MUST fail, naming the specific requirement, when no declaring test
+- **FR-021**: The gate MUST fail, naming the specific requirement, when no declaring test
   remains for it.
-- **FR-019**: The gate MUST fail when a declaration names a requirement identifier absent
+- **FR-022**: The gate MUST fail when a declaration names a requirement identifier absent
   from spec 001.
 
 **Gate quality**
 
-- **FR-020**: Every gate specified in FR-004, FR-005, FR-008, FR-010, FR-012, FR-014,
-  FR-015, and FR-017 MUST be demonstrated to fail against a deliberately introduced
-  violation before being accepted, and that demonstration MUST be recorded.
-- **FR-021**: Every failure produced by those gates MUST name the specific offending
+- **FR-023**: Every gate specified in FR-004, FR-005, FR-008, FR-010, FR-012, FR-014,
+  FR-015, FR-017, FR-018, FR-019, and FR-020 — eleven in total — MUST be demonstrated to
+  fail against a deliberately introduced violation before being accepted, and that
+  demonstration MUST be recorded.
+- **FR-024**: Every failure produced by those gates MUST name the specific offending
   project, package, call site, type, or requirement — a bare pass/fail is not actionable.
-- **FR-022**: The full test suite (unit, integration, and architecture together) MUST
+- **FR-025**: The full test suite (unit, integration, and architecture together) MUST
   complete unattended in under 5 minutes.
 
 ### Key Entities
@@ -412,7 +430,7 @@ requirement, run the suite, confirm it fails naming that requirement, then resto
 
 ### Measurable Outcomes
 
-- **SC-001**: Each of the eight gates named in FR-020 rejects a deliberately introduced
+- **SC-001**: Each of the eleven gates named in FR-023 rejects a deliberately introduced
   violation, demonstrated once per gate, with the failure output naming the offending
   location — 100% of gates proven capable of failing, none accepted on a first-run green.
 - **SC-002**: `Tenancy.Domain` and `Tenancy.Application` depend on zero infrastructure
@@ -474,12 +492,12 @@ this slice's scope:
    FR-003 to record deliberately *not* scaffolding `ContractTests/`/`EndToEndTests/`.
 5. **The coverage gate was specified against a fragile source.** Parsing `coverage.md`'s
    inconsistent prose would generate false failures; replaced with per-test declarations
-   (FR-017-FR-019).
+   (FR-020-FR-022).
 6. **The background-job rule was a naive heuristic** ("sets context in the same type"),
    which false-positives on delegation and false-negatives on ordering. Replaced with a
    structural rule: jobs may not reach tenant-scoped data access directly at all (FR-012).
 7. **No requirement that gates be proven able to fail**, despite the testing standard
-   naming that as a red flag. Added FR-020 and SC-001.
+   naming that as a red flag. Added FR-023 and SC-001.
 8. **Inherited requirements were not traced.** Spec 001 explicitly deferred `old-FR-028`
    and `old-SC-008` here; added the [Inherited Requirements](#inherited-requirements)
    mapping.
@@ -500,3 +518,26 @@ first revision itself:
     `<exception>` doc reference. FR-006 now covers all three sites plus the stale comment,
     and the [What Already Exists](#what-already-exists) table records which of the two
     catch paths is tested — which is what sets the work order in FR-007.
+
+A third pass, after [ADR-021](../../docs/adr/ADR-021-application-layer-patterns-at-first-consumer.md)
+was accepted, added the gates that ADR names this slice as responsible for:
+
+11. **ADR-021 assigned enforcement to S3 and this spec did not know it.** The ADR's
+    Compliance section states that adding its package-name checks to S3's gate set "is the
+    intended enforcement". Since Principle II places ADRs above specs, the spec was out of
+    date with respect to a higher-authority document that names it. Added FR-017 (no
+    validation-library package), FR-018 (no mediator package), and FR-019 (`DomainException`
+    must map to 4xx, closing the convention ADR-021 leaves load-bearing). Downstream
+    requirements renumbered accordingly; FR-023's proof list and SC-001's count grew from
+    eight gates to eleven.
+12. **ADR-021's ruling 3 is deliberately not specified as a gate.** The ADR records that no
+    separate read model exists and that this is not mechanically checkable while one context
+    exists. Reproducing it as an architecture test would be a test that could never fail —
+    the exact thing FR-023 exists to prevent.
+
+One item from ADR-021 was fixed outside this spec rather than folded into it: the
+display-name length guard, where `TenantConfiguration` declared `HasMaxLength(200)` while
+the domain checked only null/whitespace. That is an S2 domain defect, not architecture-test
+work, so it was closed in its own commit (written red-first: two over-limit tests failed
+before the guard was added) and `Tenant.DisplayNameMaxLength` is now the single source the
+schema derives from.
