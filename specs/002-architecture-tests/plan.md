@@ -25,8 +25,11 @@ rule class for what that rule actually asserts.
 ## Technical Context
 
 **Language/Version**: C# / .NET 10 (SDK 10.0.105 confirmed present)
-**Primary Dependencies**: **none new.** xUnit v3 and AwesomeAssertions are already
-present; research.md R1 rejects adding NetArchTest or ArchUnitNET
+**Primary Dependencies**: **none new** — and enforced as such: FR-014/FR-017/FR-018 are
+implemented as a single pin over the solution's whole package set (see
+[spec Clarifications](spec.md#clarifications)), so this slice's own "no new dependency"
+property becomes a gate rather than an intention. research.md R1 rejects NetArchTest and
+ArchUnitNET
 **Storage**: N/A for the gates themselves. FR-019's behavioural test uses the existing SQL
 Server Testcontainer already wired into `Tenancy.IntegrationTests`
 **Testing**: xUnit v3. New project `tests/ArchitectureTests/` (FR-001); the gates are
@@ -103,8 +106,9 @@ tests/
 │   ├── CapabilityBoundaryGates.cs#   FR-008, FR-009 (migrated from Tenancy.UnitTests)
 │   ├── RawSqlGates.cs            #   FR-010, FR-011
 │   ├── BackgroundJobGates.cs     #   FR-012, FR-013
-│   ├── ProviderSdkGates.cs       #   FR-014, FR-015, FR-016
-│   ├── PatternGates.cs           #   FR-017, FR-018  (ADR-021 rulings 1 and 2)
+│   ├── DependencyPinGates.cs     #   FR-014, FR-017, FR-018 — ONE pinned package set
+│   │                             #     (clarified: a deny-list cannot enumerate "equivalent")
+│   ├── ModelNamingGates.cs       #   FR-015, FR-016
 │   ├── RequirementCoverageGates.cs#  FR-020, FR-021, FR-022
 │   └── Support/                  #   csproj parsing, source scanning, allow-lists
 ├── Tenancy.UnitTests/            # Architecture/ folder removed (FR-002 migration)

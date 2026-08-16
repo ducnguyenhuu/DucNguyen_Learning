@@ -16,10 +16,15 @@ dependencies:
 
 | Rule class | Mechanism | Why |
 |---|---|---|
-| Package/project reference rules (FR-004, FR-005, FR-008, FR-017, FR-018) | Parse `.csproj` XML + `Directory.Packages.props` | Deterministic; catches a declared-but-unused reference too |
-| Raw-SQL allow-list (FR-010, FR-011) | Scan `.cs` source text | FR-011 requires identifying entries by **file and member** — IL carries neither |
-| Absence pins and type queries (FR-009, FR-012, FR-013, FR-016) | Plain reflection over built assemblies | Simple type-shape questions, no method-body analysis |
+| Project-reference rules (FR-004, FR-005, FR-008) | Parse `.csproj` XML | Deterministic; catches a declared-but-unused reference too |
+| Forbidden-package rules (FR-014, FR-016, FR-017, FR-018) | One pin over the whole package set in `Directory.Packages.props` | Clarified 2026-08-15: a deny-list cannot enumerate "or equivalent", so an unlisted package would pass a green gate |
+| Raw-SQL allow-list (FR-010, FR-011) and model naming (FR-015) | Scan `.cs` source text under `src/` | FR-011 requires identifying entries by **file and member** — IL carries neither. FR-015 is scoped to `src/**/*.cs` so the scan does not fail on this repo's own docs |
+| Absence pins and type queries (FR-009, FR-012, FR-013) | Plain reflection over built assemblies | Simple type-shape questions, no method-body analysis |
 | Requirement coverage (FR-020-FR-022) | Reflection over the test assemblies' attributes | See R3 |
+
+> Rule-class assignments for FR-014-FR-018 were refined by `/speckit.clarify` after this
+> section was first written; the mechanism decision itself (no IL, no library) is unchanged.
+> The full set of clarification-driven amendments is tabulated at the end of this document.
 
 **No architecture-testing library is added.**
 
@@ -199,7 +204,18 @@ audited exception. Constructs searched for: `FromSqlRaw`, `FromSqlInterpolated`,
 
 **Decision**: Enforce FR-012 by reflection: find types implementing `IHostedService` or
 deriving from `BackgroundService` in the built assemblies, and assert none of them declares a
-constructor dependency on `TenancyDbContext` or a tenant-scoped repository interface.
+constructor dependency on `TenancyDbContext` or on any **persistence port**.
+
+> **Refined by clarification (2026-08-15).** This section originally said "a tenant-scoped
+> repository interface", which left the set undefined — `IUserRepository` documents itself as
+> *not* a tenant-scoped read, and `IMembershipDirectory` is the sanctioned cross-tenant one, so
+> "tenant-scoped" did not partition the ports cleanly. The set is now every persistence port,
+> identified mechanically as a port whose implementation lives in a persistence namespace, so
+> S9's and S11's future ports are covered without curating a list. `ITenantContext` is excluded:
+> it carries no persistence implementation and is what a job would legitimately use.
+> The same session also settled that this slice builds **no** sanctioned replacement
+> abstraction — its shape belongs to the first real consumer at S8/S10 — so the gate must name
+> what to do instead rather than merely blocking.
 
 **Rationale**: Constructor-parameter inspection is a type-shape question that plain reflection
 answers reliably — unlike the method-body questions R1 showed to be unreliable. It is also the
@@ -228,6 +244,9 @@ the gate unproven.
 | Requirement | Change | Driver |
 |---|---|---|
 | FR-019 | Scope amended: central exception→status mapping proven by test, instead of a structural gate over endpoint handlers | R2 — the structural form needs a Roslyn analyzer, and central mapping removes the failure mode outright |
+| FR-012 | "Tenant-scoped repository" replaced by a mechanical "persistence port" definition; no replacement abstraction built in this slice | `/speckit.clarify` — the original set did not partition the ports cleanly and named an abstraction that does not exist |
+| FR-014, FR-017, FR-018 | Implemented as one pin over the whole package set instead of three per-package deny-lists | `/speckit.clarify` — "or equivalent" cannot be enumerated, so a deny-list is bypassed by an unlisted package |
+| FR-015 | Scope and pattern set fixed: `src/**/*.cs` only, six explicit prefixes; docs, specs, and tests out of scope | `/speckit.clarify` — a repo-wide scan would fail on this repository's own documentation |
 
 No other requirement changed. FR-004/FR-005's "project reference or package reference" wording
 is satisfied exactly as written by R1's chosen mechanism.

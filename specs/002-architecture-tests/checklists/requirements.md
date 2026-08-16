@@ -48,6 +48,22 @@ because the first draft's failures were all overclaims:
 | spec 001 defers work to S3 | Read spec 001's Deferred Requirements table | `old-FR-028`, `old-SC-008` both S3-assigned ✅ |
 | Numbering integrity of this spec | Enumerated all FR/SC definitions and cross-references | FR-001..FR-022, SC-001..SC-006, no gaps or duplicates; all spec-001 references explicitly qualified ✅ |
 
+## Clarification session (2026-08-15, post-plan)
+
+`/speckit.clarify` was run **after** `/speckit.plan` rather than before it, so its four answers
+required propagating back into `plan.md` and `research.md`. Ordering noted as a process cost:
+run clarify first next slice.
+
+Two of the four closed gaps the spec had explicitly deferred to planning and planning had not
+actually resolved:
+
+| Gap | Resolution | Impact if left open |
+|---|---|---|
+| "Model provider SDK" / "model identifier string" undefined — spec deferred them to planning; planning never enumerated them | FR-014/FR-017/FR-018 enforced by one pin over the whole package set; FR-015 fixed to `src/**/*.cs` and six explicit prefixes | FR-014 and FR-015 were **not implementable as written** |
+| FR-012 named "an abstraction whose contract establishes tenant context first" — no such abstraction exists in the codebase | Prohibition only; no replacement built, shape belongs to S8/S10's first consumer; gate must state what to do instead | FR-012 described a path nobody could take |
+| FR-012's "tenant-scoped repository" did not partition the ports cleanly (`IUserRepository` documents itself as *not* tenant-scoped; `IMembershipDirectory` is the sanctioned cross-tenant one) | Every persistence port, identified mechanically by implementation namespace; `ITenantContext` excluded | Gate scope ambiguous — would either miss violations or block legitimate use |
+| FR-015 scope unbounded — this repo names models throughout docs, specs, and commit trailers | `src/**/*.cs` only | Gate would fail on the repository's own prose on first run |
+
 ## Amendments from planning (Phase 0)
 
 | Requirement | Change | Driver |

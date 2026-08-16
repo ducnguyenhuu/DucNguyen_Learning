@@ -13,6 +13,15 @@ unmaintainable dependency graph. Constitution Principle VII is the governing rul
 *anything that must always be true is enforced by a gate that fails the build; human
 review does not scale and does not remember.*
 
+## Clarifications
+
+### Session 2026-08-15
+
+- Q: FR-014/FR-017/FR-018 rest on package-name lists with "or equivalent" — how should the forbidden set be defined so an unlisted equivalent cannot bypass it? → A: Pin the solution's entire package set; any new package fails the gate until the pin is deliberately updated.
+- Q: FR-012 requires background jobs to use "an abstraction whose contract establishes tenant context first", but no such abstraction exists — create the seam now, or enforce the prohibition only? → A: Prohibition only, with an actionable failure message; the sanctioned path is designed at S8/S10 when a real consumer fixes its shape.
+- Q: Which types does FR-012's "tenant-scoped repository" cover? → A: `TenancyDbContext` plus every persistence port — identified mechanically as any port whose implementation lives in a persistence namespace, so ports added by S9/S11 are covered without curating a list. `ITenantContext` is excluded: it is not a persistence port and is what a job would legitimately use.
+- Q: What counts as a "model identifier string" for FR-015, and over what scope? → A: A small explicit pattern list (`gpt-`, `claude-`, `gemini-`, `llama-`, `text-embedding-`, `o1-`) scanned over `src/**/*.cs` only — not docs, specs, or tests, which legitimately name models throughout.
+
 ## Inherited Requirements
 
 Spec 001 explicitly deferred two requirements to this slice, with an instruction to
@@ -197,13 +206,21 @@ the opposite direction: missing context rather than bypassed filter.
 The gate must be structural rather than heuristic. Asserting that a job type "also
 contains a call that sets tenant context" false-positives when the job delegates to a
 helper, and false-negatives when context is set after the first query. Instead, jobs are
-forbidden from reaching tenant-scoped data access directly at all, and must obtain it
-through a sanctioned abstraction whose own contract is to establish tenant context first.
+forbidden from reaching tenant-scoped data access directly at all.
+
+**No sanctioned replacement path is built in this slice** (clarified 2026-08-15). The
+prohibition is the safety property and it applies today; the abstraction a job should use
+instead does not exist, and its shape is genuinely unknown — the first real consumers are
+S8's Service Bus subscriber and S10's scheduled sync, which need different
+context-establishment shapes. Guessing now is the "shape guessed wrong before real
+requirements exist" error the `architecture` skill warns about, and it would contradict
+ADR-021. The gate therefore refuses the unsafe construction and tells the author to propose
+a sanctioned path rather than silently blocking them.
 
 **Why this priority**: P2, not P1, because the code class it guards does not exist yet —
 unlike User Stories 1-3, which guard code shipped in S2. It belongs in this slice anyway
-because U12 assigns it here, and because defining the sanctioned path before the first job
-is written is far cheaper than retrofitting it around three existing jobs later.
+because U12 assigns it here, and because forbidding the unsafe construction before the first
+job is written is far cheaper than retrofitting the rule around three existing jobs later.
 
 **Independent Test**: Add a throwaway `BackgroundService` that injects
 `TenancyDbContext` directly, run the suite, confirm it fails naming the type, then
@@ -214,11 +231,17 @@ discard.
 1. **Given** no background job exists, **When** the gate runs, **Then** it passes and pins
    that fact.
 2. **Given** a type implementing `IHostedService` or deriving from `BackgroundService`
-   that depends on `TenancyDbContext` or a tenant-scoped repository directly, **When** the
-   gate runs, **Then** it fails naming that type.
-3. **Given** a background job that obtains tenant-scoped data access only through the
-   sanctioned tenant-context-establishing abstraction, **When** the gate runs, **Then** it
-   passes.
+   whose constructor takes `TenancyDbContext` or any persistence port, **When** the gate
+   runs, **Then** it fails naming that type and the offending dependency.
+2a. **Given** such a job whose constructor takes only `ITenantContext`, **When** the gate
+   runs, **Then** it passes — establishing tenant context is the sanctioned direction, not
+   the violation.
+3. **Given** a background job that takes no tenant-scoped data-access dependency at all,
+   **When** the gate runs, **Then** it passes — the gate refuses the unsafe construction, it
+   does not require a specific replacement.
+4. **Given** the gate fails on such a job, **When** the developer reads the failure output,
+   **Then** it names the offending type *and* states what to do instead, citing ADR-013 —
+   a gate that blocks without guidance is one a developer disables.
 
 ---
 
@@ -364,17 +387,40 @@ requirement, run the suite, confirm it fails naming that requirement, then resto
 **Background jobs (adopts U12/ADR-013)**
 
 - **FR-012**: The build MUST fail when a type implementing `IHostedService` or deriving
-  from `BackgroundService` depends on `TenancyDbContext` or a tenant-scoped repository
-  directly, rather than obtaining tenant-scoped data access through an abstraction whose
-  contract establishes tenant context first.
+  from `BackgroundService` declares a constructor dependency on `TenancyDbContext` or on any
+  **persistence port**. A persistence port is identified mechanically — a port whose
+  implementing type lives in a persistence namespace — rather than by a curated interface
+  list, so ports introduced by S9's `Integration` and S11's `Delivery` capabilities are
+  covered without anyone remembering to extend the gate (clarified 2026-08-15). Today that
+  resolves to `ICreateTenantRepository`, `IMembershipDirectory`, `IMembershipRepository`,
+  `IInvitationRepository`, `ITenantRepository`, and `IUserRepository`. **`ITenantContext` is
+  excluded** — it is not a persistence port, and it is what a job would legitimately use to
+  establish context. This slice specifies the prohibition only — **no sanctioned replacement
+  abstraction is built** (clarified 2026-08-15), because its shape is fixed by the first real
+  consumer at S8/S10, not by this slice. The gate's failure message MUST therefore state what
+  to do instead and cite ADR-013, so the first background-job author is redirected rather than
+  merely blocked.
 - **FR-013**: The build MUST pass today recording that no such type exists yet.
 
 **Provider SDK and model naming (adopts U12/ADR-001, ADR-008, ADR-009)**
 
 - **FR-014**: The build MUST fail when any assembly other than the AI Platform capability
-  references a model provider SDK.
-- **FR-015**: The build MUST fail when a model identifier string appears outside AI
-  Platform configuration.
+  references a model provider SDK. Enforced through the **pinned dependency set** (see Key
+  Entities) rather than a list of known provider names: a deny-list cannot enumerate
+  "equivalent" packages, so an unlisted one would pass a green gate.
+- **FR-015**: The build MUST fail when a model identifier string appears in production code.
+  Scope and pattern set are fixed as follows (clarified 2026-08-15): the gate scans
+  `src/**/*.cs` only, matching a small explicit pattern list — `gpt-`, `claude-`, `gemini-`,
+  `llama-`, `text-embedding-`, `o1-`. **Docs, specs, and tests are deliberately out of scope**:
+  this repository names models throughout its documentation and commit trailers, so a
+  repo-wide scan would fail on its own prose the first time it ran. The "outside AI Platform
+  configuration" exemption has no location to point at until S13 creates one; when it does,
+  that path is added as the single allowed exception.
+
+  *Acknowledged limitation*: FR-014's pinned dependency set already blocks the realistic path,
+  since a model cannot be called without a provider SDK. A model name with no SDK present is
+  an inert string. FR-015's remaining value is pinning that inertness, not preventing a live
+  defect — recorded so a later reader does not overestimate what this gate buys.
 - **FR-016**: The build MUST pass today recording that no provider SDK is referenced and
   no AI Platform capability exists yet.
 
@@ -386,9 +432,11 @@ as not mechanically checkable while one context exists, and is therefore *not* s
 below — reproducing it as a gate would be theatre.
 
 - **FR-017**: The build MUST fail when a validation-library package (FluentValidation or
-  equivalent) is referenced by any project, enforcing ADR-021 ruling 1.
+  equivalent) is referenced by any project, enforcing ADR-021 ruling 1. Enforced by the same
+  pinned dependency set as FR-014.
 - **FR-018**: The build MUST fail when a mediator/dispatcher package (MediatR or
-  equivalent) is referenced by any project, enforcing ADR-021 ruling 2.
+  equivalent) is referenced by any project, enforcing ADR-021 ruling 2. Enforced by the same
+  pinned dependency set as FR-014.
 - **FR-019**: An unhandled `DomainException` MUST NOT reach a client as a `500`.
   `ProblemDetailsHandler` MUST map `DomainException` to `400` and `ConflictException` to
   `409` centrally, so that an endpoint which omits its own `catch` still produces a correct
@@ -435,6 +483,17 @@ below — reproducing it as a gate would be theatre.
   permitted to bypass the tenant-scoping query filter, keyed by file and member.
 - **Requirement coverage declaration**: The machine-readable marker attached to a test
   naming the spec 001 requirement it covers.
+- **Persistence port**: A port whose implementing type lives in a persistence namespace —
+  the mechanical definition FR-012's gate uses instead of a curated interface list, chosen so
+  that capabilities added later are covered automatically. Excludes `ITenantContext`, which
+  carries no persistence implementation.
+- **Pinned dependency set**: The recorded list of every NuGet package the solution may
+  reference, checked against `Directory.Packages.props` (which already centralises all
+  versions). Adding any package — a validation library, a mediator, a model provider SDK, or
+  anything unrelated — fails the gate until the pin is updated, so no dependency decision can
+  be made silently. Chosen over per-package deny-lists because "or equivalent" cannot be
+  enumerated. **Accepted trade-off**: the pin is deliberately noisy, tripping on legitimate
+  additions too; that cost buys the property that an unknown equivalent cannot slip past.
 
 ## Success Criteria *(mandatory)*
 
