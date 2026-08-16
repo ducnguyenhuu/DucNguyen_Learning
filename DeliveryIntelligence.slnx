@@ -7,6 +7,7 @@
     <Project Path="src/Tenancy/Tenancy.Infrastructure/Tenancy.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/ArchitectureTests/ArchitectureTests.csproj" />
     <Project Path="tests/Tenancy.IntegrationTests/Tenancy.IntegrationTests.csproj" />
     <Project Path="tests/Tenancy.UnitTests/Tenancy.UnitTests.csproj" />
   </Folder>
