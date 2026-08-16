@@ -239,8 +239,10 @@ discard.
    whose constructor takes `TenancyDbContext` or any persistence port, **When** the gate
    runs, **Then** it fails naming that type and the offending dependency.
 2a. **Given** such a job whose constructor takes only `ITenantContext`, **When** the gate
-   runs, **Then** it passes — establishing tenant context is the sanctioned direction, not
-   the violation.
+   runs, **Then** it passes — establishing tenant context is the sanctioned direction, not the
+   violation. **Passing this gate does not make the job safe**: if it never actually sets the
+   context and reaches data through a use case or a resolved scope, FR-027 is what refuses the
+   write at runtime. FR-012 refuses the obvious mistake cheaply; it does not certify correctness.
 3. **Given** a background job that takes no tenant-scoped data-access dependency at all,
    **When** the gate runs, **Then** it passes — the gate refuses the unsafe construction, it
    does not require a specific replacement.
@@ -339,6 +341,19 @@ requirement, run the suite, confirm it fails naming that requirement, then resto
 
 ### Functional Requirements
 
+**What "the build MUST fail" means in this slice.** Nine requirements below use that phrase.
+CI does not exist until S7, so in this slice it means **`dotnet test` fails**: the gates are
+ordinary tests, and enforcement depends on a developer running the suite. That is vigilance, not
+a gate, and Constitution Principle VII prefers the opposite — so the gap is recorded as a
+deferral to S7 rather than left implicit (see [Deferred Requirements](#deferred-requirements)).
+The phrase is kept because it states the intended end condition, and re-verifying it costs
+nothing once a pipeline exists.
+
+**All gates scan `src/`, not `tests/`.** Test code legitimately does things production code must
+not — raw SQL for fixture setup, a throwaway `BackgroundService` to prove a gate can fail — and
+scanning it would make FR-013's absence pin and FR-023's proof obligation contradict each other
+(CHK029). Proofs therefore add the violation to `src/` temporarily and revert it.
+
 **Test project structure**
 
 - **FR-001**: A dedicated architecture-test project MUST exist at `tests/ArchitectureTests/`,
@@ -385,7 +400,9 @@ requirement, run the suite, confirm it fails naming that requirement, then resto
 
 - **FR-010**: The build MUST fail when a raw-SQL construct (`FromSqlRaw`,
   `FromSqlInterpolated`, `ExecuteSqlRaw`, `ExecuteSqlInterpolated`, their async forms, or
-  equivalent) appears at a call site not on an explicit allow-list.
+  equivalent) appears **under `src/`** at a call site not on an explicit allow-list. Test code is
+  out of scope: a test may legitimately use raw SQL for fixture setup, and no test serves a
+  tenant request.
 - **FR-011**: That allow-list MUST identify each entry by file **and** member, so moving
   or renaming an audited call site fails the gate until the allow-list is updated.
 
@@ -469,6 +486,14 @@ below — reproducing it as a gate would be theatre.
 - **FR-020**: Every functional requirement FR-001 through FR-026 of spec 001 MUST have at
   least one test that declares, in a machine-readable form attached to the test itself,
   that it covers that requirement.
+
+  *What this gate does and does not prove (CHK010).* It detects **loss** of declared coverage —
+  a covering test deleted, renamed, or stripped of its declaration. It does **not** verify that a
+  declaring test meaningfully exercises the requirement it names: a test declaring `FR-007` while
+  asserting something unrelated satisfies this literally, so the gate is gameable by
+  attribute-spraying. Verifying substance requires human judgement, which is what S2's T089 hand
+  audit provided and what `coverage.md` records. This gate protects that audit from rotting; it
+  does not replace it, and SC-003 should not be read as claiming otherwise.
 - **FR-021**: The gate MUST fail, naming the specific requirement, when no declaring test
   remains for it.
 - **FR-022**: The gate MUST fail when a declaration names a requirement identifier absent
@@ -477,12 +502,16 @@ below — reproducing it as a gate would be theatre.
 **Gate quality**
 
 - **FR-023**: Every gate specified in FR-004, FR-005, FR-008, FR-010, FR-012, FR-014,
-  FR-015, FR-017, FR-018, FR-019, FR-020, FR-026, and FR-027 — thirteen in total — MUST be
-  demonstrated to
+  FR-009, FR-013, FR-015, FR-016, FR-017, FR-018, FR-019, FR-020, FR-026, and FR-027 —
+  **sixteen in total, including the three absence pins** — MUST be demonstrated to
   fail against a deliberately introduced violation before being accepted, and that
   demonstration MUST be recorded. FR-019's proof takes a different form from the rest, since
   it is a behavioural guarantee rather than a structural gate: its test MUST be seen to fail
-  against the current blanket-`500` behaviour before the central mapping is added.
+  against the current blanket-`500` behaviour before the central mapping is added. The three
+  absence pins (FR-009, FR-013, FR-016) are included because FR-023's own rationale applies to
+  them unchanged: a pin that would not notice the thing appearing is decoration. Their proof is
+  the same exercise in reverse — introduce the capability, job, or provider SDK under `src/`,
+  observe red, revert.
 - **FR-024**: Every failure produced by those gates MUST name the specific offending
   project, package, call site, type, or requirement — a bare pass/fail is not actionable.
 - **FR-025**: The full test suite (unit, integration, and architecture together) MUST
@@ -538,7 +567,7 @@ below — reproducing it as a gate would be theatre.
 
 ### Measurable Outcomes
 
-- **SC-001**: Each of the thirteen gates named in FR-023 rejects a deliberately introduced
+- **SC-001**: Each of the sixteen gates named in FR-023 rejects a deliberately introduced
   violation, demonstrated once per gate, with the failure output naming the offending
   location — 100% of gates proven capable of failing, none accepted on a first-run green.
 - **SC-002**: `Tenancy.Domain` and `Tenancy.Application` depend on zero infrastructure
@@ -554,6 +583,17 @@ below — reproducing it as a gate would be theatre.
   runtime is measured and recorded rather than assumed from S2's ~21-second baseline.
 - **SC-006**: A developer who introduces any guarded violation learns the exact offending
   location from the failure output alone, without asking another person what broke.
+
+## Deferred Requirements
+
+Spec 001 handed `old-FR-028` and `old-SC-008` to this slice through a table like this one, and
+that mechanism is why they were not lost. This slice defers two things the same way, with the
+receiving slice named. **Renumber on adoption.**
+
+| Deferred | Requirement | Target slice |
+|---|---|---|
+| `old-FR-029` | The sixteen gates in FR-023 MUST run in the pipeline, so enforcement no longer depends on a developer choosing to run `dotnet test` (closes the Principle VII gap recorded above FR-001) | **S7** |
+| `old-FR-030` | A background job MUST obtain tenant-scoped data access through a sanctioned abstraction that establishes tenant context; this slice specifies only the prohibition (FR-012) and a runtime backstop (FR-027), because the abstraction's shape is fixed by its first real consumer | **S8 / S10** |
 
 ## Assumptions
 
@@ -637,7 +677,30 @@ was accepted, added the gates that ADR names this slice as responsible for:
     validation-library package), FR-018 (no mediator package), and FR-019 (`DomainException`
     must map to 4xx, closing the convention ADR-021 leaves load-bearing). Downstream
     requirements renumbered accordingly; FR-023's proof list and SC-001's count grew from
-    eight gates to eleven.
+    eight gates to eleven. *(Later grown to sixteen — see notes 14-15.)*
+
+A fourth pass, `/speckit.checklist`, produced [gate-efficacy.md](checklists/gate-efficacy.md) and
+[tenant-isolation.md](checklists/tenant-isolation.md) — 42 items. It found defects the three
+earlier passes had all missed, because it asked a question none of them had: not "is this
+consistent?" but "what would go wrong if this were built exactly as written?"
+
+14. **FR-012's structural gate could not close the property it was written for.** A
+    `BackgroundService` is a singleton and must resolve scoped services through
+    `IServiceScopeFactory`, so constructor inspection is blind to it by construction (CHK024) —
+    the gate was unclosable, not merely incomplete. Verification also corrected U12's premise:
+    reads and update/delete already fail closed against an unset tenant; only *insert* did not,
+    making the defect a silent orphan rather than a cross-tenant leak. **FR-027** closes it at
+    runtime. FR-012 keeps its limits stated rather than implied.
+15. **Four live `IgnoreQueryFilters` call sites, zero spec coverage** (CHK040) — more existing
+    instances than raw SQL has, and T095 had already fixed three of them by hand. **FR-026** added.
+16. **Five inter-document conflicts** (CHK002, 007, 029, 032, 042) resolved by deciding which side
+    was right rather than by softening wording: the absence pins *do* need failure proofs (so
+    FR-023 grew to sixteen), gates scan `src/` only (so proof fixtures in `tests/` cannot collide
+    with absence pins), and "the build MUST fail" now has one definition plus an S7 deferral
+    instead of nine unqualified claims.
+17. **FR-020's coverage gate is gameable and now says so** (CHK010). It detects *loss* of declared
+    coverage, not whether a declaring test meaningfully exercises its requirement. T089's hand
+    audit remains the substantive evidence; this gate only stops it rotting.
 12. **ADR-021's ruling 3 is deliberately not specified as a gate.** The ADR records that no
     separate read model exists and that this is not mechanically checkable while one context
     exists. Reproducing it as an architecture test would be a test that could never fail —

@@ -25,11 +25,13 @@ you can point at the sentence that satisfies it. "That's obviously implied" is a
       demonstration "MUST be recorded" but names no artifact — commit message, a doc, a test
       comment, and `quickstart.md`'s table are all plausible and mutually exclusive. An
       unrecorded-where obligation cannot be audited. [Gap, Measurability, Spec §FR-023]
-- [ ] CHK002 **Does FR-023's eleven-gate list conflict with `quickstart.md`?** FR-023 enumerates
+- [x] CHK002 **Does FR-023's eleven-gate list conflict with `quickstart.md`?** FR-023 enumerates
       FR-004, 005, 008, 010, 012, 014, 015, 017, 018, 019, 020 — deliberately excluding the three
       absence pins. But `quickstart.md` line 71 states the pins get "the same exercise in
       reverse". One document requires eight proofs the other does not. [Conflict, Spec §FR-023 vs
-      quickstart §2]
+      quickstart §2] — **Resolved 2026-08-15**: `quickstart.md` was right. FR-023's rationale applies to
+      a pin unchanged — a pin that would not notice the thing appearing is decoration — so the three
+      pins are now in the list. **Eleven became sixteen**, and quickstart was updated to match.
 - [ ] CHK003 Is "before being **accepted**" defined? FR-023 conditions acceptance on the
       demonstration, but no requirement says who accepts, or what artifact records acceptance.
       [Ambiguity, Spec §FR-023]
@@ -46,29 +48,37 @@ you can point at the sentence that satisfies it. "That's obviously implied" is a
 
 ## "The build MUST fail" — does the spec mean what it says?
 
-- [ ] CHK007 **Nine requirements say "the build MUST fail", but there is no build to fail.**
+- [x] CHK007 **Nine requirements say "the build MUST fail", but there is no build to fail.**
       `plan.md` states CI is S7 and that in this slice the phrase means "fails `dotnet test`" run
       by hand. No requirement carries that qualification, so as written the spec asserts an
       enforcement mechanism that does not exist until four slices later. [Conflict, Spec §FR-004,
-      005, 008, 010, 012, 014, 015, 017, 018 vs plan §Technical Context]
-- [ ] CHK008 Given no CI, does any requirement state what stops a developer committing without
+      005, 008, 010, 012, 014, 015, 017, 018 vs plan §Technical Context] — **Resolved 2026-08-15**: the phrase now has
+      **one definition** at the head of the Requirements section instead of nine unqualified claims,
+      and the missing enforcement is a recorded deferral rather than an implication.
+- [x] CHK008 Given no CI, does any requirement state what stops a developer committing without
       running the gates at all? Constitution Principle VII prefers gates over vigilance; an
       unenforced local test suite *is* vigilance. Is that gap acknowledged as a requirement
-      limitation or left implicit? [Gap, Traceability, Principle VII]
-- [ ] CHK009 Is there a requirement that these gates be wired into CI when S7 arrives? Without
+      limitation or left implicit? [Gap, Traceability, Principle VII] — **Resolved 2026-08-15**: acknowledged
+      explicitly: until S7 this is vigilance, not a gate.
+- [x] CHK009 Is there a requirement that these gates be wired into CI when S7 arrives? Without
       one, the S7 slice has no inherited obligation and the gates could stay local forever.
-      [Gap, Coverage]
+      [Gap, Coverage] — **Resolved 2026-08-15**: **Deferred Requirements table added**, using the mechanism spec 001
+      used to hand `old-FR-028` to this slice — which is exactly why that one was not lost.
+      `old-FR-029` → S7 (pipeline), `old-FR-030` → S8/S10 (the job abstraction).
 
 ## Requirement-coverage gate — does a declaration prove coverage?
 
-- [ ] CHK010 **Does FR-020 conflate "declares coverage" with "covers"?** It requires each spec-001
+- [x] CHK010 **Does FR-020 conflate "declares coverage" with "covers"?** It requires each spec-001
       requirement to have "at least one test that declares... that it covers that requirement".
       A test that declares `FR-007` and asserts something unrelated satisfies this literally.
-      The gate is trivially gameable by attribute-spraying. [Gap, Measurability, Spec §FR-020]
-- [ ] CHK011 Is there any requirement that the declaring test be **meaningful** for the
+      The gate is trivially gameable by attribute-spraying. [Gap, Measurability, Spec §FR-020] — **Resolved 2026-08-15**: 
+      confirmed and **stated in FR-020** rather than fixed — verifying substance needs human
+      judgement. The gate detects *loss* of declared coverage; T089's hand audit remains the
+      substantive evidence and SC-003 must not be read as claiming more.
+- [x] CHK011 Is there any requirement that the declaring test be **meaningful** for the
       requirement it names — or is declaration-existence the whole contract? If the latter, is
       that limitation stated so a later reader does not overestimate SC-003? [Gap, Spec §FR-020,
-      §SC-003]
+      §SC-003] — **Resolved 2026-08-15**: the latter, and the limitation is now stated in FR-020 itself.
 - [ ] CHK012 Does FR-020's scope cover spec **002's own** requirements, or only spec 001's? Its
       wording says spec 001 only. If S3's gates need no coverage declarations, is that a decision
       or an oversight? [Gap, Coverage, Spec §FR-020]

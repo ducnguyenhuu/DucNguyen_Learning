@@ -60,10 +60,11 @@ mark the item failed.
       `Tenancy.Infrastructure.Persistence` and `Tenancy.Infrastructure.Persistence.Audited` both
       exist, and a future capability may not use the word "Persistence" at all. [Clarity,
       Ambiguity, Spec §FR-012]
-- [ ] CHK029 Does FR-013's absence pin scope itself to `src/`, or does it include `tests/`? FR-023's
+- [x] CHK029 Does FR-013's absence pin scope itself to `src/`, or does it include `tests/`? FR-023's
       proof for FR-012 requires temporarily adding a background job — if the pin scans `tests/`,
       the proof fixture trips the pin, and the two requirements interfere. [Conflict, Spec §FR-012,
-      §FR-013, §FR-023]
+      §FR-013, §FR-023] — **Resolved 2026-08-15**: resolved by one rule stated once for all gates: **they scan
+      `src/`, not `tests/`**, and proofs add the violation to `src/` temporarily then revert.
 - [ ] CHK030 Is `IMembershipDirectory`'s inclusion deliberate and stated? It is the codebase's one
       sanctioned cross-tenant reader, so forbidding it to jobs is defensible — but a job iterating
       tenants is exactly the case it was built for. Is the tension recorded? [Assumption, Spec
@@ -76,10 +77,11 @@ mark the item failed.
       `Database.ExecuteSql`, `SqlCommand` used directly, a future Dapper dependency, or a stored
       procedure call? The package pin does not cover SQL constructs. [Ambiguity, Spec §FR-010 vs
       Clarifications]
-- [ ] CHK032 Does FR-010 state its **scan scope**? `research.md` R4 scopes it to `.cs` files under
+- [x] CHK032 Does FR-010 state its **scan scope**? `research.md` R4 scopes it to `.cs` files under
       `src/`, but the requirement says only "at a call site". A test that sets up data with raw SQL
       would be a violation under the requirement and permitted under the research decision.
-      [Gap, Conflict, Spec §FR-010 vs research §R4]
+      [Gap, Conflict, Spec §FR-010 vs research §R4] — **Resolved 2026-08-15**: FR-010 now states `src/` in its own
+      text, with the reason tests are excluded.
 - [ ] CHK033 Is **"member"** in FR-011 defined precisely enough to key an allow-list? Two overloads
       of the same method name, a local function, and a lambda inside a method are all plausibly
       "the member", and they are not interchangeable for the stated purpose of catching relocation.
@@ -123,10 +125,12 @@ mark the item failed.
 - [ ] CHK041 Does the spec say whether these two gates are considered sufficient to mark U12's
       first row **closed**, or only partially addressed? `docs/traceability.md` will need updating
       either way, and no requirement or task owns that edit. [Gap, Traceability, U12]
-- [ ] CHK042 Are FR-012's acceptance scenarios internally consistent after the clarification?
+- [x] CHK042 Are FR-012's acceptance scenarios internally consistent after the clarification?
       Scenario 2a permits a job whose constructor takes only `ITenantContext`, while CHK023 above
       suggests that exact shape can still leak. If both are correct, the scenario is proving
-      something narrower than the story claims. [Conflict, Spec §US4 scenarios]
+      something narrower than the story claims. [Conflict, Spec §US4 scenarios] — **Resolved 2026-08-15**: scenario 2a
+      now says outright that passing FR-012 does not make the job safe, and points at FR-027 as
+      what refuses the write.
 
 ## Notes
 

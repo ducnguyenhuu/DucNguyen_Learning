@@ -5,15 +5,17 @@
 
 ## Summary
 
-Turn eleven architectural rules from documented intent into build failures, and clear the one
-live violation the new rules expose.
+Turn sixteen architectural rules from documented intent into build failures, and clear the two
+live gaps the new rules expose.
 
-Ten of the eleven gates are new enforcement over code that already exists; the eleventh
-(FR-020-FR-022) guards spec 001's requirement coverage from silently rotting. The slice also
-carries one production refactor: `Tenancy.Application` currently references
+Most are new enforcement over code that already exists; FR-020-FR-022 guard spec 001's
+requirement coverage from silently rotting, and FR-026/FR-027 were added by the checklist review
+after it found four ungated `IgnoreQueryFilters` call sites and a structural gate that could not
+close its own property. The slice carries two production changes: `Tenancy.Application` currently references
 `Microsoft.EntityFrameworkCore` as a NuGet package, which FR-005's gate makes a build failure,
 so the dependency is inverted — `Infrastructure` translates EF Core's `DbUpdateException` into
-an `Application`-owned type.
+an `Application`-owned type. The second (FR-027, already landed) makes an insert with no tenant
+context fail closed rather than stamping `Guid.Empty`.
 
 **Technical approach, decided by [research.md](research.md)**: no architecture-testing library
 is added. NetArchTest was tested first because the project's `testing` skill writes its
@@ -41,9 +43,10 @@ build" means "fails `dotnet test`" in this slice
 slice: 112 unit + 83 integration tests, ~27s integration / ~0.2s unit
 **Constraints**: every gate must name the offending project, package, call site, type, or
 requirement (FR-024); every gate must be demonstrated red before acceptance (FR-023)
-**Scale/Scope**: 25 functional requirements, 11 gates, 6 user stories, 1 capability, 4 source
+**Scale/Scope**: 27 functional requirements, 16 gates, 6 user stories, 1 capability, 4 source
 projects. Three gates pin the *absence* of something (no second capability, no background job,
-no provider SDK) rather than validating an instance
+no provider SDK) rather than validating an instance; two (FR-019, FR-027) are runtime guarantees
+rather than structural gates
 
 ## Constitution Check
 
@@ -67,6 +70,13 @@ or why it does not apply.
 | XI | No individual-level measurement; personal data minimized | **N/A** — no measurement of people, no personal data. The gates read `.csproj` files, source text, and assembly metadata |
 
 **Gate result**: PASS with one justified partial (Principle X). No unjustified violation.
+
+*Re-checked after the checklist review (2026-08-15).* Principle IV's entry strengthens: FR-027
+adds a runtime backstop that holds regardless of how a caller obtained its context, and FR-026
+closes an ungated route with four live call sites. Principle VII's entry gains an honest
+qualification — until S7 wires these into a pipeline, enforcement depends on a developer running
+`dotnet test`, which is vigilance rather than a gate. That gap is now a recorded deferral
+(`old-FR-029`) rather than an unstated assumption.
 
 ## Project Structure
 
@@ -101,7 +111,7 @@ src/Tenancy/
                                   #   DomainException -> 400, ConflictException -> 409
 
 tests/
-├── ArchitectureTests/            # NEW (FR-001) — all eleven gates live here
+├── ArchitectureTests/            # NEW (FR-001) — the structural gates live here
 │   ├── LayeringGates.cs          #   FR-004, FR-005
 │   ├── CapabilityBoundaryGates.cs#   FR-008, FR-009 (migrated from Tenancy.UnitTests)
 │   ├── RawSqlGates.cs            #   FR-010, FR-011
@@ -109,6 +119,7 @@ tests/
 │   ├── DependencyPinGates.cs     #   FR-014, FR-017, FR-018 — ONE pinned package set
 │   │                             #     (clarified: a deny-list cannot enumerate "equivalent")
 │   ├── ModelNamingGates.cs       #   FR-015, FR-016
+│   ├── TenantIsolationGates.cs   #   FR-026 (no bare IgnoreQueryFilters)
 │   ├── RequirementCoverageGates.cs#  FR-020, FR-021, FR-022
 │   └── Support/                  #   csproj parsing, source scanning, allow-lists
 ├── Tenancy.UnitTests/            # Architecture/ folder removed (FR-002 migration)
