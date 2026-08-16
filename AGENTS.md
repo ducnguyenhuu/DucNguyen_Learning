@@ -47,6 +47,34 @@ When two sources conflict, the left one wins. When you cannot tell, ask.
 
 Tasks are guidance, not a to-do list to execute blindly (`idea.md` §35).
 
+## Code comments
+
+Comments explain **why the code is the way it is**, in terms a reader can verify from the
+code and the domain alone.
+
+**Never cite a task, requirement, or checklist identifier in code** — no `T058`, no
+`FR-021`, no `SC-004`, no `CHK023`. Those live in `specs/`, which is working material for
+one slice; once the slice ships they may be archived, and the comment then points at
+nothing a reader can resolve or check.
+
+**ADR references are fine.** ADRs are permanent, numbered, and live in
+[docs/adr/](docs/adr/).
+
+Keep the reasoning, drop the citation:
+
+```csharp
+// Wrong — T027 is unresolvable once the slice is archived
+// Sets CurrentTenantId first because the interceptor (T027) stamps Added entities.
+
+// Right — same reasoning, no dangling reference
+// Set the tenant context before saving: the save interceptor stamps every newly added
+// tenant-owned entity with whatever ambient tenant is current, so without this the new
+// membership would be written against the wrong tenant.
+```
+
+Task lists in `specs/*/tasks.md` **do** carry these identifiers — that is their job. They
+stop at the task list.
+
 ## Definition of done
 
 A slice is done when its **Proof** checklist in roadmap.md is fully checked. Not when

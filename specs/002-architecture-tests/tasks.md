@@ -22,6 +22,29 @@ stories (see the note below Phase 2).
 Single project. Gates live in `tests/ArchitectureTests/`; production changes touch
 `src/Tenancy/*`. Paths follow [plan.md](plan.md)'s Source Code layout.
 
+## ⚠️ Identifiers stop at this file
+
+Task descriptions below cite `FR-0NN`, `SC-0NN`, and `CHK0NN` deliberately — traceability is
+what a task list is for. **Do not carry those identifiers into code.** No `T017`, no `FR-023`,
+no `CHK019` in a comment, an XML doc, a test name, or a failure message.
+
+Write the *reasoning* the identifier stands for instead. A reader six months from now cannot
+resolve `CHK019`, and cannot tell whether a comment citing it is still true — `specs/` is
+working material for one slice, not a permanent reference. ADR citations are the exception:
+ADRs are permanent and live in `docs/adr/`.
+
+```csharp
+// Wrong
+// Scoped to src/ only, per FR-010 — tests may legitimately use raw SQL (CHK032).
+
+// Right
+// Scoped to src/ only: test code may legitimately use raw SQL for fixture setup, and no
+// test serves a tenant request, so scanning it would produce failures with nothing to fix.
+```
+
+This applies to failure messages too. A gate that fails with "violates FR-004" tells a
+developer nothing; one that names the offending project and package tells them everything.
+
 ---
 
 ## Requirements with no owning user story
@@ -49,7 +72,7 @@ reference rather than re-listed as pending work.
 - [ ] T001 (FR-001) Create `tests/ArchitectureTests/ArchitectureTests.csproj` targeting `net10.0`, referencing `xunit.v3` and `AwesomeAssertions` from `Directory.Packages.props` with no new package versions added
 - [ ] T002 Add project references from `tests/ArchitectureTests/ArchitectureTests.csproj` to all four `src/Tenancy/*` projects, and add the project to the solution file
 - [ ] T003 Add `tests/ArchitectureTests/AssemblyInfo.cs` with `[assembly: CollectionBehavior(DisableTestParallelization = true)]`, matching `Tenancy.IntegrationTests`' existing setting, since gates read shared files from disk
-- [ ] T004 Record in `tests/ArchitectureTests/README.md` that `ContractTests/` and `EndToEndTests/` are deliberately absent per FR-003, naming S9 and S7 as their first consumers, so a later reader does not create them speculatively
+- [ ] T004 Record in `tests/ArchitectureTests/README.md` that `ContractTests/` and `EndToEndTests/` are deliberately absent, naming roadmap slices S9 and S7 as their first consumers, so a later reader does not create them speculatively. State the reason, not the requirement number — roadmap slice names are permanent, `FR-003` is not (FR-003)
 
 **Checkpoint**: An empty gate project builds and runs under `dotnet test`.
 
@@ -111,7 +134,7 @@ the suite, confirm it fails naming file and member, revert.
 - [ ] T021 [US2] Implement the FR-010 gate using `Support/SourceScanner`, matching `FromSqlRaw`, `FromSqlInterpolated`, `ExecuteSqlRaw`, `ExecuteSqlInterpolated`, their async forms, and `Database.SqlQuery`, scoped to `src/` per the spec's stated scope
 - [ ] T022 [US2] Require a justification comment adjacent to each allow-list entry and assert its presence, so adding an entry cannot be a silent one-line diff — resolving CHK034, which observed nothing made "audited" mean anything
 - [ ] T023 [US2] Prove T021 red twice per FR-023: once by adding an unlisted raw-SQL call, and once by moving the audited call to a new method without updating the allow-list (FR-011's relocation case — FR-023 now names FR-011 explicitly, per analyze finding I1). Record both
-- [ ] T024 [US2] Record in `RawSqlGates.cs` remarks that formatting-sensitivity is a known residual risk per research.md R4, with a Roslyn analyzer as the escalation path rather than a looser regex
+- [ ] T024 [US2] Record in `RawSqlGates.cs` remarks that source-text matching is formatting-sensitive — a call split across lines or reached through an alias can evade it — and that the escalation path is a Roslyn analyzer rather than a looser regex. Write the reasoning, not a pointer to research.md (research.md R4)
 
 **Checkpoint**: Raw SQL is gated, and the one legitimate exception is visible and justified.
 
@@ -126,7 +149,7 @@ persistence types, and the one-capability fact is pinned.
 `Tenancy.Infrastructure`, run the suite, confirm it fails naming the project, revert.
 
 - [ ] T025 [US3] Extend `tests/ArchitectureTests/CapabilityBoundaryGates.cs` with the FR-008 gate: assert no `src/` project outside the `Tenancy.*` family references `Tenancy.Infrastructure` or names `TenancyDbContext`, generalising the migrated `OnlyTenancyApi_ReferencesInfrastructureDirectly` beyond today's single capability
-- [ ] T026 [US3] Strengthen the migrated `NoCapabilityOtherThanTenancyExistsUnderSrc` into FR-009's pin with a failure message that instructs the reader to extend the FR-008 gate rather than update the expectation — the migrated test calls itself "a documented snapshot, not an enforced rule"
+- [ ] T026 [US3] Strengthen the migrated `NoCapabilityOtherThanTenancyExistsUnderSrc` into FR-009's pin with a failure message that tells the reader to extend the cross-capability reference gate rather than relax this expectation — describe the gate by what it checks, do not cite its requirement number (FR-008, FR-009) — the migrated test calls itself "a documented snapshot, not an enforced rule"
 - [ ] T027 [US3] Prove T025 and T026 red per FR-023 by adding a throwaway second capability under `src/` that references `Tenancy.Infrastructure`, confirming both fail, reverting, and recording the demonstrations
 
 **Checkpoint**: Adding a second capability is now a visible, gated decision.
@@ -183,11 +206,11 @@ build.
 **Independent Test**: Remove the coverage declaration from the only test covering one spec-001
 requirement, run the suite, confirm it fails naming that requirement, restore.
 
-- [ ] T039 [US6] Create `tests/ArchitectureTests/Support/CoversRequirementAttribute.cs` per research.md R3 — a purpose-built attribute rather than `[Trait]`, so a typo is a failure rather than silent non-coverage. Record in its remarks that this choice is R3's, resolving CHK013's question of whether a different mechanism would be non-compliant
+- [ ] T039 [US6] Create `tests/ArchitectureTests/Support/CoversRequirementAttribute.cs` — a purpose-built attribute rather than `[Trait]`, so a typo is a failure rather than silent non-coverage. Its remarks should say *why* a bare trait string was rejected (no schema, key spelling unenforced), not cite the research section that decided it (research.md R3, CHK013)
 - [ ] T040 [US6] Apply `[CoversRequirement("FR-0NN")]` across the existing unit and integration suites using `specs/001-auth-tenant-management/coverage.md`'s matrix as the source of truth, covering all 26 of spec 001's functional requirements
 - [ ] T041 [US6] (SC-003) Implement the FR-020 and FR-021 gates in `tests/ArchitectureTests/RequirementCoverageGates.cs`: enumerate declarations by reflection over both test assemblies, assert every one of spec 001's twenty-six functional requirements (`001-FR-001` through `001-FR-026`) has at least one, and fail naming the specific requirement
 - [ ] T042 [US6] Implement the FR-022 gate asserting no declaration names an identifier absent from spec 001, parsing the valid set from `specs/001-auth-tenant-management/spec.md` rather than hardcoding it
-- [ ] T043 [US6] State the gate's limits in `RequirementCoverageGates.cs` remarks per FR-020's own text — it detects loss of declared coverage, not whether a declaring test meaningfully exercises its requirement (CHK010/CHK011) — and record whether spec 002's own requirements are in scope, resolving CHK012
+- [ ] T043 [US6] State the gate's limits in `RequirementCoverageGates.cs` remarks in its own words — it detects loss of declared coverage, not whether a declaring test meaningfully exercises the requirement it names — and record whether this slice's own requirements are in scope (FR-020, CHK010–CHK012)
 - [ ] T044 [US6] Prove T041 and T042 red per FR-023 by removing one declaration and then adding a bogus identifier, confirming each failure names the requirement, restoring both, and recording the demonstrations
 
 **Checkpoint**: T089's hand audit is protected from rotting, with its limits stated rather than
