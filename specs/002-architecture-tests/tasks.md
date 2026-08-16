@@ -69,10 +69,10 @@ reference rather than re-listed as pending work.
 
 **Purpose**: Create the project the gates live in. FR-001/FR-003.
 
-- [ ] T001 (FR-001) Create `tests/ArchitectureTests/ArchitectureTests.csproj` targeting `net10.0`, referencing `xunit.v3` and `AwesomeAssertions` from `Directory.Packages.props` with no new package versions added
-- [ ] T002 Add project references from `tests/ArchitectureTests/ArchitectureTests.csproj` to all four `src/Tenancy/*` projects, and add the project to the solution file
-- [ ] T003 Add `tests/ArchitectureTests/AssemblyInfo.cs` with `[assembly: CollectionBehavior(DisableTestParallelization = true)]`, matching `Tenancy.IntegrationTests`' existing setting, since gates read shared files from disk
-- [ ] T004 Record in `tests/ArchitectureTests/README.md` that `ContractTests/` and `EndToEndTests/` are deliberately absent, naming roadmap slices S9 and S7 as their first consumers, so a later reader does not create them speculatively. State the reason, not the requirement number — roadmap slice names are permanent, `FR-003` is not (FR-003)
+- [x] T001 (FR-001) Create `tests/ArchitectureTests/ArchitectureTests.csproj` targeting `net10.0`, referencing `xunit.v3` and `AwesomeAssertions` from `Directory.Packages.props` with no new package versions added
+- [x] T002 Add project references from `tests/ArchitectureTests/ArchitectureTests.csproj` to all four `src/Tenancy/*` projects, and add the project to the solution file
+- [x] T003 Add `tests/ArchitectureTests/AssemblyInfo.cs` with `[assembly: CollectionBehavior(DisableTestParallelization = true)]`, matching `Tenancy.IntegrationTests`' existing setting, since gates read shared files from disk
+- [x] T004 Record in `tests/ArchitectureTests/README.md` that `ContractTests/` and `EndToEndTests/` are deliberately absent, naming roadmap slices S9 and S7 as their first consumers, so a later reader does not create them speculatively. State the reason, not the requirement number — roadmap slice names are permanent, `FR-003` is not (FR-003)
 
 **Checkpoint**: An empty gate project builds and runs under `dotnet test`.
 
@@ -295,7 +295,7 @@ red flag list names "an architecture test nobody has verified can actually fail"
 
 | Phase | Story | Tasks | Count |
 |---|---|---|---|
-| 1 Setup | — | T001–T004 | 4 |
+| 1 Setup | — | T001–T004 | 4 (done) |
 | 2 Foundational | — | T005–T010 | 6 |
 | 3 | US1 (P1) 🎯 MVP | T011–T018 | 8 |
 | 4 | US2 (P1) | T019–T024 | 6 |
@@ -305,7 +305,7 @@ red flag list names "an architecture test nobody has verified can actually fail"
 | 8 | US6 (P3) | T039–T044 | 6 |
 | 9 Unowned | — | T045–T050 | 6 (1 done) |
 | 10 Polish | — | T051–T057 | 7 |
-| **Total** | | | **57** (1 done, 56 open) |
+| **Total** | | | **57** (5 done, 52 open) |
 
 **Checklist items resolved by tasks**: 17 of the 28 still open are assigned to a specific task —
 CHK001 (T010), CHK005 (T032), CHK006 (T051), CHK010/011 (T043), CHK012 (T043), CHK013 (T039),
