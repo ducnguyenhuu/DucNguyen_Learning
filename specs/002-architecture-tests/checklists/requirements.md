@@ -2,7 +2,7 @@
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-08-15
-**Last validated**: 2026-08-15, after the second revision
+**Last validated**: 2026-08-15, after `/speckit.clarify` (spec is now at 25 FRs)
 **Feature**: [spec.md](../spec.md)
 
 ## Content Quality
@@ -46,7 +46,7 @@ because the first draft's failures were all overclaims:
 | Which race paths are tested | `grep` for `DbUpdateException` in `tests/` | `InviteMember`'s is covered; `EnsureUserProvisioned`'s is **not** ✅ |
 | spec 001 has 26 live FRs | Counted `FR-0NN` definitions in spec 001 | 26 (FR-001..FR-026) ✅ |
 | spec 001 defers work to S3 | Read spec 001's Deferred Requirements table | `old-FR-028`, `old-SC-008` both S3-assigned ✅ |
-| Numbering integrity of this spec | Enumerated all FR/SC definitions and cross-references | FR-001..FR-022, SC-001..SC-006, no gaps or duplicates; all spec-001 references explicitly qualified ✅ |
+| Numbering integrity of this spec | Enumerated all FR/SC definitions and cross-references | FR-001..FR-025, SC-001..SC-006, no gaps or duplicates; all spec-001 references explicitly qualified ✅ |
 
 ## Clarification session (2026-08-15, post-plan)
 
@@ -96,19 +96,22 @@ names it. Checked after ADR-021 was accepted:
 - Some requirements name concrete types (`IHostedService`, `DbUpdateException`,
   `TenancyDbContext`) and specific packages. This is deliberate and not an implementation
   leak: the requirement *is* about those specific boundaries, and naming them is what makes
-  the requirement testable. The spec still leaves the enforcement *mechanism* open —
-  architecture-testing library, reflection, or Roslyn analyzer — as a planning decision.
+  the requirement testable. The enforcement *mechanism* was left open for planning and is now
+  decided — see research.md R1 (no library; declaration parsing, source scanning, reflection).
 - Two decisions were taken by the project owner during review and are recorded in the spec
   rather than left open: (1) `Tenancy.Application`'s EF Core dependency is inverted, not
   allow-listed; (2) ADR-008/ADR-009's gates are implemented in this slice rather than
   deferred to S13.
-- All checklist items pass. Ready for `/speckit.plan`.
+- All checklist items pass. `/speckit.plan` and `/speckit.clarify` are both complete; next is `/speckit.tasks`.
 
-## Open question for planning, not blocking
+## Resolved: did the enforcement mechanism warrant an ADR?
 
-- **Does the enforcement mechanism warrant an ADR?** The project's testing standard shows
-  `Types.InAssembly(...).ShouldNot().HaveDependencyOnAny(...)`, which is a specific
-  library's syntax, while S2's existing tests hand-parse `.csproj` XML. Choosing between
-  them (and whether package-level and string-level rules need different tools) is an
-  architectural decision with a Compliance dimension, comparable to how S2's planning
-  produced ADR-017. Worth deciding deliberately in `/speckit.plan`.
+This checklist previously left that question open for planning. **Answer: no ADR needed.**
+An ADR records a decision that constrains future work; this one resolved to *keeping* the
+approach S2 already uses (`.csproj` parsing) and adding no dependency, so there is no new
+constraint to record and nothing for a future reader to be bound by. The evidence for
+rejecting NetArchTest is in research.md R1, which is where a reader looking at these gates
+will already be.
+
+Revisit if a future slice needs type-level IL analysis that declarations cannot express —
+adopting a library at that point *would* be an ADR-worthy decision.
