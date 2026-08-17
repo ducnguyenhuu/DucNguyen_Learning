@@ -4,7 +4,7 @@ using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Xunit;
 
-namespace Tenancy.UnitTests.Architecture;
+namespace ArchitectureTests;
 
 /// <summary>
 /// FR-023/FR-024 coverage (T089 gap closure): structural (project-reference-graph) evidence that
@@ -37,7 +37,7 @@ namespace Tenancy.UnitTests.Architecture;
 /// references <c>Tenancy.Infrastructure</c> directly.
 /// </para>
 /// </remarks>
-public sealed class CapabilityBoundaryTests
+public sealed class CapabilityBoundaryGates
 {
     private static readonly string RepoRoot = ProjectFile.GetRepoRoot();
 
