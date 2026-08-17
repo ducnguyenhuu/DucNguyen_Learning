@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Tenancy.Domain.Abstractions;
 
 namespace Tenancy.Api.ErrorHandling;
 
@@ -39,14 +40,23 @@ public class ProblemDetailsHandler : IExceptionHandler
             httpContext.Request.Method,
             httpContext.Request.Path);
 
-        httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        // ConflictException is checked before the more general DomainException since it
+        // derives from it; anything not a recognized domain exception falls through to 500.
+        var (statusCode, title) = exception switch
+        {
+            ConflictException => (StatusCodes.Status409Conflict, "A conflict occurred."),
+            DomainException => (StatusCodes.Status400BadRequest, "The request could not be processed."),
+            _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred."),
+        };
+
+        httpContext.Response.StatusCode = statusCode;
         httpContext.Response.ContentType = "application/problem+json";
 
         await httpContext.Response.WriteAsJsonAsync(
             new ProblemDetails
             {
-                Status = StatusCodes.Status500InternalServerError,
-                Title = "An unexpected error occurred.",
+                Status = statusCode,
+                Title = title,
                 Type = "https://tools.ietf.org/html/rfc9457",
                 // Deliberately no Detail: any per-exception detail risks leaking internal state.
             },
