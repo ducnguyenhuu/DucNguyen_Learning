@@ -236,12 +236,12 @@ after the stories were written. No `[Story]` label, per the note at the top of t
 
 ## Phase 10: Polish & Cross-Cutting Concerns
 
-- [ ] T051 [P] (SC-006) Assert failure-message content for every gate, so FR-024 is verified rather than eyeballed — resolving CHK006, which found the requirement satisfiable by a human glance at output
-- [ ] T052 [P] Measure the full suite's runtime three times and record min/median/max in `specs/002-architecture-tests/coverage.md` against SC-005's five-minute bar, naming the hardware — resolving CHK020, which found a wall-clock bound with no stated reference environment is not reproducible
+- [x] T051 [P] (SC-006) Assert failure-message content for every gate, so FR-024 is verified rather than eyeballed — resolving CHK006, which found the requirement satisfiable by a human glance at output
+- [x] T052 [P] Measure the full suite's runtime three times and record min/median/max in `specs/002-architecture-tests/coverage.md` against SC-005's five-minute bar, naming the hardware — resolving CHK020, which found a wall-clock bound with no stated reference environment is not reproducible
 - [x] T053 Update `docs/traceability.md`'s U12 table: mark the raw-SQL/background-job row and the provider-SDK row as addressed by this slice, and record that FR-012 closes the direct route while FR-027 closes the property. Resolves CHK041, which found no task owned this edit
 - [x] T054 [P] Correct U12's framing in the same edit — its "most plausible route to a cross-tenant leak" overstates the background-job gap against this implementation, where reads and update/delete already fail closed and only insert did not
 - [x] T055 [P] Tick S3's *Done when* checklist in `roadmap.md` and set its status to done, following the pattern used for S2
-- [ ] T056 Review the 28 checklist items still open in `specs/002-architecture-tests/checklists/`, mark each resolved with a note or state why it stays open, so the checklists end the slice as a record rather than a to-do list
+- [x] T056 Review the 28 checklist items still open in `specs/002-architecture-tests/checklists/`, mark each resolved with a note or state why it stays open, so the checklists end the slice as a record rather than a to-do list
 - [x] T057 Add `[CoversRequirement]` declarations to this slice's own gate tests if T043 decided spec 002's requirements are in scope; skip with a recorded reason if not (skipped — `RequirementCoverageGates.cs`'s remarks record T043's decision that spec 002's own requirements are out of scope for this gate; no declarations added)
 
 ---
@@ -304,8 +304,8 @@ red flag list names "an architecture test nobody has verified can actually fail"
 | 7 | US5 (P2) | T033–T038 | 6 (done) |
 | 8 | US6 (P3) | T039–T044 | 6 (done) |
 | 9 Unowned | — | T045–T050 | 6 (done) |
-| 10 Polish | — | T051–T057 | 7 |
-| **Total** | | | **57** (50 done, 7 open) |
+| 10 Polish | — | T051–T057 | 7 (done) |
+| **Total** | | | **57** (57 done, 0 open) |
 
 **Checklist items resolved by tasks**: 17 of the 28 still open are assigned to a specific task —
 CHK001 (T010), CHK005 (T032), CHK006 (T051), CHK010/011 (T043), CHK012 (T043), CHK013 (T039),
