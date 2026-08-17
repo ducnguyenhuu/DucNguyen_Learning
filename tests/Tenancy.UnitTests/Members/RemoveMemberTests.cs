@@ -1,3 +1,4 @@
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Tenancy.Application.Abstractions;
@@ -57,6 +58,7 @@ public class RemoveMemberTests
     private static RemoveMember CreateUseCase(FakeMembershipRepository repository) =>
         new(repository, new FakeTenantContext(), NullLogger<RemoveMember>.Instance);
 
+    [CoversRequirement("FR-014")]
     [Fact]
     public async Task ExecuteAsync_HappyPath_RemovesMembership()
     {
@@ -98,6 +100,7 @@ public class RemoveMemberTests
         result.Kind.Should().Be(RemoveMemberResultKind.NotFound);
     }
 
+    [CoversRequirement("FR-015")]
     [Fact]
     public async Task ExecuteAsync_LastAdministrator_ReturnsConflict()
     {

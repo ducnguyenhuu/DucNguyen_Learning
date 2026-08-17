@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Tenancy.Api.ETags;
@@ -44,6 +45,7 @@ public sealed class ChangeMemberRoleTests : TenancyIntegrationTestBase
     /// Asserts <c>200</c>, the new role in the response body, and a fresh <c>ETag</c> distinct
     /// from the <c>If-Match</c> presented on the request.
     /// </summary>
+    [CoversRequirement("FR-014")]
     [Fact]
     public async Task Patch_MemberRole_AsAdministrator_ChangesRoleAndReturnsFreshETag()
     {
@@ -74,6 +76,7 @@ public sealed class ChangeMemberRoleTests : TenancyIntegrationTestBase
     /// <see cref="TenantAdministration.EnsureRoleChangeAllowed"/>, this must be refused with
     /// <c>409 Conflict</c> rather than leaving the tenant with zero active administrators.
     /// </summary>
+    [CoversRequirement("FR-015")]
     [Fact]
     public async Task Patch_MemberRole_SoleAdministratorDemotesSelf_IsRefused()
     {
@@ -101,6 +104,8 @@ public sealed class ChangeMemberRoleTests : TenancyIntegrationTestBase
     /// rejected with <c>428 Precondition Required</c>, mirroring T058's PATCH tenant and T079's
     /// DELETE member precedent.
     /// </summary>
+    [CoversRequirement("FR-014")]
+    [CoversRequirement("FR-021")]
     [Fact]
     public async Task Patch_MemberRole_WithoutIfMatchHeader_ReturnsPreconditionRequired()
     {
@@ -122,6 +127,8 @@ public sealed class ChangeMemberRoleTests : TenancyIntegrationTestBase
     /// quoted base64 ETag — <see cref="RowVersionETag.FromIfMatch"/> throws
     /// <see cref="FormatException"/>) is rejected with <c>400 Bad Request</c>.
     /// </summary>
+    [CoversRequirement("FR-014")]
+    [CoversRequirement("FR-021")]
     [Fact]
     public async Task Patch_MemberRole_WithMalformedIfMatchHeader_ReturnsBadRequest()
     {
@@ -148,6 +155,8 @@ public sealed class ChangeMemberRoleTests : TenancyIntegrationTestBase
     /// the membership's current <c>rowversion</c>) is rejected with <c>412 Precondition Failed</c>
     /// — the caller's view of the resource was out of date at request time.
     /// </summary>
+    [CoversRequirement("FR-014")]
+    [CoversRequirement("FR-021")]
     [Fact]
     public async Task Patch_MemberRole_WithStaleIfMatchHeader_ReturnsPreconditionFailed()
     {
@@ -171,6 +180,7 @@ public sealed class ChangeMemberRoleTests : TenancyIntegrationTestBase
     /// unknown user id, never seeded as a member of this tenant at all — so the request is
     /// rejected with <c>404 Not Found</c>.
     /// </summary>
+    [CoversRequirement("FR-014")]
     [Fact]
     public async Task Patch_MemberRole_ForUserWithNoActiveMembership_ReturnsNotFound()
     {

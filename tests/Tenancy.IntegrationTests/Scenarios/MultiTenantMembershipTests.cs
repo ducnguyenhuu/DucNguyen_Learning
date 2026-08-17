@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Tenancy.IntegrationTests.Infrastructure;
 using Xunit;
@@ -26,6 +27,7 @@ public sealed class MultiTenantMembershipTests : TenancyIntegrationTestBase
     {
     }
 
+    [CoversRequirement("FR-008")]
     [Fact]
     public async Task Get_TenantById_ForEachTenant_ReturnsThatTenantsOwnData_NeverBlended()
     {
@@ -55,6 +57,7 @@ public sealed class MultiTenantMembershipTests : TenancyIntegrationTestBase
         bodyY.Should().NotContain(seed.TenantX.DisplayName);
     }
 
+    [CoversRequirement("FR-010")]
     [Fact]
     public async Task Get_Tenants_ForUserInBothTenants_ReturnsBothTenants_CorrectlySeparated()
     {

@@ -1,3 +1,4 @@
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Tenancy.Application.Abstractions;
@@ -105,6 +106,7 @@ public class AcceptInvitationTests
             clock ?? new FakeClock(),
             NullLogger<AcceptInvitation>.Instance);
 
+    [CoversRequirement("FR-012")]
     [Fact]
     public async Task ExecuteAsync_HappyPath_CreatesMembership_MarksInvitationAccepted_ReturnsSuccess()
     {
@@ -128,6 +130,7 @@ public class AcceptInvitationTests
         invitationRepository.SavedMembership.Should().BeSameAs(result.Membership);
     }
 
+    [CoversRequirement("FR-013")]
     [Fact]
     public async Task ExecuteAsync_UnknownToken_ReturnsNotFound()
     {
@@ -141,6 +144,7 @@ public class AcceptInvitationTests
         invitationRepository.SavedInvitation.Should().BeNull();
     }
 
+    [CoversRequirement("FR-013")]
     [Fact]
     public async Task ExecuteAsync_ExpiredToken_ReturnsNotAcceptable()
     {
@@ -157,6 +161,7 @@ public class AcceptInvitationTests
         invitationRepository.SavedInvitation.Should().BeNull();
     }
 
+    [CoversRequirement("FR-013")]
     [Fact]
     public async Task ExecuteAsync_AlreadyAcceptedToken_ReturnsNotAcceptable()
     {
@@ -171,6 +176,7 @@ public class AcceptInvitationTests
         result.Kind.Should().Be(AcceptInvitationResultKind.NotAcceptable);
     }
 
+    [CoversRequirement("FR-013")]
     [Fact]
     public async Task ExecuteAsync_WrongIdentity_ReturnsWrongIdentity_AndDoesNotAcceptInvitation()
     {

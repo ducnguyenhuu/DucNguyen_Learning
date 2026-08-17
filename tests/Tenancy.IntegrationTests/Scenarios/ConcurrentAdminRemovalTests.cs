@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -70,6 +71,7 @@ public sealed class ConcurrentAdminRemovalTests : TenancyIntegrationTestBase
     /// trusting response codes alone, since today's absent-route failures and tomorrow's genuine
     /// race outcomes both need the same ground-truth check.
     /// </summary>
+    [CoversRequirement("FR-015")]
     [Fact]
     public async Task Delete_BothAdministrators_Concurrently_NeverLeavesZeroAdministrators()
     {

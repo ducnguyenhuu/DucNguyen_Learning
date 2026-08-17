@@ -1,3 +1,4 @@
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
@@ -81,6 +82,8 @@ public class AdministratorOnlyAuthorizationHandlerTests
         return context;
     }
 
+    [CoversRequirement("FR-018")]
+    [CoversRequirement("FR-019")]
     [Fact]
     public async Task HandleRequirementAsync_AdministratorRole_Succeeds()
     {
@@ -89,6 +92,9 @@ public class AdministratorOnlyAuthorizationHandlerTests
         context.HasSucceeded.Should().BeTrue();
     }
 
+    [CoversRequirement("FR-017")]
+    [CoversRequirement("FR-018")]
+    [CoversRequirement("FR-019")]
     [Theory]
     [InlineData(Role.Member)]
     [InlineData(Role.Reader)]
@@ -105,6 +111,7 @@ public class AdministratorOnlyAuthorizationHandlerTests
     /// interpolation. Mirrors <c>TenantContextResolutionMiddleware</c>'s (T059) established
     /// logging convention for the earlier "not a member at all" refusal path.
     /// </summary>
+    [CoversRequirement("FR-025")]
     [Fact]
     public async Task HandleRequirementAsync_NonAdministratorRole_LogsAuthorizationRefusal()
     {
@@ -124,6 +131,7 @@ public class AdministratorOnlyAuthorizationHandlerTests
     /// Guards against a regression where the success path starts logging too — an authorization
     /// grant is not a refusal, and FR-025's refusal-logging requirement should not fire here.
     /// </summary>
+    [CoversRequirement("FR-025")]
     [Fact]
     public async Task HandleRequirementAsync_AdministratorRole_DoesNotLogRefusal()
     {

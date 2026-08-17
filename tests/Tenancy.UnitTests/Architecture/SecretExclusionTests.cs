@@ -1,6 +1,7 @@
 using System.IO;
 using System.Linq;
 using System.Xml.Linq;
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Xunit;
 
@@ -24,6 +25,7 @@ public sealed class SecretExclusionTests
 {
     private static readonly string RepoRoot = FindRepoRoot();
 
+    [CoversRequirement("FR-026")]
     [Theory]
     [InlineData("*.env")]
     [InlineData(".env.*")]
@@ -42,6 +44,7 @@ public sealed class SecretExclusionTests
             $"version control; .gitignore must exclude the '{pattern}' pattern.");
     }
 
+    [CoversRequirement("FR-026")]
     [Fact]
     public void TenancyApi_HasUserSecretsIdConfigured()
     {
@@ -63,6 +66,7 @@ public sealed class SecretExclusionTests
             "Tenancy.Api.csproj must configure a UserSecretsId for the dotnet user-secrets tool.");
     }
 
+    [CoversRequirement("FR-026")]
     [Fact]
     public void AppsettingsJson_CommittedToSourceControl_ContainsNoConnectionStringWithCredentials()
     {

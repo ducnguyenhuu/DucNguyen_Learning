@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Tenancy.IntegrationTests.Infrastructure;
 using Xunit;
@@ -30,6 +31,8 @@ public sealed class ErrorDisclosureTests : TenancyIntegrationTestBase
     {
     }
 
+    [CoversRequirement("FR-007")]
+    [CoversRequirement("FR-022")]
     [Fact]
     public async Task Get_TenantById_WithMalformedRouteId_DoesNotDiscloseSensitiveDetail()
     {
@@ -48,6 +51,7 @@ public sealed class ErrorDisclosureTests : TenancyIntegrationTestBase
         AssertNoSensitiveDisclosure(body);
     }
 
+    [CoversRequirement("FR-022")]
     [Fact]
     public async Task Post_Tenants_WithMalformedJsonBody_DoesNotDiscloseSensitiveDetail()
     {
@@ -70,6 +74,7 @@ public sealed class ErrorDisclosureTests : TenancyIntegrationTestBase
         AssertNoSensitiveDisclosure(body);
     }
 
+    [CoversRequirement("FR-022")]
     [Fact]
     public async Task Get_TenantById_ForOtherTenant_DoesNotDiscloseOtherTenantIdentity()
     {

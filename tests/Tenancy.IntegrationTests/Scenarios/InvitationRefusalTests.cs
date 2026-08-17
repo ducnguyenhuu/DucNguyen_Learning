@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using ArchitectureTests.Support;
 using Microsoft.Extensions.DependencyInjection;
 using AwesomeAssertions;
 using Tenancy.Domain.Abstractions;
@@ -56,6 +57,7 @@ public sealed class InvitationRefusalTests : TenancyIntegrationTestBase
     /// like every other case in this file, so a caller cannot distinguish "never existed" from
     /// "existed but is no longer usable".
     /// </summary>
+    [CoversRequirement("FR-013")]
     [Fact]
     public async Task Post_AcceptUnknownToken_Returns404()
     {
@@ -77,6 +79,7 @@ public sealed class InvitationRefusalTests : TenancyIntegrationTestBase
     /// different code that would reveal the token once resolved to a real, time-expired
     /// invitation.
     /// </summary>
+    [CoversRequirement("FR-013")]
     [Fact]
     public async Task Post_AcceptExpiredToken_Returns404()
     {
@@ -101,6 +104,7 @@ public sealed class InvitationRefusalTests : TenancyIntegrationTestBase
     /// A genuinely-persisted invitation that was explicitly revoked before anyone accepted it
     /// must yield 404, indistinguishable from a token that never existed.
     /// </summary>
+    [CoversRequirement("FR-013")]
     [Fact]
     public async Task Post_AcceptRevokedToken_Returns404()
     {
@@ -126,6 +130,7 @@ public sealed class InvitationRefusalTests : TenancyIntegrationTestBase
     /// acceptance attempt with 404, not (for example) a 409 Conflict that would leak "this token
     /// was valid and used before".
     /// </summary>
+    [CoversRequirement("FR-013")]
     [Fact]
     public async Task Post_AcceptAlreadyAcceptedToken_Returns404()
     {

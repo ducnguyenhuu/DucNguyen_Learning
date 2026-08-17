@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Tenancy.Domain.Abstractions;
@@ -44,6 +45,7 @@ public sealed class InvitationIdempotencyTests : TenancyIntegrationTestBase
     /// with <c>Idempotency-Replayed: true</c> present only on the replay, and with exactly one
     /// invitation actually persisted, confirmed via <c>GET /tenants/{tenantId}/invitations</c>.
     /// </summary>
+    [CoversRequirement("FR-020")]
     [Fact]
     public async Task Post_Invitations_ReplayedWithSameKeyAndBody_ReturnsSameStatusAndBodyVerbatim_AndOnlyOneInvitationExists()
     {
@@ -88,6 +90,7 @@ public sealed class InvitationIdempotencyTests : TenancyIntegrationTestBase
     /// mismatch-detection behavior already proven for <c>POST /tenants</c> by
     /// <see cref="IdempotencyTests.Post_Tenants_SameKeyDifferentBody_ReturnsUnprocessableEntity"/>.
     /// </summary>
+    [CoversRequirement("FR-020")]
     [Fact]
     public async Task Post_Invitations_SameKeyDifferentBody_ReturnsUnprocessableEntity()
     {

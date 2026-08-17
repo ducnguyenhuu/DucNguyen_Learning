@@ -41,6 +41,7 @@ public sealed class CapabilityBoundaryGates
 {
     private static readonly string RepoRoot = ProjectFile.GetRepoRoot();
 
+    [CoversRequirement("FR-024")]
     [Fact]
     public void TenancyDomain_HasNoProjectReferences()
     {
@@ -51,6 +52,7 @@ public sealed class CapabilityBoundaryGates
             "Tenancy.Domain.csproj must have zero <ProjectReference> entries.");
     }
 
+    [CoversRequirement("FR-024")]
     [Fact]
     public void TenancyApplication_OnlyReferencesDomain()
     {
@@ -62,6 +64,7 @@ public sealed class CapabilityBoundaryGates
             "infrastructure.");
     }
 
+    [CoversRequirement("FR-024")]
     [Fact]
     public void TenancyInfrastructure_NeverReferencedByDomainOrApplication()
     {
@@ -69,6 +72,7 @@ public sealed class CapabilityBoundaryGates
         ProjectFile.GetProjectReferences("Tenancy.Application").Should().NotContain("Tenancy.Infrastructure");
     }
 
+    [CoversRequirement("FR-023")]
     [Fact]
     public void OnlyTenancyApi_ReferencesInfrastructureDirectly()
     {
@@ -148,6 +152,7 @@ public sealed class CapabilityBoundaryGates
             "reference-graph check above.");
     }
 
+    [CoversRequirement("FR-023")]
     [Fact]
     public void NoCapabilityOtherThanTenancyExistsUnderSrc()
     {

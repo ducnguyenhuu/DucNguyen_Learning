@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using ArchitectureTests.Support;
 using Microsoft.Extensions.DependencyInjection;
 using AwesomeAssertions;
 using Tenancy.Domain.Abstractions;
@@ -80,6 +81,9 @@ public sealed class ForbiddenVersusNotFoundTests : TenancyIntegrationTestBase
     /// Red today: <c>POST /tenants/{tenantId}/invitations</c> currently succeeds (201) for any
     /// active member — no role check exists until T085/T088.
     /// </remarks>
+    [CoversRequirement("FR-008")]
+    [CoversRequirement("FR-009")]
+    [CoversRequirement("FR-018")]
     [Fact]
     public async Task Post_Invitation_AsWrongRoleMember_Returns403()
     {
@@ -125,6 +129,8 @@ public sealed class ForbiddenVersusNotFoundTests : TenancyIntegrationTestBase
     /// against a never-seeded tenant id). This is the part T035's membership check already
     /// covers; expected green today.
     /// </summary>
+    [CoversRequirement("FR-008")]
+    [CoversRequirement("FR-009")]
     [Fact]
     public async Task Post_Invitation_ByNonMember_Returns404_AgainstTheSameTenant()
     {
@@ -162,6 +168,8 @@ public sealed class ForbiddenVersusNotFoundTests : TenancyIntegrationTestBase
     /// a member; role is irrelevant until membership for *that specific tenant* is established.
     /// Already green today via T035's membership check (predates any role check).
     /// </summary>
+    [CoversRequirement("FR-008")]
+    [CoversRequirement("FR-009")]
     [Fact]
     public async Task Post_Invitation_ByAdministratorOfAnotherTenant_Returns404_NotForbidden()
     {

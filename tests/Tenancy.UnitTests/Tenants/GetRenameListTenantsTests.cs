@@ -1,3 +1,4 @@
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Tenancy.Application.Abstractions;
@@ -60,6 +61,7 @@ public class GetRenameListTenantsTests
         }
     }
 
+    [CoversRequirement("FR-006")]
     [Fact]
     public async Task GetTenant_ReturnsWhateverTheRepositoryProvides()
     {
@@ -90,6 +92,7 @@ public class GetRenameListTenantsTests
         fakeRepository.SavedTenant.Should().BeNull();
     }
 
+    [CoversRequirement("FR-006")]
     [Fact]
     public async Task RenameTenant_WithValidDisplayName_RenamesAndSaves()
     {
@@ -124,6 +127,7 @@ public class GetRenameListTenantsTests
         fakeRepository.RequestedTenantIds.Should().BeNull();
     }
 
+    [CoversRequirement("FR-010")]
     [Fact]
     public async Task ListTenants_CallsGetManyByIdsAsync_WithDistinctTenantIdsFromMemberships()
     {

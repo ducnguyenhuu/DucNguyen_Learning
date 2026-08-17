@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using ArchitectureTests.Support;
 using Tenancy.IntegrationTests.Infrastructure;
 using AwesomeAssertions;
 using Xunit;
@@ -29,6 +30,7 @@ public sealed class UnauthenticatedTests : TenancyIntegrationTestBase
     {
     }
 
+    [CoversRequirement("FR-002")]
     [Fact]
     public async Task Post_Tenants_WithNoAuthorizationHeader_ReturnsUnauthorized()
     {
@@ -44,6 +46,7 @@ public sealed class UnauthenticatedTests : TenancyIntegrationTestBase
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
+    [CoversRequirement("FR-002")]
     [Fact]
     public async Task Get_Tenants_WithNoAuthorizationHeader_ReturnsUnauthorized()
     {
@@ -56,6 +59,7 @@ public sealed class UnauthenticatedTests : TenancyIntegrationTestBase
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
+    [CoversRequirement("FR-002")]
     [Fact]
     public async Task Get_TenantById_WithNoAuthorizationHeader_ReturnsUnauthorized()
     {
@@ -70,6 +74,7 @@ public sealed class UnauthenticatedTests : TenancyIntegrationTestBase
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
+    [CoversRequirement("FR-002")]
     [Fact]
     public async Task Patch_TenantById_WithNoAuthorizationHeader_ReturnsUnauthorized()
     {

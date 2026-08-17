@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Tenancy.IntegrationTests.Infrastructure;
 using Xunit;
@@ -32,6 +33,7 @@ public sealed class EstablishTenantTests : TenancyIntegrationTestBase
     /// the tenant is persisted with a unique id, the creator recorded as its administrator, and
     /// the tenant's details returned to the caller.
     /// </summary>
+    [CoversRequirement("FR-005")]
     [Fact]
     public async Task Post_Tenants_WithValidDisplayName_CreatesTenant_AndReturnsItToCaller()
     {
@@ -81,6 +83,7 @@ public sealed class EstablishTenantTests : TenancyIntegrationTestBase
     /// the eventual-correct-behavior spec. It's expected to fail for the same "route absent"
     /// reason as the other scenarios here.
     /// </remarks>
+    [CoversRequirement("FR-006")]
     [Fact]
     public async Task Patch_TenantDisplayName_ThenGet_ReflectsUpdatedName()
     {
@@ -123,6 +126,7 @@ public sealed class EstablishTenantTests : TenancyIntegrationTestBase
     /// unauthenticated, with no tenant data disclosed. Overlaps T046's exhaustive 401 coverage;
     /// one representative case is enough here.
     /// </summary>
+    [CoversRequirement("FR-002")]
     [Fact]
     public async Task Get_Tenants_WithoutAuthentication_IsRejectedAsUnauthenticated()
     {

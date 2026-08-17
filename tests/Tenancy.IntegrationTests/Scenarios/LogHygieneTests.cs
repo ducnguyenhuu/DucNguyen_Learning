@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Tenancy.IntegrationTests.Infrastructure;
 using Xunit;
@@ -63,6 +64,7 @@ public sealed class LogHygieneTests : TenancyIntegrationTestBase
     /// messages contain the token, the raw <c>Authorization</c> header value, or the fake
     /// secret marker.
     /// </summary>
+    [CoversRequirement("FR-025")]
     [Fact]
     public async Task AuthenticatedRequest_NeverLogsBearerTokenOrSecretHeaderValues()
     {

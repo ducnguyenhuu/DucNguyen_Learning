@@ -1,3 +1,4 @@
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Tenancy.Application.Abstractions;
@@ -70,6 +71,7 @@ public class ListInvitationsTests
     private static Invitation CreatePendingInvitation(EmailAddress email, DateTimeOffset expiresAtUtc) =>
         Invitation.Create(TestTenantId, email, Role.Member, "some-hash", expiresAtUtc);
 
+    [CoversRequirement("FR-014")]
     [Fact]
     public async Task ExecuteAsync_ReturnsPendingInvitations_WithStatusStillPending()
     {

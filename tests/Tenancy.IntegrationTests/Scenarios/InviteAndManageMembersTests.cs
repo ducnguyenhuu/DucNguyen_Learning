@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Tenancy.Api.ETags;
@@ -45,6 +46,7 @@ public sealed class InviteAndManageMembersTests : TenancyIntegrationTestBase
     /// for <c>POST /tenants/{tenantId}/invitations</c>: 201 Created, a <c>Location</c> header, and
     /// a body containing the invitation's token (returned once, never stored raw).
     /// </summary>
+    [CoversRequirement("FR-011")]
     [Fact]
     public async Task Post_Invitation_WithEmailAndRole_RecordsPendingInvitation()
     {
@@ -73,6 +75,7 @@ public sealed class InviteAndManageMembersTests : TenancyIntegrationTestBase
     /// this exists yet, it's expected to fail at the invite step rather than exercise the full
     /// flow; that's the accepted state for this tests-first sub-phase (see task-63-brief.md).
     /// </summary>
+    [CoversRequirement("FR-012")]
     [Fact]
     public async Task Post_Invitation_ThenAccept_ThenListMembers_ShowsNewActiveMemberWithInvitedRole()
     {
@@ -156,6 +159,7 @@ public sealed class InviteAndManageMembersTests : TenancyIntegrationTestBase
     /// the invite endpoint (mirroring <see cref="Post_Invitation_ThenAccept_ThenListMembers_ShowsNewActiveMemberWithInvitedRole"/>)
     /// and then attempts to accept that valid token while authenticated as a different email.
     /// </summary>
+    [CoversRequirement("FR-013")]
     [Fact]
     public async Task Post_AcceptInvitation_AsDifferentEmailThanInvited_IsRefused()
     {
@@ -245,6 +249,7 @@ public sealed class InviteAndManageMembersTests : TenancyIntegrationTestBase
     /// integration-level acknowledgement per task-63-brief.md's scope note — the deep unit-level
     /// invariant is T067's job, and the concurrent-race variant is T068's.
     /// </summary>
+    [CoversRequirement("FR-015")]
     [Fact]
     public async Task Delete_SoleAdministrator_IsRefused()
     {

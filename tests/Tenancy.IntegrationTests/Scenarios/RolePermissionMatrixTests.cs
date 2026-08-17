@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Tenancy.Api.ETags;
@@ -75,6 +76,8 @@ public sealed class RolePermissionMatrixTests : TenancyIntegrationTestBase
     /// <c>POST /tenants/{tenantId}/invitations</c> succeeds (201) for any active member today —
     /// no role check exists yet.
     /// </summary>
+    [CoversRequirement("FR-018")]
+    [CoversRequirement("FR-019")]
     [Fact]
     public async Task Post_Invitation_AsMember_IsRefused()
     {
@@ -98,6 +101,8 @@ public sealed class RolePermissionMatrixTests : TenancyIntegrationTestBase
     /// Currently red because <c>DELETE /tenants/{tenantId}/members/{userId}</c> succeeds (204) for
     /// any active member today — no role check exists yet.
     /// </summary>
+    [CoversRequirement("FR-018")]
+    [CoversRequirement("FR-019")]
     [Fact]
     public async Task Delete_Member_AsMember_IsRefused()
     {
@@ -128,6 +133,7 @@ public sealed class RolePermissionMatrixTests : TenancyIntegrationTestBase
     /// this one is already green today, and stays green once role checks land, since reads are
     /// not administrator-only.
     /// </summary>
+    [CoversRequirement("FR-006")]
     [Fact]
     public async Task Get_TenantDetails_AsMember_Succeeds()
     {
@@ -175,6 +181,8 @@ public sealed class RolePermissionMatrixTests : TenancyIntegrationTestBase
     /// refused. Currently red because <c>PATCH /tenants/{tenantId}</c> succeeds (200) for any
     /// active member today — no role check exists yet.
     /// </summary>
+    [CoversRequirement("FR-018")]
+    [CoversRequirement("FR-019")]
     [Fact]
     public async Task Patch_TenantSettings_AsReader_IsRefused()
     {
@@ -198,6 +206,9 @@ public sealed class RolePermissionMatrixTests : TenancyIntegrationTestBase
     /// invite/remove/rename all succeed for an Administrator, both today (for the wrong reason —
     /// no check exists) and after T085/T088 land (for the right reason).
     /// </summary>
+    [CoversRequirement("FR-011")]
+    [CoversRequirement("FR-018")]
+    [CoversRequirement("FR-019")]
     [Fact]
     public async Task Post_Invitation_AsAdministrator_Succeeds()
     {
@@ -220,6 +231,8 @@ public sealed class RolePermissionMatrixTests : TenancyIntegrationTestBase
     /// invitation, and listing members are all refused to a non-administrator (Member) per the
     /// matrix — all currently red for the same "succeeds today, no check exists yet" reason.
     /// </summary>
+    [CoversRequirement("FR-018")]
+    [CoversRequirement("FR-019")]
     [Fact]
     public async Task Get_Invitations_AsMember_IsRefused()
     {
@@ -239,6 +252,8 @@ public sealed class RolePermissionMatrixTests : TenancyIntegrationTestBase
     /// See <see cref="Get_Invitations_AsMember_IsRefused"/>'s remarks — same matrix row, the
     /// revoke-invitation surface.
     /// </summary>
+    [CoversRequirement("FR-018")]
+    [CoversRequirement("FR-019")]
     [Fact]
     public async Task Delete_Invitation_AsMember_IsRefused()
     {
@@ -261,6 +276,8 @@ public sealed class RolePermissionMatrixTests : TenancyIntegrationTestBase
     /// See <see cref="Get_Invitations_AsMember_IsRefused"/>'s remarks — same matrix row, the
     /// list-members surface.
     /// </summary>
+    [CoversRequirement("FR-018")]
+    [CoversRequirement("FR-019")]
     [Fact]
     public async Task Get_Members_AsMember_IsRefused()
     {

@@ -1,3 +1,4 @@
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Tenancy.Api.Configuration;
 using Xunit;
@@ -11,6 +12,7 @@ namespace Tenancy.UnitTests.Configuration;
 /// </summary>
 public sealed class TokenLifetimeValidationTests
 {
+    [CoversRequirement("FR-016")]
     [Theory]
     [InlineData(1)]
     [InlineData(59)]
@@ -22,6 +24,7 @@ public sealed class TokenLifetimeValidationTests
         act.Should().NotThrow();
     }
 
+    [CoversRequirement("FR-016")]
     [Theory]
     [InlineData(61)]
     [InlineData(120)]

@@ -28,6 +28,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Tenancy/Tenancy.Api/Tenancy.Api.csproj" />
+    <ProjectReference Include="../ArchitectureTests/ArchitectureTests.csproj" />
   </ItemGroup>
 
 </Project>

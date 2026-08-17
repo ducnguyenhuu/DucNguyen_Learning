@@ -1,3 +1,4 @@
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Tenancy.Application.Abstractions;
@@ -59,6 +60,7 @@ public class ListMembersTests
         FakeMembershipRepository membershipRepository, FakeUserRepository userRepository) =>
         new(membershipRepository, userRepository, new FakeTenantContext(), NullLogger<ListMembers>.Instance);
 
+    [CoversRequirement("FR-014")]
     [Fact]
     public async Task ExecuteAsync_ReturnsActiveMembers_WithResolvedEmails()
     {

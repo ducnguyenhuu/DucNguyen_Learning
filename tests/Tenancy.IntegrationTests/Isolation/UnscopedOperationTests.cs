@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Tenancy.IntegrationTests.Infrastructure;
 using Xunit;
@@ -49,6 +50,7 @@ public sealed class UnscopedOperationTests : TenancyIntegrationTestBase
     {
     }
 
+    [CoversRequirement("FR-005")]
     [Fact]
     public async Task Post_Tenants_WithoutAnyTenantContext_Succeeds()
     {
@@ -119,6 +121,7 @@ public sealed class UnscopedOperationTests : TenancyIntegrationTestBase
     /// (which asserts the same rule at the scenario level with an arbitrary token string); this
     /// test anchors the assertion to a genuinely-persisted, still-pending invitation.
     /// </summary>
+    [CoversRequirement("FR-013")]
     [Fact]
     public async Task Post_AcceptInvitation_WithValidTokenForSomeoneElse_IsRefused()
     {
@@ -150,6 +153,7 @@ public sealed class UnscopedOperationTests : TenancyIntegrationTestBase
     /// with the matching email and holding the valid token, can accept it despite having no
     /// prior membership anywhere — that's the entire point of leaving this route unscoped.
     /// </summary>
+    [CoversRequirement("FR-012")]
     [Fact]
     public async Task Post_AcceptInvitation_AsInvitedAddressee_Succeeds()
     {

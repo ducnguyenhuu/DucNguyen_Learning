@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Tenancy.Api.ETags;
@@ -39,6 +40,7 @@ public sealed class LoggingCoverageTests : TenancyIntegrationTestBase
     /// user {UserId}", ...)</c> call), and must not log anything beyond the two ids (no display
     /// name, no email, no other personal data).
     /// </summary>
+    [CoversRequirement("FR-025")]
     [Fact]
     public async Task Post_Tenants_LogsTenantCreationWithTenantAndUserId_AndNoDisplayName()
     {
@@ -89,6 +91,7 @@ public sealed class LoggingCoverageTests : TenancyIntegrationTestBase
     /// server-side, even though the HTTP response itself must stay indistinguishable from a
     /// nonexistent tenant per FR-009/ADR-017.
     /// </summary>
+    [CoversRequirement("FR-025")]
     [Fact]
     public async Task Get_TenantById_ForOtherTenant_LogsMembershipResolutionFailure()
     {
@@ -124,6 +127,7 @@ public sealed class LoggingCoverageTests : TenancyIntegrationTestBase
     /// tenant/membership id only — no email address, which is exactly the kind of unnecessary
     /// personal data FR-025 forbids.
     /// </summary>
+    [CoversRequirement("FR-025")]
     [Fact]
     public async Task Delete_Member_LogsMembershipChange_ByUserIdOnly_NoEmail()
     {
@@ -172,6 +176,7 @@ public sealed class LoggingCoverageTests : TenancyIntegrationTestBase
     /// <c>AdministratorOnlyAuthorizationHandler</c> (T085/T088), not by
     /// <c>TenantContextResolutionMiddleware</c>.
     /// </summary>
+    [CoversRequirement("FR-025")]
     [Fact]
     public async Task Delete_Member_AsNonAdministrator_LogsAuthorizationRefusal()
     {

@@ -1,3 +1,4 @@
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Tenancy.Application.Abstractions;
@@ -70,6 +71,7 @@ public class RevokeInvitationTests
             "some-hash",
             FixedNow + TimeSpan.FromDays(7));
 
+    [CoversRequirement("FR-014")]
     [Fact]
     public async Task ExecuteAsync_HappyPath_TransitionsToRevoked_AndSaves()
     {

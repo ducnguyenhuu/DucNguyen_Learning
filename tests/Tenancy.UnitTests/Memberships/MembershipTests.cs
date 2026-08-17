@@ -1,3 +1,4 @@
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Tenancy.Domain.Abstractions;
 using Tenancy.Domain.Memberships;
@@ -87,6 +88,7 @@ public class MembershipTests
         act.Should().Throw<DomainException>();
     }
 
+    [CoversRequirement("FR-017")]
     [Theory]
     [InlineData(Role.Member)]
     [InlineData(Role.Reader)]

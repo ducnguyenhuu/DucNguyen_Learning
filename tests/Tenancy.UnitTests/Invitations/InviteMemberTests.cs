@@ -1,3 +1,4 @@
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Tenancy.Application.Abstractions;
@@ -109,6 +110,7 @@ public class InviteMemberTests
             deliverySink ?? new FakeInvitationDeliverySink(),
             NullLogger<InviteMember>.Instance);
 
+    [CoversRequirement("FR-011")]
     [Fact]
     public async Task ExecuteAsync_HappyPath_CreatesPendingInvitationWithSevenDayExpiry_AndReturnsRawTokenOnce()
     {
