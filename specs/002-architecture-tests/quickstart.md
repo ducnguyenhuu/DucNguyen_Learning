@@ -71,7 +71,7 @@ then — an empty cell and a filled one must be visually distinguishable at a gl
 | FR-008 | Add a project under `src/` outside `Tenancy.*` that references `Tenancy.Infrastructure` | Fails, naming the project | ff7f042 (2026-08-17) |
 | FR-010 | Add `ExecuteSqlRaw("SELECT 1")` in any repository not on the allow-list | Fails, naming file + member | ac32f0c (2026-08-17) |
 | FR-011 | Move the audited `ExecuteSqlInterpolatedAsync` call out of `RemoveMembershipAsync` into a new method, leaving the allow-list untouched | Fails — the allow-list binds file **and** member | ac32f0c (2026-08-17) |
-| FR-012 | Add a `BackgroundService` taking `TenancyDbContext` in its constructor | Fails, naming the type | PENDING_HASH (2026-08-17) |
+| FR-012 | Add a `BackgroundService` taking `TenancyDbContext` in its constructor | Fails, naming the type | c19a97b (2026-08-17) |
 | FR-014 | Add any model-provider SDK package reference to `Tenancy.Application` | Fails, naming assembly + package | _pending_ |
 | FR-015 | Put a model identifier string in `Tenancy.Application` | Fails, naming the location | _pending_ |
 | FR-017 | Add `<PackageReference Include="FluentValidation" />` anywhere | Fails — ADR-021 ruling 1 | _pending_ |
@@ -92,7 +92,7 @@ finding I4):
 | FR-026 | Change any `IgnoreQueryFilters(["TenantFilter"])` call to the bare `IgnoreQueryFilters()` | Fails, naming file + member | _pending_ |
 | FR-027 | Insert a `Membership` via `TenancyDbContext` without setting `CurrentTenantId` | Throws `DomainException` — already covered by `UnsetTenantContextWriteTests` | _pending_ |
 | FR-009 | Add a second capability directory under `src/` | Absence pin fails, instructing you to extend FR-008's gate | ff7f042 (2026-08-17) |
-| FR-013 | Add any `BackgroundService` under `src/` | Absence pin fails | PENDING_HASH (2026-08-17) |
+| FR-013 | Add any `BackgroundService` under `src/` | Absence pin fails | c19a97b (2026-08-17) |
 | FR-016 | Add a model-provider SDK package reference | Absence pin fails, naming which of its two facts changed | _pending_ |
 | FR-019 | See §3 — its proof is behavioural, not structural | Test fails against today's blanket `500` | _pending_ |
 
