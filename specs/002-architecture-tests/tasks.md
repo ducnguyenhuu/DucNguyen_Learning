@@ -186,12 +186,12 @@ identifier appears in production code.
 **Independent Test**: Add a provider-SDK package reference anywhere, run the suite, confirm the
 pin fails naming the package, revert.
 
-- [ ] T033 [US5] Implement the pinned dependency set in `tests/ArchitectureTests/DependencyPinGates.cs`: assert the complete package list in `Directory.Packages.props` matches a checked-in pin, seeded with today's thirteen entries. This one gate implements FR-014, FR-017, and FR-018 together
-- [ ] T034 [US5] Record the pin's location and its update path in `DependencyPinGates.cs` remarks — resolving CHK015 (where the pin lives) and CHK017 (how a legitimate addition is approved, so the first one invites updating the pin rather than deleting the gate)
-- [ ] T035 [US5] Decide and document the pin's scope — whole solution or `src/` only — resolving CHK016, which noted that "the solution's complete package set" means a test-only helper trips a gate whose stated purpose is forbidding validation libraries and mediators
-- [ ] T036 [US5] Implement the FR-015 gate in `tests/ArchitectureTests/ModelNamingGates.cs` scanning `src/**/*.cs` for the six clarified prefixes (`gpt-`, `claude-`, `gemini-`, `llama-`, `text-embedding-`, `o1-`), with docs, specs, and tests out of scope
-- [ ] T037 [US5] Implement FR-016's pin and split its two bundled facts so a failure identifies which one changed — resolving CHK018, which asked which half fails when S13 creates the capability before referencing an SDK
-- [ ] T038 [US5] Prove T033, T036, and T037 red per FR-023: add `FluentValidation`, then `MediatR`, then a provider-SDK package, then a model identifier string; confirm each fails naming the offender; revert each; record all
+- [x] T033 [US5] Implement the pinned dependency set in `tests/ArchitectureTests/DependencyPinGates.cs`: assert the complete package list in `Directory.Packages.props` matches a checked-in pin, seeded with today's thirteen entries. This one gate implements FR-014, FR-017, and FR-018 together
+- [x] T034 [US5] Record the pin's location and its update path in `DependencyPinGates.cs` remarks — resolving CHK015 (where the pin lives) and CHK017 (how a legitimate addition is approved, so the first one invites updating the pin rather than deleting the gate)
+- [x] T035 [US5] Decide and document the pin's scope — whole solution or `src/` only — resolving CHK016, which noted that "the solution's complete package set" means a test-only helper trips a gate whose stated purpose is forbidding validation libraries and mediators
+- [x] T036 [US5] Implement the FR-015 gate in `tests/ArchitectureTests/ModelNamingGates.cs` scanning `src/**/*.cs` for the six clarified prefixes (`gpt-`, `claude-`, `gemini-`, `llama-`, `text-embedding-`, `o1-`), with docs, specs, and tests out of scope
+- [x] T037 [US5] Implement FR-016's pin and split its two bundled facts so a failure identifies which one changed — resolving CHK018, which asked which half fails when S13 creates the capability before referencing an SDK
+- [x] T038 [US5] Prove T033, T036, and T037 red per FR-023: add `FluentValidation`, then `MediatR`, then a provider-SDK package, then a model identifier string; confirm each fails naming the offender; revert each; record all
 
 **Checkpoint**: ADR-008, ADR-009, and ADR-021's rulings 1 and 2 are enforced by one pin plus one
 source scan.
@@ -301,11 +301,11 @@ red flag list names "an architecture test nobody has verified can actually fail"
 | 4 | US2 (P1) | T019–T024 | 6 (done) |
 | 5 | US3 (P1) | T025–T027 | 3 (done) |
 | 6 | US4 (P2) | T028–T032 | 5 (done) |
-| 7 | US5 (P2) | T033–T038 | 6 |
+| 7 | US5 (P2) | T033–T038 | 6 (done) |
 | 8 | US6 (P3) | T039–T044 | 6 |
 | 9 Unowned | — | T045–T050 | 6 (1 done) |
 | 10 Polish | — | T051–T057 | 7 |
-| **Total** | | | **57** (32 done, 25 open) |
+| **Total** | | | **57** (38 done, 19 open) |
 
 **Checklist items resolved by tasks**: 17 of the 28 still open are assigned to a specific task —
 CHK001 (T010), CHK005 (T032), CHK006 (T051), CHK010/011 (T043), CHK012 (T043), CHK013 (T039),
