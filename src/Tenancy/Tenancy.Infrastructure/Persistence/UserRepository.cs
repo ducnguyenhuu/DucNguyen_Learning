@@ -28,7 +28,17 @@ public class UserRepository : IUserRepository
     public async Task AddAsync(User user, CancellationToken ct)
     {
         _dbContext.Users.Add(user);
-        await _dbContext.SaveChangesAsync(ct);
+
+        try
+        {
+            await _dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex)
+        {
+            throw new ConcurrencyConflictException(
+                "Failed to add user: a concurrent insert with the same Entra identity won the race.",
+                ex);
+        }
     }
 
     public async Task<IReadOnlyList<User>> FindByIdsAsync(IReadOnlyCollection<UserId> userIds, CancellationToken ct)
