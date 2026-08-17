@@ -66,8 +66,8 @@ then — an empty cell and a filled one must be visually distinguishable at a gl
 
 | Gate | Introduce this violation | Expect | Demonstrated |
 |---|---|---|---|
-| FR-004 | Add `<PackageReference Include="Microsoft.EntityFrameworkCore" />` to `Tenancy.Domain.csproj` | Fails, naming project + package | _pending_ |
-| FR-005 | Same, to `Tenancy.Application.csproj` | Fails, naming project + package | _pending_ |
+| FR-004 | Add `<PackageReference Include="Microsoft.EntityFrameworkCore" />` to `Tenancy.Domain.csproj` | Fails, naming project + package | 0bbc95f720224767c0855b967e475213c4e5fe31 (2026-08-16) |
+| FR-005 | Same, to `Tenancy.Application.csproj` | Fails, naming project + package | 0bbc95f720224767c0855b967e475213c4e5fe31 (2026-08-16) |
 | FR-008 | Add a project under `src/` outside `Tenancy.*` that references `Tenancy.Infrastructure` | Fails, naming the project | _pending_ |
 | FR-010 | Add `ExecuteSqlRaw("SELECT 1")` in any repository not on the allow-list | Fails, naming file + member | _pending_ |
 | FR-011 | Move the audited `ExecuteSqlInterpolatedAsync` call out of `RemoveMembershipAsync` into a new method, leaving the allow-list untouched | Fails — the allow-list binds file **and** member | _pending_ |
