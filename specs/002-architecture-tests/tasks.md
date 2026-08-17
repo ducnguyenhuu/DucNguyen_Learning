@@ -148,9 +148,9 @@ persistence types, and the one-capability fact is pinned.
 **Independent Test**: Add a project under `src/` outside `Tenancy.*` referencing
 `Tenancy.Infrastructure`, run the suite, confirm it fails naming the project, revert.
 
-- [ ] T025 [US3] Extend `tests/ArchitectureTests/CapabilityBoundaryGates.cs` with the FR-008 gate: assert no `src/` project outside the `Tenancy.*` family references `Tenancy.Infrastructure` or names `TenancyDbContext`, generalising the migrated `OnlyTenancyApi_ReferencesInfrastructureDirectly` beyond today's single capability
-- [ ] T026 [US3] Strengthen the migrated `NoCapabilityOtherThanTenancyExistsUnderSrc` into FR-009's pin with a failure message that tells the reader to extend the cross-capability reference gate rather than relax this expectation — describe the gate by what it checks, do not cite its requirement number (FR-008, FR-009) — the migrated test calls itself "a documented snapshot, not an enforced rule"
-- [ ] T027 [US3] Prove T025 and T026 red per FR-023 by adding a throwaway second capability under `src/` that references `Tenancy.Infrastructure`, confirming both fail, reverting, and recording the demonstrations
+- [x] T025 [US3] Extend `tests/ArchitectureTests/CapabilityBoundaryGates.cs` with the FR-008 gate: assert no `src/` project outside the `Tenancy.*` family references `Tenancy.Infrastructure` or names `TenancyDbContext`, generalising the migrated `OnlyTenancyApi_ReferencesInfrastructureDirectly` beyond today's single capability
+- [x] T026 [US3] Strengthen the migrated `NoCapabilityOtherThanTenancyExistsUnderSrc` into FR-009's pin with a failure message that tells the reader to extend the cross-capability reference gate rather than relax this expectation — describe the gate by what it checks, do not cite its requirement number (FR-008, FR-009) — the migrated test calls itself "a documented snapshot, not an enforced rule"
+- [x] T027 [US3] Prove T025 and T026 red per FR-023 by adding a throwaway second capability under `src/` that references `Tenancy.Infrastructure`, confirming both fail, reverting, and recording the demonstrations
 
 **Checkpoint**: Adding a second capability is now a visible, gated decision.
 
@@ -299,13 +299,13 @@ red flag list names "an architecture test nobody has verified can actually fail"
 | 2 Foundational | — | T005–T010 | 6 (done) |
 | 3 | US1 (P1) 🎯 MVP | T011–T018 | 8 (done) |
 | 4 | US2 (P1) | T019–T024 | 6 (done) |
-| 5 | US3 (P1) | T025–T027 | 3 |
+| 5 | US3 (P1) | T025–T027 | 3 (done) |
 | 6 | US4 (P2) | T028–T032 | 5 |
 | 7 | US5 (P2) | T033–T038 | 6 |
 | 8 | US6 (P3) | T039–T044 | 6 |
 | 9 Unowned | — | T045–T050 | 6 (1 done) |
 | 10 Polish | — | T051–T057 | 7 |
-| **Total** | | | **57** (24 done, 33 open) |
+| **Total** | | | **57** (27 done, 30 open) |
 
 **Checklist items resolved by tasks**: 17 of the 28 still open are assigned to a specific task —
 CHK001 (T010), CHK005 (T032), CHK006 (T051), CHK010/011 (T043), CHK012 (T043), CHK013 (T039),
