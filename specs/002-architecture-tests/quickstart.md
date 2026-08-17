@@ -72,10 +72,10 @@ then — an empty cell and a filled one must be visually distinguishable at a gl
 | FR-010 | Add `ExecuteSqlRaw("SELECT 1")` in any repository not on the allow-list | Fails, naming file + member | ac32f0c (2026-08-17) |
 | FR-011 | Move the audited `ExecuteSqlInterpolatedAsync` call out of `RemoveMembershipAsync` into a new method, leaving the allow-list untouched | Fails — the allow-list binds file **and** member | ac32f0c (2026-08-17) |
 | FR-012 | Add a `BackgroundService` taking `TenancyDbContext` in its constructor | Fails, naming the type | c19a97b (2026-08-17) |
-| FR-014 | Add any model-provider SDK package reference to `Tenancy.Application` | Fails, naming assembly + package | PENDING_HASH (2026-08-17) |
-| FR-015 | Put a model identifier string in `Tenancy.Application` | Fails, naming the location | PENDING_HASH (2026-08-17) |
-| FR-017 | Add `<PackageReference Include="FluentValidation" />` anywhere | Fails — ADR-021 ruling 1 | PENDING_HASH (2026-08-17) |
-| FR-018 | Add `<PackageReference Include="MediatR" />` anywhere | Fails — ADR-021 ruling 2 | PENDING_HASH (2026-08-17) |
+| FR-014 | Add any model-provider SDK package reference to `Tenancy.Application` | Fails, naming assembly + package | 365a2a0 (2026-08-17) |
+| FR-015 | Put a model identifier string in `Tenancy.Application` | Fails, naming the location | 365a2a0 (2026-08-17) |
+| FR-017 | Add `<PackageReference Include="FluentValidation" />` anywhere | Fails — ADR-021 ruling 1 | 365a2a0 (2026-08-17) |
+| FR-018 | Add `<PackageReference Include="MediatR" />` anywhere | Fails — ADR-021 ruling 2 | 365a2a0 (2026-08-17) |
 | FR-020 | Delete the coverage declaration from the only test covering one spec-001 requirement | Fails, naming that requirement | _pending_ |
 
 The three absence pins (FR-009, FR-013, FR-016) prove the same way in reverse — introduce the
@@ -93,7 +93,7 @@ finding I4):
 | FR-027 | Insert a `Membership` via `TenancyDbContext` without setting `CurrentTenantId` | Throws `DomainException` — already covered by `UnsetTenantContextWriteTests` | _pending_ |
 | FR-009 | Add a second capability directory under `src/` | Absence pin fails, instructing you to extend FR-008's gate | ff7f042 (2026-08-17) |
 | FR-013 | Add any `BackgroundService` under `src/` | Absence pin fails | c19a97b (2026-08-17) |
-| FR-016 | Add a model-provider SDK package reference | Absence pin fails, naming which of its two facts changed | PENDING_HASH (2026-08-17) |
+| FR-016 | Add a model-provider SDK package reference | Absence pin fails, naming which of its two facts changed | 365a2a0 (2026-08-17) |
 | FR-019 | See §3 — its proof is behavioural, not structural | Test fails against today's blanket `500` | _pending_ |
 
 **FR-012 has no positive case while no background job exists.** Its proof is therefore a
