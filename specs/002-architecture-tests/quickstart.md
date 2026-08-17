@@ -54,19 +54,29 @@ is decoration*, and *a test that passed the first time it was ever run* is a red
 Work one gate at a time: introduce the violation, run the gate, confirm it fails **and names
 the offender** (FR-024), then revert with `git checkout -- .`
 
-| Gate | Introduce this violation | Expect |
-|---|---|---|
-| FR-004 | Add `<PackageReference Include="Microsoft.EntityFrameworkCore" />` to `Tenancy.Domain.csproj` | Fails, naming project + package |
-| FR-005 | Same, to `Tenancy.Application.csproj` | Fails, naming project + package |
-| FR-008 | Add a project under `src/` outside `Tenancy.*` that references `Tenancy.Infrastructure` | Fails, naming the project |
-| FR-010 | Add `ExecuteSqlRaw("SELECT 1")` in any repository not on the allow-list | Fails, naming file + member |
-| FR-011 | Move the audited `ExecuteSqlInterpolatedAsync` call out of `RemoveMembershipAsync` into a new method, leaving the allow-list untouched | Fails — the allow-list binds file **and** member |
-| FR-012 | Add a `BackgroundService` taking `TenancyDbContext` in its constructor | Fails, naming the type |
-| FR-014 | Add any model-provider SDK package reference to `Tenancy.Application` | Fails, naming assembly + package |
-| FR-015 | Put a model identifier string in `Tenancy.Application` | Fails, naming the location |
-| FR-017 | Add `<PackageReference Include="FluentValidation" />` anywhere | Fails — ADR-021 ruling 1 |
-| FR-018 | Add `<PackageReference Include="MediatR" />` anywhere | Fails — ADR-021 ruling 2 |
-| FR-020 | Delete the coverage declaration from the only test covering one spec-001 requirement | Fails, naming that requirement |
+**Where the demonstration gets recorded (FR-023, resolving CHK001):** the **"Demonstrated"**
+column in each table below. When a proof task (T017, T023, T027, T032, T038, T044, T046, T049)
+actually runs a gate red, it fills that gate's cell in with `<commit-hash> (YYYY-MM-DD)` —
+the hash of the commit in which the proof was performed (typically the same commit that adds
+or finalizes the gate's test), and the date it was run. `quickstart.md` itself is the living
+record: no PR exists per-task (same reasoning T009 used for verification narrative), no new
+file is needed, and the record sits directly next to the reproduction steps it documents. A
+gate is not accepted per FR-023 until its cell is filled. Leave the cell as `_pending_` until
+then — an empty cell and a filled one must be visually distinguishable at a glance.
+
+| Gate | Introduce this violation | Expect | Demonstrated |
+|---|---|---|---|
+| FR-004 | Add `<PackageReference Include="Microsoft.EntityFrameworkCore" />` to `Tenancy.Domain.csproj` | Fails, naming project + package | _pending_ |
+| FR-005 | Same, to `Tenancy.Application.csproj` | Fails, naming project + package | _pending_ |
+| FR-008 | Add a project under `src/` outside `Tenancy.*` that references `Tenancy.Infrastructure` | Fails, naming the project | _pending_ |
+| FR-010 | Add `ExecuteSqlRaw("SELECT 1")` in any repository not on the allow-list | Fails, naming file + member | _pending_ |
+| FR-011 | Move the audited `ExecuteSqlInterpolatedAsync` call out of `RemoveMembershipAsync` into a new method, leaving the allow-list untouched | Fails — the allow-list binds file **and** member | _pending_ |
+| FR-012 | Add a `BackgroundService` taking `TenancyDbContext` in its constructor | Fails, naming the type | _pending_ |
+| FR-014 | Add any model-provider SDK package reference to `Tenancy.Application` | Fails, naming assembly + package | _pending_ |
+| FR-015 | Put a model identifier string in `Tenancy.Application` | Fails, naming the location | _pending_ |
+| FR-017 | Add `<PackageReference Include="FluentValidation" />` anywhere | Fails — ADR-021 ruling 1 | _pending_ |
+| FR-018 | Add `<PackageReference Include="MediatR" />` anywhere | Fails — ADR-021 ruling 2 | _pending_ |
+| FR-020 | Delete the coverage declaration from the only test covering one spec-001 requirement | Fails, naming that requirement | _pending_ |
 
 The three absence pins (FR-009, FR-013, FR-016) prove the same way in reverse — introduce the
 thing, confirm the pin fails, revert — and are given rows below. FR-023 now
@@ -77,14 +87,14 @@ Two more were added by the checklist review, and the remaining four complete the
 are listed as rows rather than left in prose, so counting rows gives the right number (analyze
 finding I4):
 
-| Gate | Introduce this violation | Expect |
-|---|---|---|
-| FR-026 | Change any `IgnoreQueryFilters(["TenantFilter"])` call to the bare `IgnoreQueryFilters()` | Fails, naming file + member |
-| FR-027 | Insert a `Membership` via `TenancyDbContext` without setting `CurrentTenantId` | Throws `DomainException` — already covered by `UnsetTenantContextWriteTests` |
-| FR-009 | Add a second capability directory under `src/` | Absence pin fails, instructing you to extend FR-008's gate |
-| FR-013 | Add any `BackgroundService` under `src/` | Absence pin fails |
-| FR-016 | Add a model-provider SDK package reference | Absence pin fails, naming which of its two facts changed |
-| FR-019 | See §3 — its proof is behavioural, not structural | Test fails against today's blanket `500` |
+| Gate | Introduce this violation | Expect | Demonstrated |
+|---|---|---|---|
+| FR-026 | Change any `IgnoreQueryFilters(["TenantFilter"])` call to the bare `IgnoreQueryFilters()` | Fails, naming file + member | _pending_ |
+| FR-027 | Insert a `Membership` via `TenancyDbContext` without setting `CurrentTenantId` | Throws `DomainException` — already covered by `UnsetTenantContextWriteTests` | _pending_ |
+| FR-009 | Add a second capability directory under `src/` | Absence pin fails, instructing you to extend FR-008's gate | _pending_ |
+| FR-013 | Add any `BackgroundService` under `src/` | Absence pin fails | _pending_ |
+| FR-016 | Add a model-provider SDK package reference | Absence pin fails, naming which of its two facts changed | _pending_ |
+| FR-019 | See §3 — its proof is behavioural, not structural | Test fails against today's blanket `500` | _pending_ |
 
 **FR-012 has no positive case while no background job exists.** Its proof is therefore a
 temporary fixture that gets reverted, not a permanent test. That is inherent to writing the
