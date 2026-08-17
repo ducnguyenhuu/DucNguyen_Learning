@@ -107,14 +107,14 @@ Core by *either* reference kind — and the one live violation is cleared.
 test today, so refactoring it first would mean changing untested code and reporting the result as
 verified. T014 must follow T012, or the gate is red for the whole slice.
 
-- [ ] T011 [US1] Write `tests/Tenancy.UnitTests/Users/EnsureUserProvisionedTests.cs` covering the get-or-create race — inject a `DbUpdateException` via a fake `IUserRepository`, assert the existing row is returned — and **run it green against today's `DbUpdateException` behaviour before touching any production code** (FR-007a)
-- [ ] T012 [US1] Add an `Application`-owned concurrency-conflict exception type in `src/Tenancy/Tenancy.Application/Abstractions/`, and translate EF Core's `DbUpdateException` into it at the `Infrastructure` boundary in `src/Tenancy/Tenancy.Infrastructure/Persistence/UserRepository.cs` and `InvitationRepository.cs` (FR-006)
-- [ ] T013 [US1] (SC-002) Replace all three `Tenancy.Application` references to `DbUpdateException` with the translated type — `Users/EnsureUserProvisioned.cs:73`, `Invitations/InviteMember.cs:129`, and `Abstractions/IInvitationRepository.cs:62`'s `<exception>` doc — then remove the `<PackageReference Include="Microsoft.EntityFrameworkCore" />` and its now-false comment from `Tenancy.Application.csproj` (FR-006)
-- [ ] T014 [US1] Update `tests/Tenancy.UnitTests/Invitations/InviteMemberTests.cs:176` to inject the translated exception type instead of `DbUpdateException`, keeping its assertion that the race yields the same conflict signal as the pre-check (FR-007b)
-- [ ] T015 [US1] Implement the FR-004 gate in `tests/ArchitectureTests/LayeringGates.cs`: assert `Tenancy.Domain` declares no project or package reference to `Microsoft.EntityFrameworkCore`, `Azure.*`, or `Microsoft.AspNetCore.*`, failing with the offending project and package named (FR-024)
-- [ ] T016 [US1] Implement the FR-005 gate in the same file for `Tenancy.Application`, over both reference kinds
-- [ ] T017 [US1] Prove T015 and T016 red per FR-023: add each forbidden package to each project in turn, confirm failure output names project and package, revert, and record the demonstrations in the artifact chosen at T010
-- [ ] T018 [US1] Run the full suite and confirm 197 pre-existing tests still pass alongside the new ones — FR-006 touches the auth path, so SC-004 requires no S2 regression
+- [x] T011 [US1] Write `tests/Tenancy.UnitTests/Users/EnsureUserProvisionedTests.cs` covering the get-or-create race — inject a `DbUpdateException` via a fake `IUserRepository`, assert the existing row is returned — and **run it green against today's `DbUpdateException` behaviour before touching any production code** (FR-007a)
+- [x] T012 [US1] Add an `Application`-owned concurrency-conflict exception type in `src/Tenancy/Tenancy.Application/Abstractions/`, and translate EF Core's `DbUpdateException` into it at the `Infrastructure` boundary in `src/Tenancy/Tenancy.Infrastructure/Persistence/UserRepository.cs` and `InvitationRepository.cs` (FR-006)
+- [x] T013 [US1] (SC-002) Replace all three `Tenancy.Application` references to `DbUpdateException` with the translated type — `Users/EnsureUserProvisioned.cs:73`, `Invitations/InviteMember.cs:129`, and `Abstractions/IInvitationRepository.cs:62`'s `<exception>` doc — then remove the `<PackageReference Include="Microsoft.EntityFrameworkCore" />` and its now-false comment from `Tenancy.Application.csproj` (FR-006)
+- [x] T014 [US1] Update `tests/Tenancy.UnitTests/Invitations/InviteMemberTests.cs:176` to inject the translated exception type instead of `DbUpdateException`, keeping its assertion that the race yields the same conflict signal as the pre-check (FR-007b)
+- [x] T015 [US1] Implement the FR-004 gate in `tests/ArchitectureTests/LayeringGates.cs`: assert `Tenancy.Domain` declares no project or package reference to `Microsoft.EntityFrameworkCore`, `Azure.*`, or `Microsoft.AspNetCore.*`, failing with the offending project and package named (FR-024)
+- [x] T016 [US1] Implement the FR-005 gate in the same file for `Tenancy.Application`, over both reference kinds
+- [x] T017 [US1] Prove T015 and T016 red per FR-023: add each forbidden package to each project in turn, confirm failure output names project and package, revert, and record the demonstrations in the artifact chosen at T010
+- [x] T018 [US1] Run the full suite and confirm 197 pre-existing tests still pass alongside the new ones — FR-006 touches the auth path, so SC-004 requires no S2 regression
 
 **Checkpoint**: Layering is enforced at package level and `Tenancy.Application` is clean, with the
 EF Core dependency inverted rather than allow-listed.
@@ -297,7 +297,7 @@ red flag list names "an architecture test nobody has verified can actually fail"
 |---|---|---|---|
 | 1 Setup | — | T001–T004 | 4 (done) |
 | 2 Foundational | — | T005–T010 | 6 (done) |
-| 3 | US1 (P1) 🎯 MVP | T011–T018 | 8 |
+| 3 | US1 (P1) 🎯 MVP | T011–T018 | 8 (done) |
 | 4 | US2 (P1) | T019–T024 | 6 |
 | 5 | US3 (P1) | T025–T027 | 3 |
 | 6 | US4 (P2) | T028–T032 | 5 |
@@ -305,7 +305,7 @@ red flag list names "an architecture test nobody has verified can actually fail"
 | 8 | US6 (P3) | T039–T044 | 6 |
 | 9 Unowned | — | T045–T050 | 6 (1 done) |
 | 10 Polish | — | T051–T057 | 7 |
-| **Total** | | | **57** (10 done, 47 open) |
+| **Total** | | | **57** (18 done, 39 open) |
 
 **Checklist items resolved by tasks**: 17 of the 28 still open are assigned to a specific task —
 CHK001 (T010), CHK005 (T032), CHK006 (T051), CHK010/011 (T043), CHK012 (T043), CHK013 (T039),
