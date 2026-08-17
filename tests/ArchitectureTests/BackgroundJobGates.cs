@@ -8,20 +8,20 @@ using Xunit;
 namespace ArchitectureTests;
 
 /// <summary>
-/// FR-012/FR-013 coverage: a background job (an <c>IHostedService</c> implementor or a
-/// <c>BackgroundService</c> subclass) is a singleton with no request scope to resolve tenant
-/// context from. ADR-013 names this as the most likely place for a global-filter bypass to
-/// happen, and its own Consequences section lists closing this as a known weakness deferred to
-/// this roadmap slice. This gate closes the most direct route: a job whose constructor takes
-/// <c>TenancyDbContext</c> or a persistence-port interface directly, bypassing whatever
-/// request-scoped tenant resolution would otherwise apply.
+/// A background job (an <c>IHostedService</c> implementor or a <c>BackgroundService</c>
+/// subclass) is a singleton with no request scope to resolve tenant context from. ADR-013 names
+/// this as the most likely place for a global-filter bypass to happen, and its own Consequences
+/// section lists closing this as a known weakness deferred to this roadmap slice. This gate closes
+/// the most direct route: a job whose constructor takes <c>TenancyDbContext</c> or a
+/// persistence-port interface directly, bypassing whatever request-scoped tenant resolution would
+/// otherwise apply.
 /// </summary>
 /// <remarks>
 /// <para>
 /// <b>What this gate does not close.</b> A job that obtains a repository through service
 /// location (e.g. resolving an <c>IServiceScopeFactory</c> and pulling a repository out of a
 /// created scope inside <c>ExecuteAsync</c>) never names the dependency in its constructor, so
-/// this structural, source-scanning gate cannot see it. FR-027's runtime backstop exists
+/// this structural, source-scanning gate cannot see it. A separate runtime backstop exists
 /// precisely for that route; this gate and that one are complementary, not redundant.
 /// </para>
 /// <para>
@@ -56,8 +56,11 @@ public sealed class BackgroundJobGates
         pattern: $@"\b{Regex.Escape(className)}\s*\((?<parameters>[^)]*)\)",
         options: RegexOptions.Compiled);
 
+    // The lookahead at the end (rather than consuming the trailing comma) leaves that comma in
+    // place so it can anchor the *next* parameter's leading (?:^|,): consuming it here would
+    // otherwise mean only the first parameter of a multi-parameter constructor is ever matched.
     private static readonly Regex ParameterTypePattern = new(
-        pattern: @"(?:^|,)\s*(?<type>[A-Za-z_][A-Za-z0-9_<>\.\[\],\s]*?)\s+[A-Za-z_][A-Za-z0-9_]*\s*(?:,|$)",
+        pattern: @"(?:^|,)\s*(?<type>[A-Za-z_][A-Za-z0-9_<>\.\[\],\s]*?)\s+[A-Za-z_][A-Za-z0-9_]*\s*(?=,|$)",
         options: RegexOptions.Compiled);
 
     [Fact]

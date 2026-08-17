@@ -21,7 +21,7 @@ public static class SourceScanner
     // identifier before a '(' (method), a '{' (type/property), or ';' (auto-property/field).
     // Deliberately text-based rather than a full Roslyn parse: gates only need "which member
     // name is this line inside", not a semantically complete syntax tree.
-    private static readonly Regex DeclarationPattern = new(
+    public static readonly Regex DeclarationPattern = new(
         pattern:
             @"^\s*(?:\[[^\]]*\]\s*)*" +
             @"(?:public|private|protected|internal|static|sealed|abstract|virtual|override|readonly|async|partial|new|extern|unsafe|\s)+" +

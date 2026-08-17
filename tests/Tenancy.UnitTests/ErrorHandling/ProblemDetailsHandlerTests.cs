@@ -8,12 +8,9 @@ using Xunit;
 namespace Tenancy.UnitTests.ErrorHandling;
 
 /// <summary>
-/// Proof that today's <see cref="ProblemDetailsHandler"/> maps every unhandled exception to a
-/// blanket 500 — including <see cref="DomainException"/> and <see cref="ConflictException"/>,
-/// which should instead map to 400 and 409 respectively. The two cases below are expected to FAIL
-/// against the current, unmodified handler; only the plain-<see cref="Exception"/> case should
-/// pass today, since staying at 500 for genuinely unrecognized exceptions is the handler's
-/// intended behavior even after that mapping is added.
+/// Verifies <see cref="ProblemDetailsHandler"/>'s exception-to-status-code mapping:
+/// <see cref="DomainException"/> maps to 400, <see cref="ConflictException"/> maps to 409, and
+/// any other, unrecognized exception falls back to a blanket 500.
 /// </summary>
 public class ProblemDetailsHandlerTests
 {

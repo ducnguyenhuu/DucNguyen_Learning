@@ -79,15 +79,7 @@ public sealed class RawSqlGates
     // SourceScanner only reports declaration lines, not a line-to-member mapping, so the same
     // regex is applied here as a rolling "current enclosing member" tracker while scanning a
     // file's lines top to bottom.
-    private static readonly Regex DeclarationPattern = new(
-        pattern:
-            @"^\s*(?:\[[^\]]*\]\s*)*" +
-            @"(?:public|private|protected|internal|static|sealed|abstract|virtual|override|readonly|async|partial|new|extern|unsafe|\s)+" +
-            @"\b(?:class|interface|struct|record|enum|event)\b\s+(?<name>[A-Za-z_][A-Za-z0-9_]*)" +
-            @"|^\s*(?:\[[^\]]*\]\s*)*" +
-            @"(?:public|private|protected|internal|static|sealed|abstract|virtual|override|readonly|async|partial|new|extern|unsafe)\s+" +
-            @"(?:[\w<>\[\],.?]+\s+)+(?<name>[A-Za-z_][A-Za-z0-9_]*)\s*(?:\(|\{|=>|;)",
-        options: RegexOptions.Compiled);
+    private static readonly Regex DeclarationPattern = SourceScanner.DeclarationPattern;
 
     [Fact]
     public void RawSqlCalls_AreAllOnTheAllowList()

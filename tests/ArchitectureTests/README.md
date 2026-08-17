@@ -17,19 +17,20 @@ The following five tests were migrated from `Tenancy.UnitTests` into `Capability
 
 | Test Name | Assertion Count | Location |
 |-----------|-----------------|----------|
-| `TenancyDomain_HasNoProjectReferences` | 1 | CapabilityBoundaryGates.cs line 49 |
-| `TenancyApplication_OnlyReferencesDomain` | 1 | CapabilityBoundaryGates.cs line 59 |
-| `TenancyInfrastructure_NeverReferencedByDomainOrApplication` | 2 | CapabilityBoundaryGates.cs lines 68-69 |
-| `OnlyTenancyApi_ReferencesInfrastructureDirectly` | 1 | CapabilityBoundaryGates.cs line 90 |
-| `NoCapabilityOtherThanTenancyExistsUnderSrc` | 1 | CapabilityBoundaryGates.cs line 107 |
+| `TenancyDomain_HasNoProjectReferences` | 1 | `CapabilityBoundaryGates.cs`, method `TenancyDomain_HasNoProjectReferences` |
+| `TenancyApplication_OnlyReferencesDomain` | 1 | `CapabilityBoundaryGates.cs`, method `TenancyApplication_OnlyReferencesDomain` |
+| `TenancyInfrastructure_NeverReferencedByDomainOrApplication` | 2 | `CapabilityBoundaryGates.cs`, method `TenancyInfrastructure_NeverReferencedByDomainOrApplication` |
+| `OnlyTenancyApi_ReferencesInfrastructureDirectly` | 1 | `CapabilityBoundaryGates.cs`, method `OnlyTenancyApi_ReferencesInfrastructureDirectly` |
+| `NoCapabilityOtherThanTenancyExistsUnderSrc` | 1 | `CapabilityBoundaryGates.cs`, method `NoCapabilityOtherThanTenancyExistsUnderSrc` |
 
 **Total migrated: 5 tests, 6 assertions**
 
 ### Test Execution Verification
 
-After migration, `dotnet test` reports the following:
-- `ArchitectureTests`: 6 tests passed (includes the 5 migrated tests above)
-- `Tenancy.UnitTests`: 107 tests passed (post-migration count, with the 5 tests removed)
-- **Combined total**: 113 tests
+As of the most recent full-suite run, `dotnet test` reports the following:
+- `ArchitectureTests`: 27 tests passed
+- `Tenancy.UnitTests`: 114 tests passed
+- `Tenancy.IntegrationTests`: 86 tests passed
+- **Combined total**: 227 tests
 
-This confirms that the structural boundary-gate tests have been successfully relocated without loss of coverage.
+This confirms that the structural boundary-gate tests have been successfully relocated without loss of coverage. Test counts will continue to grow as more gates are added; treat the figures above as a snapshot, not a pinned expectation.

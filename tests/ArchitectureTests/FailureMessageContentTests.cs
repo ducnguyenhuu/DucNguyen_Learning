@@ -106,4 +106,19 @@ public sealed class FailureMessageContentTests
             "this is the exact substring the gate's failure message interpolates for the " +
             "offending parameter — not a generic placeholder");
     }
+
+    [Fact]
+    public void BackgroundJobGates_ParameterTypePattern_CapturesEveryParameterInAMultiParameterConstructor()
+    {
+        var pattern = GetPrivateStaticRegex(typeof(BackgroundJobGates), "ParameterTypePattern");
+
+        var matches = pattern.Matches("TenancyDbContext db, ILogger<SyncWorker> logger");
+
+        matches.Count.Should().Be(2,
+            "a constructor with more than one parameter must have every parameter captured, " +
+            "not just the first — otherwise an offending second (or later) parameter would " +
+            "never be named in the gate's failure message");
+        matches[0].Groups["type"].Value.Trim().Should().Be("TenancyDbContext");
+        matches[1].Groups["type"].Value.Trim().Should().Be("ILogger<SyncWorker>");
+    }
 }

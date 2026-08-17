@@ -6,7 +6,7 @@ using Tenancy.Domain.Abstractions;
 namespace Tenancy.Api.ErrorHandling;
 
 /// <summary>
-/// Global unhandled-exception handler (FR-022). Converts every unhandled exception into a
+/// Global unhandled-exception handler. Converts every unhandled exception into a
 /// generic RFC 9457 (application/problem+json) response.
 ///
 /// Hard requirement: the response body must never contain <c>exception.Message</c>,
@@ -14,7 +14,7 @@ namespace Tenancy.Api.ErrorHandling;
 /// internal detail — including anything that could reveal whether a specific resource (in
 /// particular, another tenant) exists. Only a static, generic title/detail is ever written.
 ///
-/// This is distinct from T035's tenant-resolution middleware, which writes a bare 404 directly
+/// This is distinct from the tenant-resolution middleware, which writes a bare 404 directly
 /// and never reaches this handler (it never throws) — the two are separate, deliberately
 /// non-overlapping code paths.
 /// </summary>

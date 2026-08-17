@@ -7,34 +7,31 @@ using Xunit;
 namespace ArchitectureTests;
 
 /// <summary>
-/// FR-023/FR-024 coverage (T089 gap closure): structural (project-reference-graph) evidence that
-/// the tenancy capability owns its data exclusively and that the domain layer has no dependency
-/// on infrastructure.
+/// Structural (project-reference-graph) evidence that the tenancy capability owns its data
+/// exclusively and that the domain layer has no dependency on infrastructure.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Why a structural test rather than a runtime one.</b> FR-023 ("no other capability may read
-/// or write [tenancy's] data other than through its published interface") and FR-024 ("the
-/// domain layer MUST NOT depend on infrastructure concerns") are both properties of the
-/// <em>dependency graph</em>, not of any runtime behavior — there is nothing to invoke that would
-/// distinguish a compliant graph from a non-compliant one at runtime. Automated enforcement of
-/// architectural boundaries in general is explicitly deferred to S3 (spec.md's Deferred
-/// Requirements table, <c>old-FR-028</c>), but this test reads the actual <c>.csproj</c> files
-/// checked into source control today, so it fails the moment a genuine violation is committed —
-/// without waiting for S3's dedicated tooling.
+/// <b>Why a structural test rather than a runtime one.</b> "No other capability may read or
+/// write tenancy's data other than through its published interface" and "the domain layer must
+/// not depend on infrastructure concerns" are both properties of the <em>dependency graph</em>,
+/// not of any runtime behavior — there is nothing to invoke that would distinguish a compliant
+/// graph from a non-compliant one at runtime. General automated enforcement of architectural
+/// boundaries is explicitly deferred to a later roadmap slice, but this test reads the actual
+/// <c>.csproj</c> files checked into source control today, so it fails the moment a genuine
+/// violation is committed — without waiting for that dedicated tooling.
 /// </para>
 /// <para>
-/// <b>Why this closes a real gap rather than restating FR-024's existing manual-inspection
-/// note.</b> Before this test, FR-023/FR-024 compliance was verifiable only by a human reading
-/// <c>.csproj</c> files by hand (as done once for the coverage matrix this test accompanies). This
-/// test makes that same check automated and repeatable.
+/// <b>Why this closes a real gap rather than restating an existing manual-inspection note.</b>
+/// Before this test, this boundary was verifiable only by a human reading <c>.csproj</c> files by
+/// hand. This test makes that same check automated and repeatable.
 /// </para>
 /// <para>
-/// FR-023 also depends on there being no *second* capability yet that could read/write tenancy's
-/// data directly — today <c>src/</c> contains only the <c>Tenancy.*</c> projects, so the
-/// strongest available proof is that nothing outside the <c>Tenancy.*</c> project set exists at
-/// all, and that within it, only <c>Tenancy.Api</c> (the composition root / published interface)
-/// references <c>Tenancy.Infrastructure</c> directly.
+/// The exclusive-ownership property above also depends on there being no *second* capability yet
+/// that could read/write tenancy's data directly — today <c>src/</c> contains only the
+/// <c>Tenancy.*</c> projects, so the strongest available proof is that nothing outside the
+/// <c>Tenancy.*</c> project set exists at all, and that within it, only <c>Tenancy.Api</c> (the
+/// composition root / published interface) references <c>Tenancy.Infrastructure</c> directly.
 /// </para>
 /// </remarks>
 public sealed class CapabilityBoundaryGates
@@ -48,7 +45,7 @@ public sealed class CapabilityBoundaryGates
         var references = ProjectFile.GetProjectReferences("Tenancy.Domain");
 
         references.Should().BeEmpty(
-            "FR-024 requires the domain layer to depend on nothing, least of all infrastructure — " +
+            "the domain layer must depend on nothing, least of all infrastructure — " +
             "Tenancy.Domain.csproj must have zero <ProjectReference> entries.");
     }
 
@@ -60,7 +57,7 @@ public sealed class CapabilityBoundaryGates
 
         references.Should().BeEquivalentTo(
             new[] { "Tenancy.Domain" },
-            "FR-024 requires the application layer to depend inward only on the domain, never on " +
+            "the application layer must depend inward only on the domain, never on " +
             "infrastructure.");
     }
 

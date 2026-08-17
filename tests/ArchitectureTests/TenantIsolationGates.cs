@@ -8,7 +8,7 @@ using Xunit;
 namespace ArchitectureTests;
 
 /// <summary>
-/// FR-026 coverage: <c>IgnoreQueryFilters()</c> called with no arguments disables every global
+/// <c>IgnoreQueryFilters()</c> called with no arguments disables every global
 /// query filter EF Core knows about, including the tenant-scoping <c>"TenantFilter"</c> and any
 /// other filter added later. The named form — <c>IgnoreQueryFilters(["TenantFilter"])</c> or the
 /// equivalent <c>IgnoreQueryFilters(new[] { "TenantFilter" })</c> — disables only the one filter
@@ -64,15 +64,7 @@ public sealed class TenantIsolationGates
     // Reuses SourceScanner's own declaration-line pattern so "which member does this line belong
     // to" agrees with what SourceScanner.EnumerateMembers() would report for the same file, the
     // same rolling "current enclosing member" tracker used by RawSqlGates and BackgroundJobGates.
-    private static readonly Regex DeclarationPattern = new(
-        pattern:
-            @"^\s*(?:\[[^\]]*\]\s*)*" +
-            @"(?:public|private|protected|internal|static|sealed|abstract|virtual|override|readonly|async|partial|new|extern|unsafe|\s)+" +
-            @"\b(?:class|interface|struct|record|enum|event)\b\s+(?<name>[A-Za-z_][A-Za-z0-9_]*)" +
-            @"|^\s*(?:\[[^\]]*\]\s*)*" +
-            @"(?:public|private|protected|internal|static|sealed|abstract|virtual|override|readonly|async|partial|new|extern|unsafe)\s+" +
-            @"(?:[\w<>\[\],.?]+\s+)+(?<name>[A-Za-z_][A-Za-z0-9_]*)\s*(?:\(|\{|=>|;)",
-        options: RegexOptions.Compiled);
+    private static readonly Regex DeclarationPattern = SourceScanner.DeclarationPattern;
 
     [Fact]
     public void IgnoreQueryFiltersCalls_NeverUseTheBareForm()

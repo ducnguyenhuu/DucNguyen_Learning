@@ -23,7 +23,7 @@ namespace Tenancy.UnitTests.Architecture;
 /// </remarks>
 public sealed class SecretExclusionTests
 {
-    private static readonly string RepoRoot = FindRepoRoot();
+    private static readonly string RepoRoot = ProjectFile.GetRepoRoot();
 
     [CoversRequirement("FR-026")]
     [Theory]
@@ -93,25 +93,5 @@ public sealed class SecretExclusionTests
                 "FR-026 forbids committing any connection string containing a secret; the " +
                 "checked-in appsettings.json must not embed credentials.");
         }
-    }
-
-    private static string FindRepoRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-
-        while (directory is not null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, ".gitignore"))
-                && Directory.Exists(Path.Combine(directory.FullName, "src", "Tenancy")))
-            {
-                return directory.FullName;
-            }
-
-            directory = directory.Parent;
-        }
-
-        throw new InvalidOperationException(
-            "Could not locate repository root (a directory containing .gitignore and " +
-            $"src/Tenancy) by walking up from {AppContext.BaseDirectory}.");
     }
 }
