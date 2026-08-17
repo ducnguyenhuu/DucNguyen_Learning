@@ -129,12 +129,12 @@ entry keyed by file and member.
 **Independent Test**: Add `ExecuteSqlRaw("SELECT 1")` to a repository not on the allow-list, run
 the suite, confirm it fails naming file and member, revert.
 
-- [ ] T019 [US2] Define the allow-list's location and format in `tests/ArchitectureTests/RawSqlGates.cs` — a checked-in collection of (relative file path, member name) pairs seeded with the single audited entry, `Persistence/MembershipRepository.cs` / `RemoveMembershipAsync`. Resolves CHK036, which found FR-011 fixed the key but not where the list lives
-- [ ] T020 [US2] Define what "member" means for the allow-list key and document the choice inline — resolving CHK033, which noted overloads, local functions, and lambdas are all plausibly "the member" and are not interchangeable for catching relocation
-- [ ] T021 [US2] Implement the FR-010 gate using `Support/SourceScanner`, matching `FromSqlRaw`, `FromSqlInterpolated`, `ExecuteSqlRaw`, `ExecuteSqlInterpolated`, their async forms, and `Database.SqlQuery`, scoped to `src/` per the spec's stated scope
-- [ ] T022 [US2] Require a justification comment adjacent to each allow-list entry and assert its presence, so adding an entry cannot be a silent one-line diff — resolving CHK034, which observed nothing made "audited" mean anything
-- [ ] T023 [US2] Prove T021 red twice per FR-023: once by adding an unlisted raw-SQL call, and once by moving the audited call to a new method without updating the allow-list (FR-011's relocation case — FR-023 now names FR-011 explicitly, per analyze finding I1). Record both
-- [ ] T024 [US2] Record in `RawSqlGates.cs` remarks that source-text matching is formatting-sensitive — a call split across lines or reached through an alias can evade it — and that the escalation path is a Roslyn analyzer rather than a looser regex. Write the reasoning, not a pointer to research.md (research.md R4)
+- [x] T019 [US2] Define the allow-list's location and format in `tests/ArchitectureTests/RawSqlGates.cs` — a checked-in collection of (relative file path, member name) pairs seeded with the single audited entry, `Persistence/MembershipRepository.cs` / `RemoveMembershipAsync`. Resolves CHK036, which found FR-011 fixed the key but not where the list lives
+- [x] T020 [US2] Define what "member" means for the allow-list key and document the choice inline — resolving CHK033, which noted overloads, local functions, and lambdas are all plausibly "the member" and are not interchangeable for catching relocation
+- [x] T021 [US2] Implement the FR-010 gate using `Support/SourceScanner`, matching `FromSqlRaw`, `FromSqlInterpolated`, `ExecuteSqlRaw`, `ExecuteSqlInterpolated`, their async forms, and `Database.SqlQuery`, scoped to `src/` per the spec's stated scope
+- [x] T022 [US2] Require a justification comment adjacent to each allow-list entry and assert its presence, so adding an entry cannot be a silent one-line diff — resolving CHK034, which observed nothing made "audited" mean anything
+- [x] T023 [US2] Prove T021 red twice per FR-023: once by adding an unlisted raw-SQL call, and once by moving the audited call to a new method without updating the allow-list (FR-011's relocation case — FR-023 now names FR-011 explicitly, per analyze finding I1). Record both
+- [x] T024 [US2] Record in `RawSqlGates.cs` remarks that source-text matching is formatting-sensitive — a call split across lines or reached through an alias can evade it — and that the escalation path is a Roslyn analyzer rather than a looser regex. Write the reasoning, not a pointer to research.md (research.md R4)
 
 **Checkpoint**: Raw SQL is gated, and the one legitimate exception is visible and justified.
 
@@ -298,14 +298,14 @@ red flag list names "an architecture test nobody has verified can actually fail"
 | 1 Setup | — | T001–T004 | 4 (done) |
 | 2 Foundational | — | T005–T010 | 6 (done) |
 | 3 | US1 (P1) 🎯 MVP | T011–T018 | 8 (done) |
-| 4 | US2 (P1) | T019–T024 | 6 |
+| 4 | US2 (P1) | T019–T024 | 6 (done) |
 | 5 | US3 (P1) | T025–T027 | 3 |
 | 6 | US4 (P2) | T028–T032 | 5 |
 | 7 | US5 (P2) | T033–T038 | 6 |
 | 8 | US6 (P3) | T039–T044 | 6 |
 | 9 Unowned | — | T045–T050 | 6 (1 done) |
 | 10 Polish | — | T051–T057 | 7 |
-| **Total** | | | **57** (18 done, 39 open) |
+| **Total** | | | **57** (24 done, 33 open) |
 
 **Checklist items resolved by tasks**: 17 of the 28 still open are assigned to a specific task —
 CHK001 (T010), CHK005 (T032), CHK006 (T051), CHK010/011 (T043), CHK012 (T043), CHK013 (T039),
