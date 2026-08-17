@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Tenancy.Application.Abstractions;
 using Tenancy.Domain.Abstractions;
@@ -21,7 +20,7 @@ namespace Tenancy.Application.Invitations;
 /// generic <see cref="DomainException"/>-to-<c>400</c> mapping <c>TenantEndpoints</c> already
 /// uses). The "already pending" check is also backed by the database's own
 /// <c>UNIQUE (TenantId, Email) WHERE Status = 'Pending'</c> constraint per data-model.md — see
-/// <see cref="ExecuteAsync"/>'s handling of <see cref="DbUpdateException"/> from
+/// <see cref="ExecuteAsync"/>'s handling of <see cref="ConcurrencyConflictException"/> from
 /// <see cref="IInvitationRepository.AddAsync"/> for the race backstop, following
 /// <c>EnsureUserProvisioned</c> (T036) and <c>IdempotencyFilter</c> (T056)'s established
 /// insert-and-catch-duplicate pattern. The "already an active member" check has no equivalent DB
@@ -126,7 +125,7 @@ public class InviteMember
         {
             await _invitationRepository.AddAsync(invitation, ct);
         }
-        catch (DbUpdateException)
+        catch (ConcurrencyConflictException)
         {
             // Lost the insert race against a near-simultaneous invite to the same address —
             // the database's unique constraint on (TenantId, Email) WHERE Status = 'Pending' is

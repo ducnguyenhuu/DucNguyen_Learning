@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using Tenancy.Application.Abstractions;
 using Tenancy.Domain.Abstractions;
 using Tenancy.Domain.Users;
@@ -39,13 +38,13 @@ public class EnsureUserProvisioned
     /// could both miss the initial "not found" check and both attempt to insert. The database's
     /// unique index on <c>(EntraTenantId, EntraObjectId)</c> (see <c>UserConfiguration</c>, T025)
     /// guarantees only one insert succeeds; the loser's <c>SaveChangesAsync</c> throws
-    /// <see cref="DbUpdateException"/>. That exception is caught broadly here — rather than
-    /// narrowed to a provider-specific unique-constraint-violation subtype/error code — because
-    /// discriminating the exact violation reliably would require a real database connection to
-    /// verify against, which isn't available in this task's verification environment (build +
-    /// code review only, no integration test harness yet). The tradeoff: a `DbUpdateException`
-    /// caused by something other than this unique index (e.g. an unrelated constraint or
-    /// connectivity blip) would also be swallowed and re-queried here, which could mask a real
+    /// <see cref="ConcurrencyConflictException"/>. That exception is caught broadly here — rather
+    /// than narrowed to a provider-specific unique-constraint-violation subtype/error code —
+    /// because discriminating the exact violation reliably would require a real database
+    /// connection to verify against, which isn't available in this task's verification
+    /// environment (build + code review only, no integration test harness yet). The tradeoff: a
+    /// `ConcurrencyConflictException` caused by something other than this unique index (e.g. an
+    /// unrelated constraint or connectivity blip) would also be swallowed and re-queried here, which could mask a real
     /// failure as a spurious "not found after re-query" `null`-turned-exception. This is judged
     /// acceptable for now given the narrow surface of this method (a single insert of one new
     /// row with no other constraints), but should be revisited if/when the provider-specific
@@ -70,7 +69,7 @@ public class EnsureUserProvisioned
             await _userRepository.AddAsync(newUser, ct);
             return newUser;
         }
-        catch (DbUpdateException)
+        catch (ConcurrencyConflictException)
         {
             // Lost the get-or-create race: another request inserted first. Re-query and return
             // the now-existing row instead of letting the exception propagate as an unhandled 500.
