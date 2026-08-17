@@ -206,12 +206,12 @@ build.
 **Independent Test**: Remove the coverage declaration from the only test covering one spec-001
 requirement, run the suite, confirm it fails naming that requirement, restore.
 
-- [ ] T039 [US6] Create `tests/ArchitectureTests/Support/CoversRequirementAttribute.cs` — a purpose-built attribute rather than `[Trait]`, so a typo is a failure rather than silent non-coverage. Its remarks should say *why* a bare trait string was rejected (no schema, key spelling unenforced), not cite the research section that decided it (research.md R3, CHK013)
-- [ ] T040 [US6] Apply `[CoversRequirement("FR-0NN")]` across the existing unit and integration suites using `specs/001-auth-tenant-management/coverage.md`'s matrix as the source of truth, covering all 26 of spec 001's functional requirements
-- [ ] T041 [US6] (SC-003) Implement the FR-020 and FR-021 gates in `tests/ArchitectureTests/RequirementCoverageGates.cs`: enumerate declarations by reflection over both test assemblies, assert every one of spec 001's twenty-six functional requirements (`001-FR-001` through `001-FR-026`) has at least one, and fail naming the specific requirement
-- [ ] T042 [US6] Implement the FR-022 gate asserting no declaration names an identifier absent from spec 001, parsing the valid set from `specs/001-auth-tenant-management/spec.md` rather than hardcoding it
-- [ ] T043 [US6] State the gate's limits in `RequirementCoverageGates.cs` remarks in its own words — it detects loss of declared coverage, not whether a declaring test meaningfully exercises the requirement it names — and record whether this slice's own requirements are in scope (FR-020, CHK010–CHK012)
-- [ ] T044 [US6] Prove T041 and T042 red per FR-023 by removing one declaration and then adding a bogus identifier, confirming each failure names the requirement, restoring both, and recording the demonstrations
+- [x] T039 [US6] Create `tests/ArchitectureTests/Support/CoversRequirementAttribute.cs` — a purpose-built attribute rather than `[Trait]`, so a typo is a failure rather than silent non-coverage. Its remarks should say *why* a bare trait string was rejected (no schema, key spelling unenforced), not cite the research section that decided it (research.md R3, CHK013)
+- [x] T040 [US6] Apply `[CoversRequirement("FR-0NN")]` across the existing unit and integration suites using `specs/001-auth-tenant-management/coverage.md`'s matrix as the source of truth, covering all 26 of spec 001's functional requirements
+- [x] T041 [US6] (SC-003) Implement the FR-020 and FR-021 gates in `tests/ArchitectureTests/RequirementCoverageGates.cs`: enumerate declarations by reflection over both test assemblies, assert every one of spec 001's twenty-six functional requirements (`001-FR-001` through `001-FR-026`) has at least one, and fail naming the specific requirement
+- [x] T042 [US6] Implement the FR-022 gate asserting no declaration names an identifier absent from spec 001, parsing the valid set from `specs/001-auth-tenant-management/spec.md` rather than hardcoding it
+- [x] T043 [US6] State the gate's limits in `RequirementCoverageGates.cs` remarks in its own words — it detects loss of declared coverage, not whether a declaring test meaningfully exercises the requirement it names — and record whether this slice's own requirements are in scope (FR-020, CHK010–CHK012)
+- [x] T044 [US6] Prove T041 and T042 red per FR-023 by removing one declaration and then adding a bogus identifier, confirming each failure names the requirement, restoring both, and recording the demonstrations
 
 **Checkpoint**: T089's hand audit is protected from rotting, with its limits stated rather than
 overclaimed.
@@ -302,10 +302,10 @@ red flag list names "an architecture test nobody has verified can actually fail"
 | 5 | US3 (P1) | T025–T027 | 3 (done) |
 | 6 | US4 (P2) | T028–T032 | 5 (done) |
 | 7 | US5 (P2) | T033–T038 | 6 (done) |
-| 8 | US6 (P3) | T039–T044 | 6 |
+| 8 | US6 (P3) | T039–T044 | 6 (done) |
 | 9 Unowned | — | T045–T050 | 6 (1 done) |
 | 10 Polish | — | T051–T057 | 7 |
-| **Total** | | | **57** (38 done, 19 open) |
+| **Total** | | | **57** (44 done, 13 open) |
 
 **Checklist items resolved by tasks**: 17 of the 28 still open are assigned to a specific task —
 CHK001 (T010), CHK005 (T032), CHK006 (T051), CHK010/011 (T043), CHK012 (T043), CHK013 (T039),
