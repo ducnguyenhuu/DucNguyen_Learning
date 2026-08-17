@@ -167,11 +167,11 @@ suite, confirm it fails naming the type and dependency, revert.
 **Note**: FR-027's runtime backstop is already done (`3aebea6`). This phase adds the structural
 gate, whose limits are stated in FR-012 — it closes the direct constructor route only.
 
-- [ ] T028 [US4] Implement `Support/PersistencePort.cs` resolving FR-012's "persistence port" set mechanically — ports whose implementing type lives in a persistence namespace — and assert `ITenantContext` is excluded. Resolves CHK028, which found the namespace was inferred rather than named
-- [ ] T029 [US4] Implement the FR-012 gate in `tests/ArchitectureTests/BackgroundJobGates.cs`: find `IHostedService` implementors and `BackgroundService` subclasses under `src/`, assert no constructor parameter is `TenancyDbContext` or a persistence port, failing with type and offending dependency named
-- [ ] T030 [US4] Write the FR-012 failure message to state what to do instead and cite ADR-013, per the spec's explicit requirement — and resolve CHK027 by checking whether ADR-013 actually answers a job author; if it does not, say so in the message rather than citing it hollowly
-- [ ] T031 [US4] Implement FR-013's pin asserting no such type exists under `src/`, and confirm it does not collide with T032's proof fixture — the spec resolved CHK029 by scoping all gates to `src/`
-- [ ] T032 [US4] Prove T029 and T031 red per FR-023 by adding a throwaway `BackgroundService` under `src/` taking `TenancyDbContext`, confirming both fail, reverting, and recording that FR-012's proof is necessarily a reverted fixture (CHK005) since no permanent positive case exists
+- [x] T028 [US4] Implement `Support/PersistencePort.cs` resolving FR-012's "persistence port" set mechanically — ports whose implementing type lives in a persistence namespace — and assert `ITenantContext` is excluded. Resolves CHK028, which found the namespace was inferred rather than named
+- [x] T029 [US4] Implement the FR-012 gate in `tests/ArchitectureTests/BackgroundJobGates.cs`: find `IHostedService` implementors and `BackgroundService` subclasses under `src/`, assert no constructor parameter is `TenancyDbContext` or a persistence port, failing with type and offending dependency named
+- [x] T030 [US4] Write the FR-012 failure message to state what to do instead and cite ADR-013, per the spec's explicit requirement — and resolve CHK027 by checking whether ADR-013 actually answers a job author; if it does not, say so in the message rather than citing it hollowly
+- [x] T031 [US4] Implement FR-013's pin asserting no such type exists under `src/`, and confirm it does not collide with T032's proof fixture — the spec resolved CHK029 by scoping all gates to `src/`
+- [x] T032 [US4] Prove T029 and T031 red per FR-023 by adding a throwaway `BackgroundService` under `src/` taking `TenancyDbContext`, confirming both fail, reverting, and recording that FR-012's proof is necessarily a reverted fixture (CHK005) since no permanent positive case exists
 
 **Checkpoint**: The obvious background-job mistake is refused at the cheapest point, with FR-027
 catching the routes no structural gate can see.
@@ -300,12 +300,12 @@ red flag list names "an architecture test nobody has verified can actually fail"
 | 3 | US1 (P1) 🎯 MVP | T011–T018 | 8 (done) |
 | 4 | US2 (P1) | T019–T024 | 6 (done) |
 | 5 | US3 (P1) | T025–T027 | 3 (done) |
-| 6 | US4 (P2) | T028–T032 | 5 |
+| 6 | US4 (P2) | T028–T032 | 5 (done) |
 | 7 | US5 (P2) | T033–T038 | 6 |
 | 8 | US6 (P3) | T039–T044 | 6 |
 | 9 Unowned | — | T045–T050 | 6 (1 done) |
 | 10 Polish | — | T051–T057 | 7 |
-| **Total** | | | **57** (27 done, 30 open) |
+| **Total** | | | **57** (32 done, 25 open) |
 
 **Checklist items resolved by tasks**: 17 of the 28 still open are assigned to a specific task —
 CHK001 (T010), CHK005 (T032), CHK006 (T051), CHK010/011 (T043), CHK012 (T043), CHK013 (T039),
