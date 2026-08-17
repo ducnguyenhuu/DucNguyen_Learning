@@ -68,7 +68,7 @@ then — an empty cell and a filled one must be visually distinguishable at a gl
 |---|---|---|---|
 | FR-004 | Add `<PackageReference Include="Microsoft.EntityFrameworkCore" />` to `Tenancy.Domain.csproj` | Fails, naming project + package | 0bbc95f720224767c0855b967e475213c4e5fe31 (2026-08-16) |
 | FR-005 | Same, to `Tenancy.Application.csproj` | Fails, naming project + package | 0bbc95f720224767c0855b967e475213c4e5fe31 (2026-08-16) |
-| FR-008 | Add a project under `src/` outside `Tenancy.*` that references `Tenancy.Infrastructure` | Fails, naming the project | _pending_ |
+| FR-008 | Add a project under `src/` outside `Tenancy.*` that references `Tenancy.Infrastructure` | Fails, naming the project | ff7f042 (2026-08-17) |
 | FR-010 | Add `ExecuteSqlRaw("SELECT 1")` in any repository not on the allow-list | Fails, naming file + member | ac32f0c (2026-08-17) |
 | FR-011 | Move the audited `ExecuteSqlInterpolatedAsync` call out of `RemoveMembershipAsync` into a new method, leaving the allow-list untouched | Fails — the allow-list binds file **and** member | ac32f0c (2026-08-17) |
 | FR-012 | Add a `BackgroundService` taking `TenancyDbContext` in its constructor | Fails, naming the type | _pending_ |
@@ -91,7 +91,7 @@ finding I4):
 |---|---|---|---|
 | FR-026 | Change any `IgnoreQueryFilters(["TenantFilter"])` call to the bare `IgnoreQueryFilters()` | Fails, naming file + member | _pending_ |
 | FR-027 | Insert a `Membership` via `TenancyDbContext` without setting `CurrentTenantId` | Throws `DomainException` — already covered by `UnsetTenantContextWriteTests` | _pending_ |
-| FR-009 | Add a second capability directory under `src/` | Absence pin fails, instructing you to extend FR-008's gate | _pending_ |
+| FR-009 | Add a second capability directory under `src/` | Absence pin fails, instructing you to extend FR-008's gate | ff7f042 (2026-08-17) |
 | FR-013 | Add any `BackgroundService` under `src/` | Absence pin fails | _pending_ |
 | FR-016 | Add a model-provider SDK package reference | Absence pin fails, naming which of its two facts changed | _pending_ |
 | FR-019 | See §3 — its proof is behavioural, not structural | Test fails against today's blanket `500` | _pending_ |
