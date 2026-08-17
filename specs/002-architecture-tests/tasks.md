@@ -223,11 +223,11 @@ overclaimed.
 **Purpose**: FR-019, FR-026, and FR-027 — added by ADR-021 acceptance and the checklist review
 after the stories were written. No `[Story]` label, per the note at the top of this file.
 
-- [ ] T045 Add central `DomainException` → `400` and `ConflictException` → `409` mapping to `src/Tenancy/Tenancy.Api/ErrorHandling/ProblemDetailsHandler.cs`, which currently sets `Status500InternalServerError` unconditionally (FR-019)
-- [ ] T046 Write the FR-019 proof: a unit test asserting the handler's mapping, plus an integration test proving an unhandled `DomainException` yields `400` not `500`. Both **must be seen to fail against today's blanket-500 behaviour before T045 lands** — FR-023 requires this proof take that form since FR-019 is a behavioural guarantee, not a structural gate
-- [ ] T047 (FR-019, SC-004) Confirm every existing endpoint `catch (DomainException)` block still produces its own more specific message after T045, by re-running the full suite and comparing pass counts rather than assuming additivity
-- [ ] T048 Implement the FR-026 gate in `tests/ArchitectureTests/TenantIsolationGates.cs`: fail when `IgnoreQueryFilters()` appears with no arguments under `src/`, permitting the named form. Seed its remarks with the four currently-compliant call sites
-- [ ] T049 Prove T048 red per FR-023 by changing one named call to the bare form, confirming failure names file and member, reverting, and recording it
+- [x] T045 Add central `DomainException` → `400` and `ConflictException` → `409` mapping to `src/Tenancy/Tenancy.Api/ErrorHandling/ProblemDetailsHandler.cs`, which currently sets `Status500InternalServerError` unconditionally (FR-019)
+- [x] T046 Write the FR-019 proof: a unit test asserting the handler's mapping, plus an integration test proving an unhandled `DomainException` yields `400` not `500`. Both **must be seen to fail against today's blanket-500 behaviour before T045 lands** — FR-023 requires this proof take that form since FR-019 is a behavioural guarantee, not a structural gate
+- [x] T047 (FR-019, SC-004) Confirm every existing endpoint `catch (DomainException)` block still produces its own more specific message after T045, by re-running the full suite and comparing pass counts rather than assuming additivity
+- [x] T048 Implement the FR-026 gate in `tests/ArchitectureTests/TenantIsolationGates.cs`: fail when `IgnoreQueryFilters()` appears with no arguments under `src/`, permitting the named form. Seed its remarks with the four currently-compliant call sites
+- [x] T049 Prove T048 red per FR-023 by changing one named call to the bare form, confirming failure names file and member, reverting, and recording it
 - [x] T050 FR-027's runtime fail-closed guard for inserts with no tenant context — **done in commit `3aebea6`**, with `tests/Tenancy.IntegrationTests/Scenarios/UnsetTenantContextWriteTests.cs` written red-first (1 failed / 84 passed before the guard)
 
 **Checkpoint**: All seventeen gates exist and all have been demonstrated red.
@@ -303,9 +303,9 @@ red flag list names "an architecture test nobody has verified can actually fail"
 | 6 | US4 (P2) | T028–T032 | 5 (done) |
 | 7 | US5 (P2) | T033–T038 | 6 (done) |
 | 8 | US6 (P3) | T039–T044 | 6 (done) |
-| 9 Unowned | — | T045–T050 | 6 (1 done) |
+| 9 Unowned | — | T045–T050 | 6 (done) |
 | 10 Polish | — | T051–T057 | 7 |
-| **Total** | | | **57** (44 done, 13 open) |
+| **Total** | | | **57** (50 done, 7 open) |
 
 **Checklist items resolved by tasks**: 17 of the 28 still open are assigned to a specific task —
 CHK001 (T010), CHK005 (T032), CHK006 (T051), CHK010/011 (T043), CHK012 (T043), CHK013 (T039),
