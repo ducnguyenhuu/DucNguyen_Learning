@@ -1,5 +1,4 @@
 using AwesomeAssertions;
-using Microsoft.EntityFrameworkCore;
 using Tenancy.Application.Abstractions;
 using Tenancy.Application.Users;
 using Tenancy.Domain.Abstractions;
@@ -11,10 +10,9 @@ namespace Tenancy.UnitTests.Users;
 /// <summary>
 /// Unit tests for <see cref="EnsureUserProvisioned"/>, using a hand-rolled in-memory fake of
 /// <see cref="IUserRepository"/> — following <c>InviteMemberTests</c>' established convention.
-/// These tests exist to lock down the get-or-create race handling (catch a <see cref="DbUpdateException"/>
-/// from a losing insert, re-query, and return the winner's row) before that logic is refactored to
-/// translate the caught exception into an Application-owned type. They must pass against the
-/// current implementation unmodified.
+/// These tests exist to lock down the get-or-create race handling (catch a
+/// <see cref="ConcurrencyConflictException"/> from a losing insert, re-query, and return the
+/// winner's row).
 /// </summary>
 public class EnsureUserProvisionedTests
 {
@@ -30,7 +28,7 @@ public class EnsureUserProvisionedTests
 
         /// <summary>When set, <see cref="AddAsync"/> throws this once, then clears itself — used
         /// to simulate losing the insert race against a concurrent provisioning request.</summary>
-        public DbUpdateException? ThrowOnAdd { get; set; }
+        public ConcurrencyConflictException? ThrowOnAdd { get; set; }
 
         public User? AddedUser { get; private set; }
 
@@ -93,9 +91,9 @@ public class EnsureUserProvisionedTests
         {
             // Initial lookup finds nothing; AddAsync then loses the insert race. UserToFind is
             // flipped to the race winner's row so the subsequent re-query (triggered by the
-            // caught DbUpdateException) finds the row the other request just inserted.
+            // caught ConcurrencyConflictException) finds the row the other request just inserted.
             UserToFind = null,
-            ThrowOnAdd = new DbUpdateException("simulated unique-constraint violation"),
+            ThrowOnAdd = new ConcurrencyConflictException("simulated unique-constraint violation"),
         };
 
         // Simulate the other request's insert completing between this call's two lookups.
@@ -109,11 +107,12 @@ public class EnsureUserProvisionedTests
     [Fact]
     public async Task ExecuteAsync_AddThrowsAndRequeryFindsNothing_RethrowsOriginalException()
     {
-        var thrownException = new DbUpdateException("simulated non-race DB error");
+        var thrownException = new ConcurrencyConflictException("simulated non-race DB error");
         var repository = new FakeUserRepository
         {
-            // Initial lookup and the post-catch re-query both find nothing: the DbUpdateException
-            // was not caused by the get-or-create race, so it must propagate unchanged.
+            // Initial lookup and the post-catch re-query both find nothing: the
+            // ConcurrencyConflictException was not caused by the get-or-create race, so it must
+            // propagate unchanged.
             UserToFind = null,
             ThrowOnAdd = thrownException,
         };
@@ -121,7 +120,7 @@ public class EnsureUserProvisionedTests
 
         var act = () => useCase.ExecuteAsync(TestEntraTenantId, TestEntraObjectId, TestEmail, CancellationToken.None);
 
-        var thrown = await act.Should().ThrowAsync<DbUpdateException>();
+        var thrown = await act.Should().ThrowAsync<ConcurrencyConflictException>();
         thrown.Which.Should().BeSameAs(thrownException);
     }
 

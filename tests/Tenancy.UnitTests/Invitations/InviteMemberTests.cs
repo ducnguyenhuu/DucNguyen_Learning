@@ -1,5 +1,4 @@
 using AwesomeAssertions;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Tenancy.Application.Abstractions;
 using Tenancy.Application.Invitations;
@@ -43,7 +42,7 @@ public class InviteMemberTests
 
         /// <summary>When set, <see cref="AddAsync"/> throws this once, then clears itself — used
         /// to simulate losing the insert race against a concurrent invite.</summary>
-        public DbUpdateException? ThrowOnAdd { get; set; }
+        public ConcurrencyConflictException? ThrowOnAdd { get; set; }
 
         public Invitation? SavedInvitation { get; private set; }
 
@@ -173,7 +172,7 @@ public class InviteMemberTests
     {
         var repository = new FakeInvitationRepository
         {
-            ThrowOnAdd = new DbUpdateException("simulated unique-constraint violation"),
+            ThrowOnAdd = new ConcurrencyConflictException("simulated unique-constraint violation"),
         };
         var useCase = CreateUseCase(repository);
 
