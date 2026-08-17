@@ -16,7 +16,7 @@ Full reasoning in [idea.md §46](idea.md) · rules in the
 |---|-------|--------|------|
 | **S1** | Constitution + ADRs + foundation | ✅ **done** | — |
 | **S2** | Auth + tenant + persistence (local) | ✅ **done** — [spec](specs/001-auth-tenant-management/spec.md) | 2–3 w |
-| **S3** | Architecture tests | ▶ **next** | 1 w |
+| **S3** | Architecture tests | ✅ **done** — [spec](specs/002-architecture-tests/spec.md) | 1 w |
 | S4 | Observability | ⬜ | 1.5–2 w |
 | S5 | Containerization | ⬜ | 1 w |
 | S6 | Terraform → Azure | ⬜ | **3–4 w** |
@@ -49,7 +49,7 @@ Full reasoning in [idea.md §46](idea.md) · rules in the
 4. ✅ Implement S2, checking off its *Done when* list — done 2026-08-15
 5. Optional: merge this branch to `main` — constitution and ADRs are project-level, not
    feature-level
-6. ▶ Start S3 — Architecture tests
+6. ✅ Implement S3, checking off its *Done when* list — done 2026-08-17
 
 Open decisions in [docs/traceability.md](docs/traceability.md#open-decisions). None blocks
 S2. **U12 must be done in S3.** U6's performance gap was closed into S7 during S2 planning.
@@ -113,10 +113,10 @@ infrastructure · no cross-service data access · no provider SDK outside AI Pla
 **Not:** E2E · performance · security test suites (all post-Gate-1)
 
 **Done when**
-- [ ] **A deliberate domain→infrastructure reference fails the build**
-- [ ] **A deliberate cross-service data access fails the build**
-- [ ] Every FR in spec 001 maps to a test
-- [ ] Full suite runs unattended in under 5 minutes
+- [x] **A deliberate domain→infrastructure reference fails the build**
+- [x] **A deliberate cross-service data access fails the build**
+- [x] Every FR in spec 001 maps to a test
+- [x] Full suite runs unattended in under 5 minutes
 
 ---
 

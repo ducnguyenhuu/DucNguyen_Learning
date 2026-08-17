@@ -238,11 +238,11 @@ after the stories were written. No `[Story]` label, per the note at the top of t
 
 - [ ] T051 [P] (SC-006) Assert failure-message content for every gate, so FR-024 is verified rather than eyeballed — resolving CHK006, which found the requirement satisfiable by a human glance at output
 - [ ] T052 [P] Measure the full suite's runtime three times and record min/median/max in `specs/002-architecture-tests/coverage.md` against SC-005's five-minute bar, naming the hardware — resolving CHK020, which found a wall-clock bound with no stated reference environment is not reproducible
-- [ ] T053 Update `docs/traceability.md`'s U12 table: mark the raw-SQL/background-job row and the provider-SDK row as addressed by this slice, and record that FR-012 closes the direct route while FR-027 closes the property. Resolves CHK041, which found no task owned this edit
-- [ ] T054 [P] Correct U12's framing in the same edit — its "most plausible route to a cross-tenant leak" overstates the background-job gap against this implementation, where reads and update/delete already fail closed and only insert did not
-- [ ] T055 [P] Tick S3's *Done when* checklist in `roadmap.md` and set its status to done, following the pattern used for S2
+- [x] T053 Update `docs/traceability.md`'s U12 table: mark the raw-SQL/background-job row and the provider-SDK row as addressed by this slice, and record that FR-012 closes the direct route while FR-027 closes the property. Resolves CHK041, which found no task owned this edit
+- [x] T054 [P] Correct U12's framing in the same edit — its "most plausible route to a cross-tenant leak" overstates the background-job gap against this implementation, where reads and update/delete already fail closed and only insert did not
+- [x] T055 [P] Tick S3's *Done when* checklist in `roadmap.md` and set its status to done, following the pattern used for S2
 - [ ] T056 Review the 28 checklist items still open in `specs/002-architecture-tests/checklists/`, mark each resolved with a note or state why it stays open, so the checklists end the slice as a record rather than a to-do list
-- [ ] T057 Add `[CoversRequirement]` declarations to this slice's own gate tests if T043 decided spec 002's requirements are in scope; skip with a recorded reason if not
+- [x] T057 Add `[CoversRequirement]` declarations to this slice's own gate tests if T043 decided spec 002's requirements are in scope; skip with a recorded reason if not (skipped — `RequirementCoverageGates.cs`'s remarks record T043's decision that spec 002's own requirements are out of scope for this gate; no declarations added)
 
 ---
 

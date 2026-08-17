@@ -227,16 +227,30 @@ no data at Gate 2 either. **Decision needed.**
 Four decisions are currently enforced by human review where Principle VII would prefer a
 gate. Each is recorded in its ADR's Compliance section:
 
-| Gap | ADR | Proposed fix |
-|---|---|---|
-| Nothing prevents a raw SQL query or background job bypassing the tenant filter | ADR-013 | Architecture test in S3 restricting raw SQL outside audited helpers |
-| Nothing prevents calling a non-Azure managed service from app code | ADR-001 | Architecture test on outbound SDK dependencies |
-| Nothing prevents portal changes to infrastructure | ADR-012 | Restrict human subscription write access; changes only via pipeline identity (S7) |
-| Nothing asserts `.claude/skills` remains a symlink | ADR-016 | Cheap CI check (S7) |
+| Gap | ADR | Proposed fix | Status |
+|---|---|---|---|
+| Nothing prevents a raw SQL query or background job bypassing the tenant filter | ADR-013 | Architecture test in S3 restricting raw SQL outside audited helpers | **Addressed.** Raw SQL: `RawSqlGates.cs` (FR-010/FR-011). Background jobs: `BackgroundJobGates.cs` (FR-012). |
+| Nothing prevents calling a non-Azure managed service from app code | ADR-001 | Architecture test on outbound SDK dependencies | **Addressed** by `DependencyPinGates.cs` (FR-014/FR-017/FR-018). |
+| Nothing prevents portal changes to infrastructure | ADR-012 | Restrict human subscription write access; changes only via pipeline identity (S7) | Open — S7's job. |
+| Nothing asserts `.claude/skills` remains a symlink | ADR-016 | Cheap CI check (S7) | Open — S7's job. |
 
-**The first is the serious one.** A background job running without tenant context is the
-most plausible route to a cross-tenant leak under ADR-013's model, and it is currently
-unguarded. **Assign to S3.**
+**FR-012 vs FR-027 — two different halves of the background-job gap.** `BackgroundJobGates.cs`'s
+FR-012 closes the *direct route*: a structural gate rejecting any background job whose
+constructor takes `TenancyDbContext` (or a persistence port) directly, so a job can no longer be
+written to sidestep tenant context by construction. FR-027 (already done, commit `3aebea6`)
+closes the *underlying property* instead: a runtime backstop ensuring any insert made with no
+tenant context set simply fails, regardless of which code path — job, handler, or otherwise —
+produced it. Together they close both the structural opening and the property it would have
+exploited.
+
+**Corrected framing.** The original note above overstated the gap as "background jobs" in
+general. In fact reads, updates, and deletes were already safe by construction: the tenant-scoping
+query filter fails closed, so a query issued against the wrong tenant returns nothing rather than
+leaking data (see `MembershipRepository.cs`, `InvitationRepository.cs`, `UserRepository.cs`).
+**Insert was the one operation without an equivalent backstop** — nothing stopped an insert from
+being persisted with the wrong (or no) tenant context, which is exactly what FR-027's guard now
+closes. FR-012 additionally removes the specific job-shaped route to reaching that gap. **Resolved
+in S3.**
 
 ### U13 — §17 and §20 name Azure Monitor / App Insights; the telemetry backend is now New Relic
 
