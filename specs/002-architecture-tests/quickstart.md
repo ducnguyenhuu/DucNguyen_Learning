@@ -89,7 +89,7 @@ finding I4):
 
 | Gate | Introduce this violation | Expect | Demonstrated |
 |---|---|---|---|
-| FR-026 | Change any `IgnoreQueryFilters(["TenantFilter"])` call to the bare `IgnoreQueryFilters()` | Fails, naming file + member | _pending_ |
+| FR-026 | Change any `IgnoreQueryFilters(["TenantFilter"])` call to the bare `IgnoreQueryFilters()` | Fails, naming file + member | 958bf63 (2026-08-17) |
 | FR-027 | Insert a `Membership` via `TenancyDbContext` without setting `CurrentTenantId` | Throws `DomainException` — already covered by `UnsetTenantContextWriteTests` | _pending_ |
 | FR-009 | Add a second capability directory under `src/` | Absence pin fails, instructing you to extend FR-008's gate | ff7f042 (2026-08-17) |
 | FR-013 | Add any `BackgroundService` under `src/` | Absence pin fails | c19a97b (2026-08-17) |
