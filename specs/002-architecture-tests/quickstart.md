@@ -76,7 +76,7 @@ then — an empty cell and a filled one must be visually distinguishable at a gl
 | FR-015 | Put a model identifier string in `Tenancy.Application` | Fails, naming the location | 365a2a0 (2026-08-17) |
 | FR-017 | Add `<PackageReference Include="FluentValidation" />` anywhere | Fails — ADR-021 ruling 1 | 365a2a0 (2026-08-17) |
 | FR-018 | Add `<PackageReference Include="MediatR" />` anywhere | Fails — ADR-021 ruling 2 | 365a2a0 (2026-08-17) |
-| FR-020 | Delete the coverage declaration from the only test covering one spec-001 requirement | Fails, naming that requirement | PENDING_HASH (2026-08-17) |
+| FR-020 | Delete the coverage declaration from the only test covering one spec-001 requirement | Fails, naming that requirement | e428b41 (2026-08-17) |
 
 The three absence pins (FR-009, FR-013, FR-016) prove the same way in reverse — introduce the
 thing, confirm the pin fails, revert — and are given rows below. FR-023 now
