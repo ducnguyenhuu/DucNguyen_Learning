@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Tenancy.IntegrationTests.Infrastructure;
 using Xunit;
@@ -35,6 +36,8 @@ public sealed class CrossTenantReadRefusedTests : TenancyIntegrationTestBase
     {
     }
 
+    [CoversRequirement("FR-007")]
+    [CoversRequirement("FR-008")]
     [Fact]
     public async Task Get_MembershipsForOtherTenant_IsRefused()
     {

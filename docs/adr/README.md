@@ -66,6 +66,7 @@ what was decided and why it changed is the point of the record.
 | [018](ADR-018-new-relic-telemetry-backend.md) | New Relic as the default telemetry backend | Accepted | Principle VI |
 | [019](ADR-019-single-entra-tenant-in-horizon-1.md) | One Entra tenant in Horizon 1; multi-directory sign-in deferred | Accepted | Principle IV, X |
 | [020](ADR-020-ef-core-rowversion-pinning-requires-explicit-modified-state.md) | Pinning a RowVersion for optimistic concurrency requires explicit EntityState.Modified | Accepted | FR-021 |
+| [021](ADR-021-application-layer-patterns-at-first-consumer.md) | Application-layer pattern machinery adopted at its first real consumer | Accepted | Principle IX, X |
 
 ### Deliberately unwritten
 

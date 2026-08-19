@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -42,6 +43,7 @@ public sealed class ConcurrencyTests : TenancyIntegrationTestBase
     /// <c>If-Match</c> header at all must be rejected with <c>428 Precondition Required</c> —
     /// the caller never told the server which version it believes it's updating.
     /// </summary>
+    [CoversRequirement("FR-021")]
     [Fact]
     public async Task Patch_Tenant_WithoutIfMatchHeader_ReturnsPreconditionRequired()
     {
@@ -69,6 +71,7 @@ public sealed class ConcurrencyTests : TenancyIntegrationTestBase
     /// This flow depends on endpoints (GET's ETag response header, PATCH's success path) that
     /// don't exist yet, so it's written as the target-spec flow anyway, per this task's brief.
     /// </remarks>
+    [CoversRequirement("FR-021")]
     [Fact]
     public async Task Patch_Tenant_WithStaleIfMatch_ReturnsPreconditionFailed()
     {
@@ -130,6 +133,7 @@ public sealed class ConcurrencyTests : TenancyIntegrationTestBase
     /// forces true interleaving at the save instant (e.g. via a save-pipeline test hook or
     /// SaveChanges interception) is future work, not this task's job to solve.
     /// </remarks>
+    [CoversRequirement("FR-021")]
     [Fact]
     public async Task Patch_Tenant_ConcurrentRequestsWithSameIfMatch_AtLeastOneSucceedsOrConflicts()
     {
@@ -196,6 +200,7 @@ public sealed class ConcurrencyTests : TenancyIntegrationTestBase
     /// equals the value being "renamed" to, with a stale <c>originalRowVersion</c> pinned as this
     /// method's own contract requires.
     /// </remarks>
+    [CoversRequirement("FR-021")]
     [Fact]
     public async Task RenameWithOriginalRowVersionAsync_SameValueAsCurrentDisplayName_StillThrowsOnStaleRowVersion()
     {

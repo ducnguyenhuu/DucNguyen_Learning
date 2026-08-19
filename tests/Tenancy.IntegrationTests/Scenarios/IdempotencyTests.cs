@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Tenancy.IntegrationTests.Infrastructure;
 using Xunit;
@@ -40,6 +41,7 @@ public sealed class IdempotencyTests : TenancyIntegrationTestBase
     /// be present-and-false on the first response, only that it must not be the literal string
     /// "true" there.
     /// </summary>
+    [CoversRequirement("FR-020")]
     [Fact]
     public async Task Post_Tenants_ReplayedWithSameKeyAndBody_ReturnsSameStatusAndBodyVerbatim()
     {
@@ -72,6 +74,7 @@ public sealed class IdempotencyTests : TenancyIntegrationTestBase
     /// different <c>displayName</c>) must be rejected as key reuse, per openapi.yaml's <c>422</c>
     /// response for this endpoint.
     /// </summary>
+    [CoversRequirement("FR-020")]
     [Fact]
     public async Task Post_Tenants_SameKeyDifferentBody_ReturnsUnprocessableEntity()
     {
@@ -107,6 +110,7 @@ public sealed class IdempotencyTests : TenancyIntegrationTestBase
     /// T058 land. Its real value only exists once the idempotency filter exists to actually
     /// exercise the in-flight branch.
     /// </remarks>
+    [CoversRequirement("FR-020")]
     [Fact]
     public async Task Post_Tenants_ConcurrentIdenticalRequests_AtLeastOneIsCreatedOrInFlightRejected()
     {

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Tenancy.IntegrationTests.Infrastructure;
 using Xunit;
@@ -36,6 +37,9 @@ public sealed class TenantEndpointIsolationTests : TenancyIntegrationTestBase
     {
     }
 
+    [CoversRequirement("FR-007")]
+    [CoversRequirement("FR-008")]
+    [CoversRequirement("FR-009")]
     [Fact]
     public async Task Get_TenantById_ForOtherTenant_IsRefused_AndIndistinguishableFromNonExistentTenant()
     {
@@ -72,6 +76,8 @@ public sealed class TenantEndpointIsolationTests : TenancyIntegrationTestBase
         wrongTenantBody.Should().Be(nonExistentBody);
     }
 
+    [CoversRequirement("FR-007")]
+    [CoversRequirement("FR-008")]
     [Fact]
     public async Task Patch_TenantById_ForOtherTenant_IsRefused_AndIndistinguishableFromNonExistentTenant()
     {

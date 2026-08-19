@@ -1,3 +1,4 @@
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Tenancy.Domain.Abstractions;
 using Tenancy.Domain.Users;
@@ -35,6 +36,7 @@ public class UserTests
         user.Id.Should().NotBe(default(UserId));
     }
 
+    [CoversRequirement("FR-003")]
     [Fact]
     public void Create_TwoUsersWithSameEntraIdentityButDifferentEmail_ExposeSameComparableEntraIdentity()
     {

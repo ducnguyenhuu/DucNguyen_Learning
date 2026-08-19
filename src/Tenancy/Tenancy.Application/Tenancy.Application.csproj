@@ -5,11 +5,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Only for the DbUpdateException type used by EnsureUserProvisioned's get-or-create race
-         handling (T036) — this project still has no dependency on TenancyDbContext, DbContext,
-         or any provider-specific (e.g. SqlServer) EF Core type. DbUpdateException itself lives
-         in the core Microsoft.EntityFrameworkCore assembly, not in .Abstractions. -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
 
   <PropertyGroup>

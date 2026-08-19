@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Tenancy.IntegrationTests.Infrastructure;
 using Xunit;
@@ -38,6 +39,7 @@ public sealed class MembershipEndpointIsolationTests : TenancyIntegrationTestBas
     {
     }
 
+    [CoversRequirement("FR-008")]
     [Fact]
     public async Task Post_InvitationForOtherTenant_IsRefused()
     {
@@ -58,6 +60,7 @@ public sealed class MembershipEndpointIsolationTests : TenancyIntegrationTestBas
         AssertRefusedNotFound(response);
     }
 
+    [CoversRequirement("FR-008")]
     [Fact]
     public async Task Get_InvitationsForOtherTenant_IsRefused()
     {
@@ -73,6 +76,7 @@ public sealed class MembershipEndpointIsolationTests : TenancyIntegrationTestBas
         AssertRefusedNotFound(response);
     }
 
+    [CoversRequirement("FR-008")]
     [Fact]
     public async Task Delete_InvitationForOtherTenant_IsRefused()
     {
@@ -90,6 +94,7 @@ public sealed class MembershipEndpointIsolationTests : TenancyIntegrationTestBas
         AssertRefusedNotFound(response);
     }
 
+    [CoversRequirement("FR-008")]
     [Fact]
     public async Task Get_MembersForOtherTenant_IsRefused()
     {
@@ -105,6 +110,7 @@ public sealed class MembershipEndpointIsolationTests : TenancyIntegrationTestBas
         AssertRefusedNotFound(response);
     }
 
+    [CoversRequirement("FR-008")]
     [Fact]
     public async Task Delete_MemberForOtherTenant_IsRefused()
     {

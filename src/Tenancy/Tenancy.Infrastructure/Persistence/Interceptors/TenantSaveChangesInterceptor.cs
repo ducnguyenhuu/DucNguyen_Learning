@@ -94,6 +94,31 @@ public sealed class TenantSaveChangesInterceptor : SaveChangesInterceptor
             switch (entry.State)
             {
                 case EntityState.Added:
+                    // Fail closed when the ambient tenant was never resolved. TenantId is a
+                    // non-nullable struct, so "unset" is default(TenantId) — Guid.Empty — and
+                    // stamping it would silently create a row owned by a tenant that does not
+                    // exist. Reads and update/delete already fail closed against Guid.Empty (the
+                    // query filter matches nothing; the original-vs-ambient check below throws),
+                    // so insert was the one direction that did not.
+                    //
+                    // This is defence in depth for the case S3's FR-012 structural gate provably
+                    // cannot see: a BackgroundService is a singleton and must resolve scoped
+                    // services through IServiceScopeFactory at runtime, so no constructor-level
+                    // gate can catch a job that never establishes tenant context.
+                    //
+                    // The two operations that legitimately insert a tenant-owned entity outside a
+                    // tenant-scoped request already set the context first — see
+                    // CreateTenantRepository.AddAsync and InvitationRepository's acceptance path,
+                    // both of which document why. This guard turns that convention into
+                    // enforcement (Constitution Principle VII).
+                    if (ambientTenantId == default)
+                    {
+                        throw new DomainException(
+                            $"Cannot insert entity of type '{entry.Entity.GetType().Name}' while no " +
+                            "tenant context is established. Set TenancyDbContext.CurrentTenantId to " +
+                            "the owning tenant before saving — see ADR-013.");
+                    }
+
                     entry.CurrentValues[nameof(ITenantOwned.TenantId)] = ambientTenantId;
                     break;
 

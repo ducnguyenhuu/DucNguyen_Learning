@@ -1,6 +1,7 @@
 using System.IO;
 using System.Linq;
 using System.Xml.Linq;
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Xunit;
 
@@ -22,8 +23,9 @@ namespace Tenancy.UnitTests.Architecture;
 /// </remarks>
 public sealed class SecretExclusionTests
 {
-    private static readonly string RepoRoot = FindRepoRoot();
+    private static readonly string RepoRoot = ProjectFile.GetRepoRoot();
 
+    [CoversRequirement("FR-026")]
     [Theory]
     [InlineData("*.env")]
     [InlineData(".env.*")]
@@ -42,6 +44,7 @@ public sealed class SecretExclusionTests
             $"version control; .gitignore must exclude the '{pattern}' pattern.");
     }
 
+    [CoversRequirement("FR-026")]
     [Fact]
     public void TenancyApi_HasUserSecretsIdConfigured()
     {
@@ -63,6 +66,7 @@ public sealed class SecretExclusionTests
             "Tenancy.Api.csproj must configure a UserSecretsId for the dotnet user-secrets tool.");
     }
 
+    [CoversRequirement("FR-026")]
     [Fact]
     public void AppsettingsJson_CommittedToSourceControl_ContainsNoConnectionStringWithCredentials()
     {
@@ -89,25 +93,5 @@ public sealed class SecretExclusionTests
                 "FR-026 forbids committing any connection string containing a secret; the " +
                 "checked-in appsettings.json must not embed credentials.");
         }
-    }
-
-    private static string FindRepoRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-
-        while (directory is not null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, ".gitignore"))
-                && Directory.Exists(Path.Combine(directory.FullName, "src", "Tenancy")))
-            {
-                return directory.FullName;
-            }
-
-            directory = directory.Parent;
-        }
-
-        throw new InvalidOperationException(
-            "Could not locate repository root (a directory containing .gitignore and " +
-            $"src/Tenancy) by walking up from {AppContext.BaseDirectory}.");
     }
 }

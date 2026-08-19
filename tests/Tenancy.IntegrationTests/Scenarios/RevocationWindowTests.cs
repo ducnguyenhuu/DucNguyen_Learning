@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -69,6 +70,8 @@ public sealed class RevocationWindowTests : TenancyIntegrationTestBase
     /// FR-009/ADR-017, a 403 here would itself leak "you used to have access," so it must be the
     /// same 404 either way.
     /// </summary>
+    [CoversRequirement("FR-009")]
+    [CoversRequirement("FR-016")]
     [Fact]
     public async Task RemovedMember_FreshRequest_IsRefused_AndIndistinguishableFromNeverAMember()
     {
@@ -133,6 +136,7 @@ public sealed class RevocationWindowTests : TenancyIntegrationTestBase
     /// happens, the correct refusal is the same ADR-017 404 Test 1 uses (a membership problem,
     /// not a token problem) — never 401.
     /// </summary>
+    [CoversRequirement("FR-016")]
     [Fact]
     public async Task AlreadyIssuedToken_ReplayedAfterRemoval_IsNotRejectedOnTokenGrounds()
     {

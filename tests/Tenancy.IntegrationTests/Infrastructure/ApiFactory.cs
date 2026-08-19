@@ -167,6 +167,12 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
 
         builder.ConfigureServices(services =>
         {
+            // 0. Test-only routes (see TestOnlyThrowingEndpoints' remarks) that deliberately let
+            // a DomainException/ConflictException reach the global ProblemDetailsHandler
+            // unhandled — no real production route can do this today, since every real endpoint
+            // already catches those types locally before they would ever reach the handler.
+            services.AddSingleton<Microsoft.AspNetCore.Hosting.IStartupFilter, TestOnlyThrowingEndpointsStartupFilter>();
+
             // 1. Point TenancyDbContext at the SqlServerFixture container instead of whatever
             // Program.cs would otherwise read from configuration.
             services.RemoveAll<DbContextOptions<TenancyDbContext>>();

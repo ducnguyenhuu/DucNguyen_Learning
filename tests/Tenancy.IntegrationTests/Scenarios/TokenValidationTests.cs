@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using ArchitectureTests.Support;
 using Tenancy.IntegrationTests.Infrastructure;
 using AwesomeAssertions;
 using Xunit;
@@ -49,6 +50,8 @@ public sealed class TokenValidationTests : TenancyIntegrationTestBase, IDisposab
     {
     }
 
+    [CoversRequirement("FR-001")]
+    [CoversRequirement("FR-004")]
     [Fact]
     public async Task Get_TenantById_WithExpiredToken_ReturnsUnauthorized()
     {
@@ -76,6 +79,8 @@ public sealed class TokenValidationTests : TenancyIntegrationTestBase, IDisposab
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
+    [CoversRequirement("FR-001")]
+    [CoversRequirement("FR-004")]
     [Fact]
     public async Task Get_TenantById_WithWrongAudience_ReturnsUnauthorized()
     {
@@ -101,6 +106,8 @@ public sealed class TokenValidationTests : TenancyIntegrationTestBase, IDisposab
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
+    [CoversRequirement("FR-001")]
+    [CoversRequirement("FR-004")]
     [Fact]
     public async Task Get_TenantById_WithWrongIssuer_ReturnsUnauthorized()
     {
@@ -126,6 +133,8 @@ public sealed class TokenValidationTests : TenancyIntegrationTestBase, IDisposab
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
+    [CoversRequirement("FR-001")]
+    [CoversRequirement("FR-004")]
     [Fact]
     public async Task Get_TenantById_WithInvalidSignature_ReturnsUnauthorized()
     {

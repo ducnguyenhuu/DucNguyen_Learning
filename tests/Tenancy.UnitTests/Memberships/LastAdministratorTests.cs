@@ -1,3 +1,4 @@
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Tenancy.Domain.Abstractions;
 using Tenancy.Domain.Memberships;
@@ -15,6 +16,7 @@ namespace Tenancy.UnitTests.Memberships;
 /// </summary>
 public class LastAdministratorTests
 {
+    [CoversRequirement("FR-015")]
     [Fact]
     public void EnsureRemovalAllowed_SoleAdministrator_ThrowsDomainException()
     {
@@ -27,6 +29,7 @@ public class LastAdministratorTests
         act.Should().Throw<DomainException>();
     }
 
+    [CoversRequirement("FR-015")]
     [Fact]
     public void EnsureRoleChangeAllowed_SoleAdministratorDemotedToMember_ThrowsDomainException()
     {
@@ -40,6 +43,7 @@ public class LastAdministratorTests
         act.Should().Throw<DomainException>();
     }
 
+    [CoversRequirement("FR-015")]
     [Fact]
     public void EnsureRoleChangeAllowed_SoleAdministratorDemotedToReader_ThrowsDomainException()
     {
@@ -53,6 +57,7 @@ public class LastAdministratorTests
         act.Should().Throw<DomainException>();
     }
 
+    [CoversRequirement("FR-015")]
     [Fact]
     public void EnsureRemovalAllowed_TwoAdministrators_RemovingOneSucceeds()
     {
@@ -66,6 +71,7 @@ public class LastAdministratorTests
         act.Should().NotThrow();
     }
 
+    [CoversRequirement("FR-015")]
     [Fact]
     public void EnsureRoleChangeAllowed_TwoAdministrators_DemotingOneSucceeds()
     {

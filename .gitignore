@@ -60,3 +60,6 @@ deployment/helm/**/charts/
 *.tgz
 kubeconfig
 *.kubeconfig
+
+# Subagent-driven-development scratch workspace (per-plan ledgers, briefs, reports)
+.superpowers/

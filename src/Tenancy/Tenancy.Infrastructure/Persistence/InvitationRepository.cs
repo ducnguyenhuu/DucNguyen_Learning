@@ -42,7 +42,17 @@ public class InvitationRepository : IInvitationRepository
     public async Task AddAsync(Invitation invitation, CancellationToken ct)
     {
         _dbContext.Invitations.Add(invitation);
-        await _dbContext.SaveChangesAsync(ct);
+
+        try
+        {
+            await _dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex)
+        {
+            throw new ConcurrencyConflictException(
+                "Failed to add invitation: a concurrent insert with the same unique key won the race.",
+                ex);
+        }
     }
 
     public Task<Invitation?> FindByTokenHashAsync(string tokenHashBase64, CancellationToken ct)

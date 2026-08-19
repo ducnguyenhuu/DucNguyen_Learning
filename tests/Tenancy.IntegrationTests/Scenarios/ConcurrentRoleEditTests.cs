@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -63,6 +64,7 @@ public sealed class ConcurrentRoleEditTests : TenancyIntegrationTestBase
     /// scope, not trusted from response bodies alone — must match whichever role the winning
     /// request requested, proving no lost update.
     /// </summary>
+    [CoversRequirement("FR-021")]
     [Fact]
     public async Task Patch_MemberRole_TwoAdministrators_SameIfMatch_Concurrently_ExactlyOneWinsWithNoLostUpdate()
     {

@@ -1,3 +1,4 @@
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Tenancy.Application.Abstractions;
@@ -52,6 +53,7 @@ public class ChangeMemberRoleTests
     private static ChangeMemberRole CreateUseCase(FakeMembershipRepository repository) =>
         new(repository, new FakeTenantContext(), NullLogger<ChangeMemberRole>.Instance);
 
+    [CoversRequirement("FR-014")]
     [Fact]
     public async Task ExecuteAsync_HappyPath_ChangesRoleAndSaves()
     {
@@ -86,6 +88,7 @@ public class ChangeMemberRoleTests
         repository.Saved.Should().BeNull();
     }
 
+    [CoversRequirement("FR-015")]
     [Fact]
     public async Task ExecuteAsync_LastAdministrator_ReturnsConflict_AndNeverSaves()
     {

@@ -1,3 +1,4 @@
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Tenancy.Application.Abstractions;
@@ -33,6 +34,7 @@ public class CreateTenantTests
         }
     }
 
+    [CoversRequirement("FR-005")]
     [Fact]
     public async Task ExecuteAsync_CreatesTenantAndAdministratorMembership_InOneCall()
     {

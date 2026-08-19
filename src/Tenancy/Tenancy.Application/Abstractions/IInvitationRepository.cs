@@ -59,15 +59,16 @@ public interface IInvitationRepository
     /// Adds a new <see cref="Invitation"/> and persists it immediately (implementations are
     /// expected to call <c>SaveChangesAsync</c>, not merely stage the addition).
     /// </summary>
-    /// <exception cref="Microsoft.EntityFrameworkCore.DbUpdateException">
+    /// <exception cref="Tenancy.Application.Abstractions.ConcurrencyConflictException">
     /// Thrown if this insert loses a race against a near-simultaneous invitation to the same
     /// <c>(TenantId, Email)</c> with <c>Status = Pending</c> — the database's unique constraint
     /// is the actual correctness backstop for the "already has a pending invitation" invariant
-    /// under concurrent invites, per data-model.md. Callers (<c>InviteMember</c>) are expected to
-    /// catch this and translate it into the same conflict signal as the pre-check, following
+    /// under concurrent invites, per data-model.md, translated by the implementation into this
+    /// Application-owned type. Callers (<c>InviteMember</c>) are expected to catch this and
+    /// translate it into the same conflict signal as the pre-check, following
     /// <c>IdempotencyFilter</c>/<c>EnsureUserProvisioned</c>'s established
-    /// insert-and-catch-duplicate pattern (T056/T036) rather than relying solely on the
-    /// check-then-insert pre-check above, which alone would leave a TOCTOU race window.
+    /// insert-and-catch-duplicate pattern rather than relying solely on the check-then-insert
+    /// pre-check above, which alone would leave a TOCTOU race window.
     /// </exception>
     Task AddAsync(Invitation invitation, CancellationToken ct);
 

@@ -1,3 +1,4 @@
+using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -49,6 +50,7 @@ public sealed class ConcurrentAdminRemovalRepositoryTests : TenancyIntegrationTe
     {
     }
 
+    [CoversRequirement("FR-015")]
     [Fact]
     public async Task RemoveMembershipAsync_BothAdministrators_Concurrently_NeverLeavesZeroAdministrators()
     {
