@@ -5,6 +5,14 @@
 **Status**: Draft
 **Input**: User description: "S4 — Observability. Per roadmap.md: OpenTelemetry traces/metrics/logs, OTel Collector exporting to New Relic (ADR-018, over OTLP), correlation ID propagated across every boundary, tenant + user enrichment on spans and logs only (never as a metric dimension, per New Relic's per-day cardinality limit), health checks (self + dependencies), immutable audit log, sampling/drop rules, local collector for offline work. Not in scope: App Insights as secondary exporter (optional, S6), dashboards, alerting, SLOs, New Relic APM agent (never — OTLP only per ADR-011/ADR-018)."
 
+## Clarifications
+
+### Session 2026-08-22
+
+- Q: What sampling strategy and rate applies to successful-request traces? → A: Tail-based sampling — retain 100% of error traces, sample a low, configurable rate (default 10%) of successful traces, decided after the trace completes.
+- Q: How long is an audit entry retained? → A: Indefinitely — no deletion or archival mechanism in this slice; a retention/archival policy is deferred until a specific compliance requirement demands one.
+- Q: What is the health-check interval referenced in SC-004? → A: 30 seconds — a common default for readiness/liveness probes, fast enough to detect an outage without over-polling dependencies.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Diagnose a failure from telemetry alone (Priority: P1)
@@ -174,9 +182,10 @@ collector.
 - **FR-006**: A telemetry export failure or backend unavailability MUST NOT cause a
   request to fail, block, or slow down beyond a bounded, small overhead — telemetry
   emission is fire-and-forget from the request's perspective.
-- **FR-007**: Trace sampling/drop rules, where applied for volume control, MUST always
-  retain traces for failed/errored requests; sampling MAY reduce the volume of
-  successful-request traces but MUST NOT be allowed to drop an error trace.
+- **FR-007**: Trace sampling MUST be tail-based: the decision to retain or drop a
+  trace is made after the trace completes, not before. Every trace for a
+  failed/errored request MUST be retained (100%, no exceptions). Successful-request
+  traces MUST be sampled at a low, configurable rate, defaulting to 10%.
 
 **Health checks**
 
@@ -202,6 +211,9 @@ collector.
 - **FR-013**: The audit log is a separate concern from general application logging
   (spec 001 FR-025): general logs remain retained for operational diagnosis and are not
   required to be tamper-evident; only the audit log carries the append-only guarantee.
+- **FR-013a**: Audit entries are retained indefinitely in this slice — no deletion or
+  archival mechanism is implemented. A retention/archival policy is explicitly deferred
+  until a concrete compliance requirement defines one.
 
 **Local development**
 
@@ -235,8 +247,8 @@ collector.
 - **SC-003**: Zero telemetry attributes across the system's metrics carry raw tenant or
   user identity as a dimension.
 - **SC-004**: A dependency outage (e.g. database unreachable) is reflected in a
-  service's health status within one health-check interval, without any request to the
-  application's business endpoints being required to detect it.
+  service's health status within 30 seconds (one health-check interval), without any
+  request to the application's business endpoints being required to detect it.
 - **SC-005**: 100% of tenant-mutating actions produce a corresponding, durable audit
   entry; zero audit entries can be modified or deleted through any application code
   path.
