@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using Tenancy.Application.Abstractions;
 using Tenancy.Domain.Abstractions;
+using Tenancy.Domain.Auditing;
 
 namespace Tenancy.Api.Authorization;
 
@@ -50,47 +51,89 @@ public sealed class AdministratorOnlyAuthorizationHandler
     : AuthorizationHandler<AdministratorOnlyRequirement>
 {
     private readonly ITenantContext _tenantContext;
+    private readonly IUserRepository _userRepository;
+    private readonly IAuditWriter _auditWriter;
+    private readonly IClock _clock;
     private readonly ILogger<AdministratorOnlyAuthorizationHandler> _logger;
 
     public AdministratorOnlyAuthorizationHandler(
         ITenantContext tenantContext,
+        IUserRepository userRepository,
+        IAuditWriter auditWriter,
+        IClock clock,
         ILogger<AdministratorOnlyAuthorizationHandler> logger)
     {
         _tenantContext = tenantContext;
+        _userRepository = userRepository;
+        _auditWriter = auditWriter;
+        _clock = clock;
         _logger = logger;
     }
 
-    protected override Task HandleRequirementAsync(
+    protected override async Task HandleRequirementAsync(
         AuthorizationHandlerContext context,
         AdministratorOnlyRequirement requirement)
     {
         if (_tenantContext.Role == Role.Administrator)
         {
             context.Succeed(requirement);
-        }
-        else
-        {
-            // FR-025's "authorization refusal" category: this is the only place in the
-            // request pipeline that knows both *why* the caller was refused (their actual,
-            // membership-resolved role) and the tenant the refusal happened in — the calling
-            // filter (RequireTenantAdministratorFilter) only ever sees a bare
-            // AuthorizationResult.Succeeded == false, with no role detail to log. Logging here,
-            // not there, keeps the log entry as close as possible to the actual decision.
-            // ITenantContext exposes no UserId, so the caller's identity is read from the "oid"
-            // claim already on this AuthorizationHandlerContext — the same claim
-            // TenantContextResolutionMiddleware (T035/T059) uses to identify the caller, never an
-            // email or token. Only ids/role are logged — matching the same "no unnecessary
-            // personal data" discipline already established there and by CreateTenant/RemoveMember
-            // (T089).
-            var callerObjectId = context.User.FindFirst("oid")?.Value;
-            _logger.LogWarning(
-                "Authorization refused: tenant {TenantId}, user {UserId}, required role {RequiredRole}, actual role {ActualRole}",
-                _tenantContext.TenantId,
-                callerObjectId,
-                Role.Administrator,
-                _tenantContext.Role);
+            return;
         }
 
-        return Task.CompletedTask;
+        // FR-025's "authorization refusal" category: this is the only place in the
+        // request pipeline that knows both *why* the caller was refused (their actual,
+        // membership-resolved role) and the tenant the refusal happened in — the calling
+        // filter (RequireTenantAdministratorFilter) only ever sees a bare
+        // AuthorizationResult.Succeeded == false, with no role detail to log. Logging here,
+        // not there, keeps the log entry as close as possible to the actual decision.
+        // ITenantContext exposes no UserId, so the caller's identity is read from the "oid"
+        // claim already on this AuthorizationHandlerContext — the same claim
+        // TenantContextResolutionMiddleware (T035/T059) uses to identify the caller, never an
+        // email or token. Only ids/role are logged — matching the same "no unnecessary
+        // personal data" discipline already established there and by CreateTenant/RemoveMember
+        // (T089).
+        var callerObjectId = context.User.FindFirst("oid")?.Value;
+        _logger.LogWarning(
+            "Authorization refused: tenant {TenantId}, user {UserId}, required role {RequiredRole}, actual role {ActualRole}",
+            _tenantContext.TenantId,
+            callerObjectId,
+            Role.Administrator,
+            _tenantContext.Role);
+
+        // Resolve the caller's internal UserId from the same (tid, oid) composite Entra
+        // identity TenantContextResolutionMiddleware already proved a membership for — this
+        // handler only ever runs for an already-authenticated, tenant-resolved caller, so both
+        // claims and a matching User row should always be present in practice. Still tolerate
+        // their absence (null ActorUserId) rather than throw, per the spec edge case for other,
+        // less-resolved refusal paths (e.g. an unauthenticated caller) that could reuse this same
+        // AuditEntry shape in the future even though none exists yet in this codebase.
+        UserId? actorUserId = null;
+        var callerTenantId = context.User.FindFirst("tid")?.Value;
+        if (Guid.TryParse(callerTenantId, out var entraTenantId) &&
+            Guid.TryParse(callerObjectId, out var entraObjectId))
+        {
+            var user = await _userRepository.FindByEntraIdentityAsync(
+                entraTenantId, entraObjectId, CancellationToken.None);
+            actorUserId = user?.Id;
+        }
+
+        var auditEntry = AuditEntry.Create(
+            _tenantContext.TenantId,
+            actorUserId,
+            "authorization.refused",
+            nameof(AdministratorOnlyRequirement),
+            _tenantContext.TenantId.Value.ToString(),
+            _clock);
+
+        // No later use-case save exists to piggyback on: RequireTenantAdministratorFilter
+        // returns Results.Forbid() the moment AuthorizeAsync fails, and no use case (which would
+        // otherwise call SaveChangesAsync) ever runs for a refused request. RecordAndSaveAsync
+        // (unlike RecordAsync, used by T033-T036's use cases) stages AND saves in one call for
+        // exactly this reason. Any exception here — including from the save itself — is left to
+        // propagate: per this handler's own "crash loud, don't guess" philosophy (see the
+        // ITenantContext remarks above), a refusal whose audit trail failed to persist must not
+        // silently return 403 as if everything worked; letting it propagate turns it into a
+        // fail-closed 500 via ProblemDetailsHandler instead.
+        await _auditWriter.RecordAndSaveAsync(auditEntry, CancellationToken.None);
     }
 }

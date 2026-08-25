@@ -6,6 +6,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Tenancy.Api.Authorization;
 using Tenancy.Application.Abstractions;
 using Tenancy.Domain.Abstractions;
+using Tenancy.Domain.Auditing;
+using Tenancy.Domain.Users;
 using Xunit;
 
 namespace Tenancy.UnitTests.Authorization;
@@ -65,21 +67,77 @@ public class AdministratorOnlyAuthorizationHandlerTests
         }
     }
 
-    private static async Task<AuthorizationHandlerContext> EvaluateAsync(
-        ITenantContext tenantContext,
-        ILogger<AdministratorOnlyAuthorizationHandler>? logger = null)
+    /// <summary>
+    /// Minimal fake standing in for the real EF-Core-backed <see cref="IUserRepository"/> — this
+    /// handler only ever needs <see cref="FindByEntraIdentityAsync"/> to resolve the refused
+    /// caller's internal <see cref="UserId"/> for the audit entry it stages.
+    /// </summary>
+    private sealed class FakeUserRepository : IUserRepository
     {
+        public User? UserToReturn { get; init; }
+
+        public Task<User?> FindByEntraIdentityAsync(Guid entraTenantId, Guid entraObjectId, CancellationToken ct) =>
+            Task.FromResult(UserToReturn);
+
+        public Task AddAsync(User user, CancellationToken ct) => throw new NotImplementedException();
+
+        public Task<IReadOnlyList<User>> FindByIdsAsync(IReadOnlyCollection<UserId> userIds, CancellationToken ct) =>
+            throw new NotImplementedException();
+    }
+
+    /// <summary>
+    /// Capturing fake for <see cref="IAuditWriter"/> — records every <see cref="AuditEntry"/>
+    /// passed to <see cref="RecordAndSaveAsync"/> (the method this handler uses, since a refusal
+    /// has no later use-case save to piggyback on) and optionally throws to prove this handler
+    /// lets a failed audit write propagate rather than swallowing it.
+    /// </summary>
+    private sealed class FakeAuditWriter : IAuditWriter
+    {
+        public List<AuditEntry> RecordedAndSaved { get; } = [];
+
+        public Exception? ThrowOnSave { get; init; }
+
+        public Task RecordAsync(AuditEntry entry, CancellationToken ct) => throw new NotImplementedException();
+
+        public Task RecordAndSaveAsync(AuditEntry entry, CancellationToken ct)
+        {
+            if (ThrowOnSave is not null)
+            {
+                throw ThrowOnSave;
+            }
+
+            RecordedAndSaved.Add(entry);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeClock : IClock
+    {
+        public DateTimeOffset UtcNow { get; init; } = DateTimeOffset.UtcNow;
+    }
+
+    private static async Task<(AuthorizationHandlerContext Context, FakeAuditWriter AuditWriter)> EvaluateAsync(
+        ITenantContext tenantContext,
+        ILogger<AdministratorOnlyAuthorizationHandler>? logger = null,
+        IUserRepository? userRepository = null,
+        FakeAuditWriter? auditWriter = null,
+        System.Security.Claims.ClaimsPrincipal? user = null)
+    {
+        var writer = auditWriter ?? new FakeAuditWriter();
         var handler = new AdministratorOnlyAuthorizationHandler(
             tenantContext,
+            userRepository ?? new FakeUserRepository(),
+            writer,
+            new FakeClock(),
             logger ?? NullLogger<AdministratorOnlyAuthorizationHandler>.Instance);
         var requirement = new AdministratorOnlyRequirement();
         var context = new AuthorizationHandlerContext(
             [requirement],
-            new System.Security.Claims.ClaimsPrincipal(),
+            user ?? new System.Security.Claims.ClaimsPrincipal(),
             resource: null);
 
         await handler.HandleAsync(context);
-        return context;
+        return (context, writer);
     }
 
     [CoversRequirement("FR-018")]
@@ -87,7 +145,7 @@ public class AdministratorOnlyAuthorizationHandlerTests
     [Fact]
     public async Task HandleRequirementAsync_AdministratorRole_Succeeds()
     {
-        var context = await EvaluateAsync(new FakeTenantContext { Role = Role.Administrator });
+        var (context, _) = await EvaluateAsync(new FakeTenantContext { Role = Role.Administrator });
 
         context.HasSucceeded.Should().BeTrue();
     }
@@ -100,7 +158,7 @@ public class AdministratorOnlyAuthorizationHandlerTests
     [InlineData(Role.Reader)]
     public async Task HandleRequirementAsync_NonAdministratorRole_Fails(Role role)
     {
-        var context = await EvaluateAsync(new FakeTenantContext { Role = role });
+        var (context, _) = await EvaluateAsync(new FakeTenantContext { Role = role });
 
         context.HasSucceeded.Should().BeFalse();
     }
@@ -117,7 +175,7 @@ public class AdministratorOnlyAuthorizationHandlerTests
     {
         var logger = new CapturingLogger();
 
-        var context = await EvaluateAsync(new FakeTenantContext { Role = Role.Member }, logger);
+        var (context, _) = await EvaluateAsync(new FakeTenantContext { Role = Role.Member }, logger);
 
         context.HasSucceeded.Should().BeFalse();
         logger.Messages.Should().ContainSingle(
@@ -153,6 +211,69 @@ public class AdministratorOnlyAuthorizationHandlerTests
         // exception propagate here turns a broken precondition into a fail-closed 500 (via
         // ProblemDetailsHandler, T083) rather than silently succeeding or failing open.
         var act = () => EvaluateAsync(new UnresolvedTenantContext());
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    /// <summary>
+    /// T037: a role-based refusal must also stage-and-save an <see cref="AuditEntry"/> — via
+    /// <see cref="IAuditWriter.RecordAndSaveAsync"/>, not <see cref="IAuditWriter.RecordAsync"/>,
+    /// since a refusal short-circuits the request before any later use-case save would ever run.
+    /// </summary>
+    [CoversRequirement("FR-025")]
+    [Fact]
+    public async Task HandleRequirementAsync_NonAdministratorRole_RecordsAndSavesAuditEntry()
+    {
+        var entraTenantId = Guid.CreateVersion7();
+        var entraObjectId = Guid.CreateVersion7();
+        var user = User.Create(entraTenantId, entraObjectId, new EmailAddress("refused@example.com"));
+        var claims = new System.Security.Claims.ClaimsPrincipal(
+            new System.Security.Claims.ClaimsIdentity(
+            [
+                new System.Security.Claims.Claim("tid", entraTenantId.ToString()),
+                new System.Security.Claims.Claim("oid", entraObjectId.ToString()),
+            ]));
+
+        var (context, auditWriter) = await EvaluateAsync(
+            new FakeTenantContext { Role = Role.Member },
+            userRepository: new FakeUserRepository { UserToReturn = user },
+            user: claims);
+
+        context.HasSucceeded.Should().BeFalse();
+        auditWriter.RecordedAndSaved.Should().ContainSingle();
+        var entry = auditWriter.RecordedAndSaved[0];
+        entry.Action.Should().Be("authorization.refused");
+        entry.TenantId.Should().Be(TestTenantId);
+        entry.ActorUserId.Should().Be(user.Id);
+    }
+
+    /// <summary>
+    /// The oid/tid claims are absent (or unresolvable to a provisioned user) in some refusal
+    /// scenarios per the spec's edge case wording; this handler must tolerate that with a null
+    /// <see cref="AuditEntry.ActorUserId"/> rather than throw.
+    /// </summary>
+    [CoversRequirement("FR-025")]
+    [Fact]
+    public async Task HandleRequirementAsync_NonAdministratorRole_NoOidClaim_RecordsAuditEntryWithNullActor()
+    {
+        var (_, auditWriter) = await EvaluateAsync(new FakeTenantContext { Role = Role.Member });
+
+        auditWriter.RecordedAndSaved.Should().ContainSingle();
+        auditWriter.RecordedAndSaved[0].ActorUserId.Should().BeNull();
+    }
+
+    /// <summary>
+    /// Spec edge case: "the action must not be treated as complete if the audit write fails" —
+    /// here, the "action" is the refusal itself. A failed audit save must propagate rather than
+    /// be swallowed, so the caller never observes a 403 as if the audit trail had succeeded.
+    /// </summary>
+    [CoversRequirement("FR-025")]
+    [Fact]
+    public async Task HandleRequirementAsync_NonAdministratorRole_AuditWriteFails_PropagatesException()
+    {
+        var failingWriter = new FakeAuditWriter { ThrowOnSave = new InvalidOperationException("audit store unavailable") };
+
+        var act = () => EvaluateAsync(new FakeTenantContext { Role = Role.Member }, auditWriter: failingWriter);
 
         await act.Should().ThrowAsync<InvalidOperationException>();
     }

@@ -25,4 +25,21 @@ public interface IAuditWriter
     /// via <see cref="AuditEntry.Create"/>.</param>
     /// <param name="ct">Cancellation token.</param>
     Task RecordAsync(AuditEntry entry, CancellationToken ct);
+
+    /// <summary>
+    /// Stages the <paramref name="entry"/> and immediately calls <c>SaveChangesAsync</c> on the
+    /// same <c>TenancyDbContext</c>, persisting it on its own.
+    /// </summary>
+    /// <remarks>
+    /// For call sites that have no later use-case save to piggyback on in the same request — e.g.
+    /// an authorization refusal, which short-circuits the request before any use case runs — and
+    /// therefore cannot rely on <see cref="RecordAsync"/>'s "stage only, caller saves" contract.
+    /// Does not swallow save failures: if <c>SaveChangesAsync</c> throws, the exception propagates
+    /// to the caller rather than being caught here, so a refusal whose audit trail failed to
+    /// persist is never reported as if it had succeeded.
+    /// </remarks>
+    /// <param name="entry">The <see cref="AuditEntry"/> to stage and persist; expected to have
+    /// been constructed via <see cref="AuditEntry.Create"/>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    Task RecordAndSaveAsync(AuditEntry entry, CancellationToken ct);
 }

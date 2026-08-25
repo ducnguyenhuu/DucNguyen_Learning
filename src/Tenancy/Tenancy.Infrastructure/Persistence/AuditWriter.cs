@@ -38,4 +38,16 @@ public class AuditWriter : IAuditWriter
         _dbContext.AuditEntries.Add(entry);
         return Task.CompletedTask;
     }
+
+    /// <summary>
+    /// Stages <paramref name="entry"/> the same way <see cref="RecordAsync"/> does, then calls
+    /// <c>SaveChangesAsync</c> itself — for call sites (T037: authorization refusals) that have no
+    /// later use-case save in the same request to piggyback on. Any exception from
+    /// <c>SaveChangesAsync</c> propagates unhandled.
+    /// </summary>
+    public async Task RecordAndSaveAsync(AuditEntry entry, CancellationToken ct)
+    {
+        _dbContext.AuditEntries.Add(entry);
+        await _dbContext.SaveChangesAsync(ct);
+    }
 }

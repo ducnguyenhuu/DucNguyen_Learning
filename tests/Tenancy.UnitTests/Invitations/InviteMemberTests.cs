@@ -108,6 +108,9 @@ public class InviteMemberTests
             RecordedEntries.Add(entry);
             return Task.CompletedTask;
         }
+
+        public Task RecordAndSaveAsync(AuditEntry entry, CancellationToken ct) =>
+            throw new NotSupportedException("Not used by this test suite; only RecordAsync is exercised.");
     }
 
     private static InviteMember CreateUseCase(

@@ -61,6 +61,9 @@ public class GetRenameListTenantsTests
             RecordedEntries.Add(entry);
             return Task.CompletedTask;
         }
+
+        public Task RecordAndSaveAsync(AuditEntry entry, CancellationToken ct) =>
+            throw new NotSupportedException("Not used by this test suite; only RecordAsync is exercised.");
     }
 
     private sealed class FakeClock : IClock
