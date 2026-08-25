@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Tenancy.Application.Abstractions;
 using Tenancy.Domain.Abstractions;
+using Tenancy.Domain.Auditing;
 using Tenancy.Domain.Memberships;
 using Tenancy.Domain.Tenants;
 
@@ -53,15 +54,21 @@ public class ChangeMemberRole
 {
     private readonly IMembershipRepository _membershipRepository;
     private readonly ITenantContext _tenantContext;
+    private readonly IAuditWriter _auditWriter;
+    private readonly IClock _clock;
     private readonly ILogger<ChangeMemberRole> _logger;
 
     public ChangeMemberRole(
         IMembershipRepository membershipRepository,
         ITenantContext tenantContext,
+        IAuditWriter auditWriter,
+        IClock clock,
         ILogger<ChangeMemberRole> logger)
     {
         _membershipRepository = membershipRepository;
         _tenantContext = tenantContext;
+        _auditWriter = auditWriter;
+        _clock = clock;
         _logger = logger;
     }
 
@@ -93,6 +100,19 @@ public class ChangeMemberRole
 
         membership.ChangeRole(newRole);
 
+        var auditEntry = AuditEntry.Create(
+            membership.TenantId,
+            changedByUserId,
+            "membership.role_changed",
+            "Membership",
+            targetUserId.Value.ToString(),
+            _clock);
+
+        // Staged into the same TenancyDbContext instance that IMembershipRepository uses — only
+        // staged, not saved, here. SaveAsync below's own SaveChangesAsync flushes both the role
+        // change and this staged entry together, atomically. Nothing above this point has staged
+        // anything, so a NotFound/Conflict return never leaves a dangling staged entry.
+        await _auditWriter.RecordAsync(auditEntry, ct);
         await _membershipRepository.SaveAsync(membership, ct);
 
         _logger.LogInformation(

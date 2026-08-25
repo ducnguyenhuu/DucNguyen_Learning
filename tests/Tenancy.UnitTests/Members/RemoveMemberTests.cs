@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Tenancy.Application.Abstractions;
 using Tenancy.Application.Members;
 using Tenancy.Domain.Abstractions;
+using Tenancy.Domain.Auditing;
 using Tenancy.Domain.Memberships;
 using Xunit;
 
@@ -55,8 +56,24 @@ public class RemoveMemberTests
             throw new NotSupportedException("Not used by RemoveMemberTests.");
     }
 
+    private sealed class FakeAuditWriter : IAuditWriter
+    {
+        public List<AuditEntry> RecordedEntries { get; } = [];
+
+        public Task RecordAsync(AuditEntry entry, CancellationToken ct)
+        {
+            RecordedEntries.Add(entry);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeClock : IClock
+    {
+        public DateTimeOffset UtcNow => new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+    }
+
     private static RemoveMember CreateUseCase(FakeMembershipRepository repository) =>
-        new(repository, new FakeTenantContext(), NullLogger<RemoveMember>.Instance);
+        new(repository, new FakeTenantContext(), new FakeAuditWriter(), new FakeClock(), NullLogger<RemoveMember>.Instance);
 
     [CoversRequirement("FR-014")]
     [Fact]
