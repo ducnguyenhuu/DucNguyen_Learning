@@ -113,6 +113,10 @@ builder.Services.AddScoped<ListTenants>();
 // MembershipRepository's remarks) — scoped to match TenancyDbContext's own scoped lifetime.
 builder.Services.AddScoped<IMembershipRepository, MembershipRepository>();
 
+// The audit writer port — used by domain use cases to record audit entries during entity
+// change tracking, scoped to match TenancyDbContext's own scoped lifetime.
+builder.Services.AddScoped<IAuditWriter, AuditWriter>();
+
 // T076's ListMembers/RemoveMember use cases, wired here at T079 per that task's own deferral note
 // (same "port lands ahead of its use case's DI registration" shape as InviteMember et al. above).
 builder.Services.AddScoped<Tenancy.Application.Members.ListMembers>();
