@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Tenancy.Application.Abstractions;
 using Tenancy.Domain.Abstractions;
+using Tenancy.Domain.Auditing;
 
 namespace Tenancy.Application.Members;
 
@@ -51,15 +52,21 @@ public class RemoveMember
 {
     private readonly IMembershipRepository _membershipRepository;
     private readonly ITenantContext _tenantContext;
+    private readonly IAuditWriter _auditWriter;
+    private readonly IClock _clock;
     private readonly ILogger<RemoveMember> _logger;
 
     public RemoveMember(
         IMembershipRepository membershipRepository,
         ITenantContext tenantContext,
+        IAuditWriter auditWriter,
+        IClock clock,
         ILogger<RemoveMember> logger)
     {
         _membershipRepository = membershipRepository;
         _tenantContext = tenantContext;
+        _auditWriter = auditWriter;
+        _clock = clock;
         _logger = logger;
     }
 
@@ -76,8 +83,24 @@ public class RemoveMember
             return RemoveMemberResult.NotFound();
         }
 
+        var auditEntry = AuditEntry.Create(
+            membership.TenantId,
+            removedByUserId,
+            "membership.removed",
+            "Membership",
+            targetUserId.Value.ToString(),
+            _clock);
+
         try
         {
+            // Staged into the same TenancyDbContext instance that IMembershipRepository uses
+            // (both scoped DI registrations sharing the request's DbContext) — only staged, not
+            // saved, here. RemoveMembershipAsync below throws DomainException (last-administrator
+            // conflict) BEFORE its own SaveChangesAsync ever runs, so the staged entry is never
+            // flushed on the rejected path; on the success path, RemoveMembershipAsync's own
+            // SaveChangesAsync flushes both the membership removal and this staged entry together,
+            // atomically, inside its explicit transaction.
+            await _auditWriter.RecordAsync(auditEntry, ct);
             await _membershipRepository.RemoveMembershipAsync(membership.Id, ct);
         }
         catch (DomainException)
