@@ -176,9 +176,23 @@ public static class TenantEndpoints
         HttpContext httpContext,
         RenameTenantRequest request,
         RenameTenant renameTenant,
+        EnsureUserProvisioned ensureUserProvisioned,
         TenancyDbContext dbContext,
         CancellationToken ct)
     {
+        // The caller already has a proven active membership in this tenant (T035's
+        // WithTenantContextResolution ran ahead of this handler) and thus is already a
+        // provisioned User row — ProvisionCallerAsync's JIT-provisioning path is a no-op lookup
+        // here, mirroring MemberEndpoints.PatchMemberRoleAsync's identical caller resolution.
+        var caller = await ProvisionCallerAsync(httpContext, ensureUserProvisioned, ct);
+        if (caller is null)
+        {
+            return Results.Problem(
+                title: "Caller could not be resolved",
+                detail: "No usable identity claims were present on the token.",
+                statusCode: StatusCodes.Status401Unauthorized);
+        }
+
         if (!httpContext.Request.Headers.TryGetValue("If-Match", out var ifMatchValues) ||
             string.IsNullOrWhiteSpace(ifMatchValues.ToString()))
         {
@@ -228,7 +242,7 @@ public static class TenantEndpoints
         try
         {
             updated = await RenameWithOriginalRowVersionAsync(
-                dbContext, renameTenant, decodedIfMatch, request.DisplayName, ct);
+                dbContext, renameTenant, decodedIfMatch, request.DisplayName, caller.Id, ct);
         }
         catch (DomainException ex)
         {
@@ -280,6 +294,7 @@ public static class TenantEndpoints
         RenameTenant renameTenant,
         byte[] originalRowVersion,
         string newDisplayName,
+        UserId renamedByUserId,
         CancellationToken ct)
     {
         var tracked = await dbContext.Tenants
@@ -301,7 +316,7 @@ public static class TenantEndpoints
         // at all. Mirrors MemberEndpoints.PatchMemberRoleAsync's identical fix.
         trackedEntry.State = EntityState.Modified;
 
-        return await renameTenant.ExecuteAsync(newDisplayName, ct);
+        return await renameTenant.ExecuteAsync(newDisplayName, renamedByUserId, ct);
     }
 
     /// <summary>

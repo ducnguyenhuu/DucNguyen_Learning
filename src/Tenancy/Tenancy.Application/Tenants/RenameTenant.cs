@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Tenancy.Application.Abstractions;
 using Tenancy.Domain.Abstractions;
+using Tenancy.Domain.Auditing;
 using Tenancy.Domain.Tenants;
 
 namespace Tenancy.Application.Tenants;
@@ -27,11 +28,19 @@ namespace Tenancy.Application.Tenants;
 public class RenameTenant
 {
     private readonly ITenantRepository _tenantRepository;
+    private readonly IAuditWriter _auditWriter;
+    private readonly IClock _clock;
     private readonly ILogger<RenameTenant> _logger;
 
-    public RenameTenant(ITenantRepository tenantRepository, ILogger<RenameTenant> logger)
+    public RenameTenant(
+        ITenantRepository tenantRepository,
+        IAuditWriter auditWriter,
+        IClock clock,
+        ILogger<RenameTenant> logger)
     {
         _tenantRepository = tenantRepository;
+        _auditWriter = auditWriter;
+        _clock = clock;
         _logger = logger;
     }
 
@@ -40,11 +49,17 @@ public class RenameTenant
     /// Returns the updated <see cref="Tenant"/>, or <c>null</c> if it could not be found (which
     /// would indicate a bug further upstream, not this use case's concern).
     /// </summary>
+    /// <param name="newDisplayName">The new display name.</param>
+    /// <param name="renamedByUserId">The id of the already-authorized caller performing the
+    /// rename, for the audit log entry. Authorization (only an Administrator may rename) is not
+    /// this use case's concern — same division of responsibility as this class's remarks.</param>
+    /// <param name="ct">Cancellation token.</param>
     /// <exception cref="DomainException">
     /// Thrown by <see cref="Tenant.Rename"/> when <paramref name="newDisplayName"/> is null,
     /// empty, or whitespace.
     /// </exception>
-    public async Task<Tenant?> ExecuteAsync(string newDisplayName, CancellationToken ct)
+    public async Task<Tenant?> ExecuteAsync(
+        string newDisplayName, UserId renamedByUserId, CancellationToken ct)
     {
         var tenant = await _tenantRepository.GetCurrentAsync(ct);
         if (tenant is null)
@@ -56,6 +71,18 @@ public class RenameTenant
 
         tenant.Rename(newDisplayName);
 
+        var auditEntry = AuditEntry.Create(
+            tenant.Id,
+            renamedByUserId,
+            "tenant.renamed",
+            "Tenant",
+            tenant.Id.Value.ToString(),
+            _clock);
+
+        // Staged into the same TenancyDbContext instance SaveAsync uses — only staged, not
+        // saved, here. SaveAsync's own SaveChangesAsync below flushes the rename and this
+        // staged entry together, atomically.
+        await _auditWriter.RecordAsync(auditEntry, ct);
         await _tenantRepository.SaveAsync(tenant, ct);
 
         _logger.LogInformation(

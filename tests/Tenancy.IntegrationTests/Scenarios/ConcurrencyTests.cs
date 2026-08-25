@@ -230,7 +230,7 @@ public sealed class ConcurrencyTests : TenancyIntegrationTestBase
             var db = firstScope.ServiceProvider.GetRequiredService<TenancyDbContext>();
             db.CurrentTenantId = tenantId;
             var renameTenant = firstScope.ServiceProvider.GetRequiredService<RenameTenant>();
-            await renameTenant.ExecuteAsync(raceValue, TestContext.Current.CancellationToken);
+            await renameTenant.ExecuteAsync(raceValue, seed.TenantA.UserId, TestContext.Current.CancellationToken);
         }
 
         // The racing caller's own scope: requests the SAME displayName the tenant now already
@@ -242,7 +242,8 @@ public sealed class ConcurrencyTests : TenancyIntegrationTestBase
         var racingRenameTenant = racingScope.ServiceProvider.GetRequiredService<RenameTenant>();
 
         Func<Task> act = () => TenantEndpoints.RenameWithOriginalRowVersionAsync(
-            racingDb, racingRenameTenant, staleRowVersion, raceValue, TestContext.Current.CancellationToken);
+            racingDb, racingRenameTenant, staleRowVersion, raceValue, seed.TenantA.UserId,
+            TestContext.Current.CancellationToken);
 
         // Pre-fix: EF Core sees zero modified scalar properties (raceValue already equals the
         // tracked entity's current DisplayName) and skips the UPDATE entirely, so this call

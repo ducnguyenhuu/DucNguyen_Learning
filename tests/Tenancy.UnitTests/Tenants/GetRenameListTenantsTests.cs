@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Tenancy.Application.Abstractions;
 using Tenancy.Application.Tenants;
 using Tenancy.Domain.Abstractions;
+using Tenancy.Domain.Auditing;
 using Tenancy.Domain.Memberships;
 using Tenancy.Domain.Tenants;
 using Xunit;
@@ -51,6 +52,22 @@ public class GetRenameListTenantsTests
         }
     }
 
+    private sealed class FakeAuditWriter : IAuditWriter
+    {
+        public List<AuditEntry> RecordedEntries { get; } = [];
+
+        public Task RecordAsync(AuditEntry entry, CancellationToken ct)
+        {
+            RecordedEntries.Add(entry);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeClock : IClock
+    {
+        public DateTimeOffset UtcNow => new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+    }
+
     private sealed class FakeMembershipDirectory : IMembershipDirectory
     {
         public IReadOnlyList<Membership> Memberships { get; set; } = [];
@@ -83,9 +100,10 @@ public class GetRenameListTenantsTests
         {
             CurrentTenant = Tenant.Create("Acme Corp"),
         };
-        var useCase = new RenameTenant(fakeRepository, NullLogger<RenameTenant>.Instance);
+        var useCase = new RenameTenant(
+            fakeRepository, new FakeAuditWriter(), new FakeClock(), NullLogger<RenameTenant>.Instance);
 
-        var act = () => useCase.ExecuteAsync(" ", CancellationToken.None);
+        var act = () => useCase.ExecuteAsync(" ", UserId.New(), CancellationToken.None);
 
         await act.Should().ThrowAsync<DomainException>();
         fakeRepository.SaveCallCount.Should().Be(0);
@@ -101,9 +119,10 @@ public class GetRenameListTenantsTests
         {
             CurrentTenant = tenant,
         };
-        var useCase = new RenameTenant(fakeRepository, NullLogger<RenameTenant>.Instance);
+        var useCase = new RenameTenant(
+            fakeRepository, new FakeAuditWriter(), new FakeClock(), NullLogger<RenameTenant>.Instance);
 
-        var result = await useCase.ExecuteAsync("Acme Corporation", CancellationToken.None);
+        var result = await useCase.ExecuteAsync("Acme Corporation", UserId.New(), CancellationToken.None);
 
         result.Should().BeSameAs(tenant);
         result!.DisplayName.Should().Be("Acme Corporation");
