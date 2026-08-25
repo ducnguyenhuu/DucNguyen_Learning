@@ -266,7 +266,14 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         _respawner ??= await Respawner.CreateAsync(connection, new RespawnerOptions
         {
             DbAdapter = DbAdapter.SqlServer,
-            TablesToIgnore = ["__EFMigrationsHistory"],
+            // AuditEntries (T010) has a database trigger that rejects any DELETE outright — the
+            // whole point of FR-011's append-only guarantee — so Respawn's reset-via-DELETE would
+            // fail against it just like any other caller. It is intentionally excluded from the
+            // reset: audit rows accumulate across tests within a shared container instead of being
+            // wiped, which is safe today because no test asserts an exact AuditEntries row count;
+            // a future test that needs to (e.g. T011's trigger-rejection test) should scope its
+            // assertions to rows it itself inserted rather than relying on a clean table.
+            TablesToIgnore = ["__EFMigrationsHistory", "AuditEntries"],
         });
 
         await _respawner.ResetAsync(connection);

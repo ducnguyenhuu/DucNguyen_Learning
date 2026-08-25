@@ -75,6 +75,13 @@ public sealed class DependencyPinGates
         "Respawn",
         "AwesomeAssertions",
         "AwesomeAssertions.Analyzers",
+        "Microsoft.Extensions.Diagnostics.HealthChecks",
+        "AspNetCore.HealthChecks.SqlServer",
+        "OpenTelemetry",
+        "OpenTelemetry.Exporter.OpenTelemetryProtocol",
+        "OpenTelemetry.Extensions.Hosting",
+        "OpenTelemetry.Instrumentation.AspNetCore",
+        "OpenTelemetry.Instrumentation.SqlClient",
     };
 
     // Naming patterns that would identify a known AI-provider SDK if one were ever pinned. This
