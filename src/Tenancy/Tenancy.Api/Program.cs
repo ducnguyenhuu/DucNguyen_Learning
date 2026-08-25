@@ -11,6 +11,7 @@ using Tenancy.Application.Abstractions;
 using Tenancy.Application.Tenants;
 using Tenancy.Application.Users;
 using Tenancy.Domain.Abstractions;
+using Tenancy.Infrastructure.Observability;
 using Tenancy.Infrastructure.Persistence;
 using Tenancy.Infrastructure.Persistence.Audited;
 using Tenancy.Infrastructure.Persistence.Interceptors;
@@ -33,6 +34,8 @@ TokenLifetimeValidation.AssertWithinRevocationWindow(expectedMaxLifetimeMinutes)
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+builder.Services.AddTenancyObservability(builder.Configuration);
 
 // RFC 9457 global error handling (FR-022): AddExceptionHandler alone is not sufficient —
 // AddProblemDetails() supplies the ProblemDetails-writing infrastructure that the exception
