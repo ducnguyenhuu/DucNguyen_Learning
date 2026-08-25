@@ -213,4 +213,164 @@ public sealed class CorrelationIdPropagationTests : TenancyIntegrationTestBase
             "responsible for producing. Captured log messages were: " +
             $"[{string.Join(" | ", capturedLogs)}].");
     }
+
+    /// <summary>
+    /// T020: a request bearing a malformed <c>traceparent</c> header must not have that value
+    /// adopted or propagated, and must not fail — ASP.NET Core's built-in W3C Trace Context
+    /// propagator (the default <see cref="System.Diagnostics.DistributedContextPropagator"/>)
+    /// discards malformed input and generates a fresh, valid <c>TraceId</c> for the request's
+    /// root activity instead. This is FR-001's "generate fresh otherwise" half and the spec's
+    /// malformed-correlation-ID edge case.
+    /// </summary>
+    [Fact]
+    public async Task GetTenant_WithMalformedTraceparentHeader_GeneratesFreshValidTraceId()
+    {
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsAsync();
+
+        var capturedActivities = new System.Collections.Concurrent.ConcurrentQueue<Activity>();
+
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = _ => true,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) =>
+                ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = capturedActivities.Enqueue,
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        using var client = Factory.CreateClient();
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"/tenants/{seed.TenantA.TenantId.Value}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
+        request.Headers.Add("X-Test-Oid", seed.TenantA.EntraObjectId.ToString());
+        request.Headers.Add("X-Test-Tid", seed.TenantA.EntraTenantId.ToString());
+        request.Headers.Add("traceparent", "not-a-valid-traceparent");
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(
+            System.Net.HttpStatusCode.OK,
+            "a malformed traceparent header must not cause the request to be rejected or " +
+            "fail — it should simply be discarded in favor of a freshly generated trace ID.");
+
+        // Drain the response body: ASP.NET Core's HttpRequestIn activity only fires
+        // ActivityStopped once the response has been fully read. Draining alone isn't
+        // quite enough — the activity is stopped slightly after the response stream
+        // completes, on the server-side request-processing continuation — so poll
+        // briefly for it rather than asserting immediately.
+        _ = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Activity[] activities = [];
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            activities = capturedActivities.ToArray();
+            if (activities.Any(activity =>
+                activity.Kind == ActivityKind.Server
+                || activity.OperationName.Contains("Microsoft.AspNetCore", StringComparison.OrdinalIgnoreCase)
+                || activity.DisplayName.Contains("HTTP GET", StringComparison.OrdinalIgnoreCase)))
+            {
+                break;
+            }
+
+            await Task.Delay(50, TestContext.Current.CancellationToken);
+        }
+
+        var httpServerActivity = activities.FirstOrDefault(activity =>
+            activity.Kind == ActivityKind.Server
+            || activity.OperationName.Contains("Microsoft.AspNetCore", StringComparison.OrdinalIgnoreCase)
+            || activity.DisplayName.Contains("HTTP GET", StringComparison.OrdinalIgnoreCase));
+
+        httpServerActivity.Should().NotBeNull(
+            "an HTTP-server activity must exist for the request even when the incoming " +
+            "traceparent header is malformed.");
+
+        httpServerActivity!.TraceId.Should().NotBe(
+            default(ActivityTraceId),
+            "the server must generate a fresh, valid TraceId when the incoming header is " +
+            "malformed, rather than leaving it unset.");
+
+        var malformedValueAsHex = "not-a-valid-traceparent".Replace("-", string.Empty);
+        httpServerActivity.TraceId.ToHexString().Should().NotBe(
+            malformedValueAsHex,
+            "the malformed header's content must not be adopted verbatim as the TraceId — " +
+            "it must be discarded, not propagated.");
+    }
+
+    /// <summary>
+    /// T020: a request bearing a well-formed <c>traceparent</c> header must have its TraceId
+    /// adopted by the server's root activity — proving the "propagate if valid" half of FR-001,
+    /// complementing the malformed-header test above.
+    /// </summary>
+    [Fact]
+    public async Task GetTenant_WithWellFormedTraceparentHeader_AdoptsSameTraceId()
+    {
+        await Factory.InitializeDatabaseAsync();
+        var seed = await Factory.SeedTwoTenantsAsync();
+
+        var capturedActivities = new System.Collections.Concurrent.ConcurrentQueue<Activity>();
+
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = _ => true,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) =>
+                ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = capturedActivities.Enqueue,
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        var expectedTraceId = ActivityTraceId.CreateRandom().ToHexString();
+        var expectedSpanId = ActivitySpanId.CreateRandom().ToHexString();
+        var traceparentValue = $"00-{expectedTraceId}-{expectedSpanId}-01";
+
+        using var client = Factory.CreateClient();
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"/tenants/{seed.TenantA.TenantId.Value}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
+        request.Headers.Add("X-Test-Oid", seed.TenantA.EntraObjectId.ToString());
+        request.Headers.Add("X-Test-Tid", seed.TenantA.EntraTenantId.ToString());
+        request.Headers.Add("traceparent", traceparentValue);
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+        response.EnsureSuccessStatusCode();
+        // Drain the response body: ASP.NET Core's HttpRequestIn activity only fires
+        // ActivityStopped once the response has been fully read. Draining alone isn't
+        // quite enough — the activity is stopped slightly after the response stream
+        // completes, on the server-side request-processing continuation — so poll
+        // briefly for it rather than asserting immediately.
+        _ = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Activity[] activities = [];
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            activities = capturedActivities.ToArray();
+            if (activities.Any(activity =>
+                activity.Kind == ActivityKind.Server
+                || activity.OperationName.Contains("Microsoft.AspNetCore", StringComparison.OrdinalIgnoreCase)
+                || activity.DisplayName.Contains("HTTP GET", StringComparison.OrdinalIgnoreCase)))
+            {
+                break;
+            }
+
+            await Task.Delay(50, TestContext.Current.CancellationToken);
+        }
+
+        var httpServerActivity = activities.FirstOrDefault(activity =>
+            activity.Kind == ActivityKind.Server
+            || activity.OperationName.Contains("Microsoft.AspNetCore", StringComparison.OrdinalIgnoreCase)
+            || activity.DisplayName.Contains("HTTP GET", StringComparison.OrdinalIgnoreCase));
+
+        httpServerActivity.Should().NotBeNull(
+            "an HTTP-server activity must exist for the request when a well-formed " +
+            "traceparent header is supplied.");
+
+        httpServerActivity!.TraceId.ToHexString().Should().Be(
+            expectedTraceId,
+            "a well-formed incoming traceparent header's TraceId must be adopted by the " +
+            "server's root activity — this is the 'propagate if valid' half of FR-001, " +
+            $"proving W3C Trace Context propagation is in effect (traceparent sent: " +
+            $"{traceparentValue}).");
+    }
 }
