@@ -83,8 +83,27 @@ public sealed class CorrelationIdPropagationTests : TenancyIntegrationTestBase
 
         var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
         response.EnsureSuccessStatusCode();
+        // Drain the response body: ASP.NET Core's HttpRequestIn activity only fires
+        // ActivityStopped once the response has been fully read. Draining alone isn't
+        // quite enough — the activity is stopped slightly after the response stream
+        // completes, on the server-side request-processing continuation — so poll
+        // briefly for it rather than asserting immediately.
+        _ = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
-        var activities = capturedActivities.ToArray();
+        Activity[] activities = [];
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            activities = capturedActivities.ToArray();
+            if (activities.Any(activity =>
+                activity.Kind == ActivityKind.Server
+                || activity.OperationName.Contains("Microsoft.AspNetCore", StringComparison.OrdinalIgnoreCase)
+                || activity.DisplayName.Contains("HTTP GET", StringComparison.OrdinalIgnoreCase)))
+            {
+                break;
+            }
+
+            await Task.Delay(50, TestContext.Current.CancellationToken);
+        }
 
         var httpServerActivity = activities.FirstOrDefault(activity =>
             activity.Kind == ActivityKind.Server
@@ -148,8 +167,28 @@ public sealed class CorrelationIdPropagationTests : TenancyIntegrationTestBase
 
         var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
         response.EnsureSuccessStatusCode();
+        // Drain the response body: ASP.NET Core's HttpRequestIn activity only fires
+        // ActivityStopped once the response has been fully read. Draining alone isn't
+        // quite enough — the activity is stopped slightly after the response stream
+        // completes, on the server-side request-processing continuation — so poll
+        // briefly for it rather than asserting immediately.
+        _ = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
-        var activities = capturedActivities.ToArray();
+        Activity[] activities = [];
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            activities = capturedActivities.ToArray();
+            if (activities.Any(activity =>
+                activity.Kind == ActivityKind.Server
+                || activity.OperationName.Contains("Microsoft.AspNetCore", StringComparison.OrdinalIgnoreCase)
+                || activity.DisplayName.Contains("HTTP GET", StringComparison.OrdinalIgnoreCase)))
+            {
+                break;
+            }
+
+            await Task.Delay(50, TestContext.Current.CancellationToken);
+        }
+
         var httpServerActivity = activities.FirstOrDefault(activity =>
             activity.Kind == ActivityKind.Server
             || activity.OperationName.Contains("Microsoft.AspNetCore", StringComparison.OrdinalIgnoreCase)
