@@ -46,6 +46,16 @@ code convention; telemetry export failure must never fail or block a request
 **Scale/Scope**: One service today (`Tenancy`); the instrumentation approach must
 generalize to future services without rework, since ADR-011 commits to consistent
 instrumentation across every service as they arrive
+**Secrets**: The New Relic OTLP endpoint URL and ingest API key are read via
+`IConfiguration` like any other setting, but MUST NOT be committed to
+`appsettings.json`/`appsettings.Development.json` — locally via .NET User Secrets
+(existing convention), and via Azure Key Vault + workload identity once this service is
+actually deployed non-locally (Principle V), matching the pattern already used for the
+SQL Server connection string. No Key Vault or Terraform wiring exists in this repo yet
+for *any* slice (`infrastructure/terraform/` is still empty) — provisioning that
+infrastructure is out of scope for this slice and belongs to whichever slice first
+deploys a service to AKS; this slice only ensures the code path never hardcodes or logs
+the key, so it drops into that mechanism without rework.
 
 ## Constitution Check
 
@@ -57,12 +67,12 @@ instrumentation across every service as they arrive
 | II — Architectural authority | ✅ Pass | ADR-011 (OpenTelemetry) and ADR-018 (New Relic backend) already settle the instrumentation/backend questions this slice implements; no new ADR needed unless design work surfaces a genuinely new decision |
 | III — Business-capability boundaries | ✅ Pass | Audit storage lives inside `Tenancy`'s own database (`TenancyDbContext`), not a new shared service or store; no cross-service data access introduced |
 | IV — Tenant isolation | ✅ Pass | Audit entries and traces carry tenant identity for diagnostic/compliance purposes but this slice does not add new tenant-scoped read paths; existing isolation gates (spec 002) are unaffected |
-| V — Secure by default | ✅ Pass | FR-005 explicitly forbids secrets/unnecessary PII in telemetry; audit entries record actor/action/resource/time only, no credential material |
+| V — Secure by default | ✅ Pass | FR-005 explicitly forbids secrets/unnecessary PII in telemetry; audit entries record actor/action/resource/time only, no credential material; the New Relic API key is never committed to `appsettings.json` — see Technical Context "Secrets" |
 | VI — Observable by default | ✅ Pass (this slice's whole purpose) | Correlated traces/logs/metrics, health checks, immutable audit records — directly implements this principle's rules |
 | VII — Automated gates over vigilance | ✅ Pass | A new architecture-test gate is planned: no direct New Relic (or other vendor) SDK/agent reference outside the OTLP exporter package, and the append-only property is proven by an integration test attempting `UPDATE`/`DELETE` against the audit table and expecting it to fail |
 | VIII — Deterministic first | N/A | No AI capability in this slice |
 | IX — AI provider abstraction | N/A | No AI invocation in this slice |
-| X — Vertical slices | ✅ Pass | Ships working, tested, deployable instrumentation across a real service, not a technical layer with nothing observing it |
+| X — Vertical slices | ✅ Pass | Ships working, tested, deployable instrumentation across a real service, not a technical layer with nothing observing it. Non-local exporter provisioning (Key Vault, Terraform) is explicitly deferred to the slice that first deploys to AKS — no infra-as-code exists yet for any service, so this is a pre-existing scope boundary, not one this slice introduces |
 | XI — No individual measurement | ✅ Pass | Telemetry and audit entries record system/tenant/action facts, never used for individual developer evaluation |
 
 No violations requiring justification. Complexity Tracking section is not needed.

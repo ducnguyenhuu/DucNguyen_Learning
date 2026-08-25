@@ -72,3 +72,10 @@ accepted:
 Change the OTLP exporter endpoint in configuration (`OTEL_EXPORTER_OTLP_ENDPOINT` and
 the New Relic ingest API key, per ADR-018) — no code change. Confirm the same trace
 that appeared in the local Collector's console now appears in New Relic's UI.
+
+Locally, set the API key via .NET User Secrets (`dotnet user-secrets set ...`), never
+in `appsettings.json`. Once this service is actually deployed to AKS, the same key is
+read from Azure Key Vault via workload identity instead (Constitution Principle V) —
+provisioning that Key Vault entry is out of scope for this slice, since no Terraform
+exists yet for any service's non-local secrets; it belongs to whichever slice first
+deploys a service to AKS.
