@@ -100,3 +100,39 @@ V) — the `IConfiguration` read in `OpenTelemetryExtensions.cs` does not change
 where the value comes from. Provisioning that Key Vault entry is out of scope for this
 slice, since no Terraform exists yet for any service's non-local secrets; it belongs
 to whichever slice first deploys a service to AKS.
+
+## Requirement-to-test coverage
+
+This slice's tests do not use the `[CoversRequirement]` attribute that
+`tests/ArchitectureTests/RequirementCoverageGates.cs` enforces for spec 001. That gate is
+explicitly scoped to spec 001's twenty-six requirements only (see its own class remarks) —
+extending it here would also collide with FR numbering, since spec 003 reuses the same
+`FR-001`–`FR-014` identifiers as spec 001 for entirely different requirements, and the
+gate's scan has no notion of which spec a declaration belongs to. Recording the mapping
+here, by hand, avoids that collision while keeping the record next to the quickstart a
+developer already reads to exercise these requirements.
+
+| Requirement | Exercised by |
+|---|---|
+| FR-001 (correlation identifier on every span/log line, W3C format) | `tests/Tenancy.IntegrationTests/Observability/CorrelationIdPropagationTests.cs`: `GetTenant_LogLine_CarriesSameTraceId_AsItsActivity`, `GetTenant_WithWellFormedTraceparentHeader_AdoptsSameTraceId` |
+| FR-002 (correlation propagated across every boundary) | `tests/Tenancy.IntegrationTests/Observability/CorrelationIdPropagationTests.cs`: `GetTenant_ProducesOneConnectedTrace_AcrossHttpAndSqlActivities` (this slice has one service; the HTTP→SQL boundary is the only one that exists to test) |
+| FR-003 (OpenTelemetry/OTLP only, no vendor SDK/agent) | `tests/ArchitectureTests/TelemetryVendorGates.cs`: `PackageVersions_ContainNoKnownTelemetryVendorSdkNamePattern` |
+| FR-004 (tenant/user on spans/logs, never as a metric dimension) | `tests/Tenancy.IntegrationTests/Observability/TenantUserEnrichmentTests.cs` (enrichment present); `tests/ArchitectureTests/TelemetryVendorGates.cs`: `NoMetricRecordingCallIsFoundNearATenantOrUserIdentityTagLiteral` (never a metric dimension) |
+| FR-005 (no secrets/PII in telemetry) | `tests/Tenancy.IntegrationTests/Scenarios/LogHygieneTests.cs`: `AuthenticatedRequest_NeverLogsBearerTokenOrSecretHeaderValues`; `tests/Tenancy.UnitTests/Architecture/SecretExclusionTests.cs` (same discipline spec 001's FR-025 established, extended to traces/metrics per FR-005's text) |
+| FR-006 (telemetry failure never fails/blocks a request) | `tests/Tenancy.IntegrationTests/Observability/TelemetryResilienceTests.cs`: `GetTenant_SucceedsPromptly_EvenWhenOtlpExporterEndpointIsUnreachable` |
+| FR-007 (tail-based sampling, 100% of errors, configurable default 10% of successes) | No test — this is delegated entirely to the Collector's `tail_sampling` processor config (`deploy/otel-collector/config.yaml`), not application code. The application's own obligation (never sample below 100% before the Collector decides) is documented and enforced by using `AlwaysOnSampler` in `OpenTelemetryExtensions.cs`, but no automated test asserts the Collector's YAML policy itself. **Gap, called out explicitly**: this requirement's Collector-side half is unverified by any test in this solution. |
+| FR-008 (health surface: healthy/unhealthy/not-ready) | `tests/Tenancy.IntegrationTests/Observability/HealthCheckTests.cs`: `GetHealthLive_ReturnsHealthy`, `GetHealthReady_ReflectsSqlServerReachability` |
+| FR-009 (health reflects real dependency reachability) | `tests/Tenancy.IntegrationTests/Observability/HealthCheckTests.cs`: `GetHealthReady_ReflectsSqlServerReachability` |
+| FR-010 (durable audit entry for tenant-mutating actions/refusals) | `tests/Tenancy.IntegrationTests/Auditing/AuditEntryAppendOnlyTests.cs`: `Delete_ActiveMember_ProducesExactlyOneMatchingAuditEntry`, `Post_Invitation_AsNonAdministrator_IsRefused_AndProducesMatchingAuditEntry`; `tests/Tenancy.UnitTests/Auditing/AuditEntryTests.cs` |
+| FR-011 (append-only: no code path can update/delete) | `tests/Tenancy.IntegrationTests/Auditing/AuditEntryAppendOnlyTests.cs`: `DirectUpdateAndDelete_AgainstAuditEntries_AreBothRejectedByTheDatabase` |
+| FR-012 (action + audit entry written as one durable unit) | `tests/Tenancy.IntegrationTests/Auditing/AuditEntryAppendOnlyTests.cs`: `Delete_SoleAdministrator_IsRefused_AndProducesNoAuditEntry`; `tests/Tenancy.UnitTests/Members/RemoveMemberTests.cs`, `tests/Tenancy.UnitTests/Invitations/InviteMemberTests.cs` (via `FakeAuditWriter`, asserting the audit call happens in the same operation) |
+| FR-013 (audit log separate from general app logs; general logs not tamper-evident) | `tests/Tenancy.IntegrationTests/Auditing/AuditEntryAppendOnlyTests.cs` (append-only guarantee scoped to `AuditEntries` only) together with `tests/Tenancy.IntegrationTests/Scenarios/LoggingCoverageTests.cs` (general logs, no such guarantee asserted or implied) |
+| FR-013a (indefinite retention, no deletion/archival mechanism) | No test — this is an absence-of-a-feature requirement (nothing to exercise). Confirmed instead by source inspection: no deletion/archival code path exists anywhere in `src/Tenancy` for `AuditEntries`, and FR-011's gate would fail if one were added via ordinary application code. |
+| FR-014 (local Collector; switching backends is config-only) | `deploy/otel-collector/docker-compose.yml` + `deploy/otel-collector/config.yaml` (existence, exercised manually in §1 above); `OpenTelemetryExtensions.cs`'s `OtlpEndpointConfigurationKey`/`NewRelicApiKeyConfigurationKey` (no test asserts the New Relic switch itself, since that requires live New Relic credentials — see §6's static-only review note) |
+
+Two genuine gaps exist, both called out above rather than papered over: FR-007's
+Collector-side tail-sampling policy, and FR-014's New Relic backend switch, have no
+automated test — both require infrastructure (a real Collector config under test, a real
+New Relic account) that this solution's test suite does not exercise. Every other
+requirement, FR-001 through FR-013a excluding those two Collector/backend-config halves,
+has at least one test named above.

@@ -143,6 +143,22 @@ Open decisions are recorded in
 agent. U6 is partially resolved (2026-08-09): performance testing is assigned to S7; E2E and
 security test scheduling remain open.
 
+**Slice 3** — Observability — is complete:
+[spec](specs/003-observability/spec.md) ·
+[plan](specs/003-observability/plan.md) ·
+[research](specs/003-observability/research.md) ·
+[data model](specs/003-observability/data-model.md) ·
+[quickstart](specs/003-observability/quickstart.md). It shipped OpenTelemetry
+traces/metrics/logs correlated by a W3C `traceparent`-propagated identifier (present on
+every span and structured log line for a request), tenant/user enrichment on spans and
+logs only (never as a metric dimension, per ADR-018's cardinality concern), `/health/live`
+and `/health/ready` health checks reflecting real dependency reachability, a DB-trigger-
+enforced append-only audit log for tenant-mutating actions and authorization refusals, a
+local OTel Collector (`deploy/otel-collector/`) for offline development, and a New Relic
+OTLP backend switch that is configuration-only (`Observability:OtlpEndpoint` /
+`Observability:NewRelicApiKey`, read in `OpenTelemetryExtensions.cs`) — no vendor SDK/agent
+is referenced anywhere in the solution (ADR-011/ADR-018).
+
 ---
 
 *The two sections below are maintained by `.specify/scripts/bash/update-agent-context.sh`
