@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -13,6 +14,7 @@ using Tenancy.Domain.Invitations;
 using Tenancy.Domain.Memberships;
 using Tenancy.Domain.Tenants;
 using Tenancy.Domain.Users;
+using Tenancy.Infrastructure.Observability;
 using Tenancy.Infrastructure.Persistence;
 using Tenancy.Infrastructure.Persistence.Interceptors;
 
@@ -112,6 +114,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
 
     private string? _connectionString;
     private Respawner? _respawner;
+    private string? _otlpEndpointOverride;
 
     /// <summary>
     /// Every formatted log message the host has produced since construction or since
@@ -143,6 +146,19 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     }
 
     /// <summary>
+    /// Test-only hook (T024) that points the OTLP exporter at a specific endpoint instead of
+    /// whatever <c>OTEL_EXPORTER_OTLP_ENDPOINT</c>/the SDK default would otherwise resolve to.
+    /// Used by <c>TelemetryResilienceTests</c> to point the exporter at an address nothing is
+    /// listening on, so a normal request can be proven not to fail, block, or slow down when the
+    /// telemetry backend is unreachable (FR-006). Must be called (like
+    /// <see cref="UseConnectionString"/>) before the host is first built.
+    /// </summary>
+    public void UseOtlpEndpoint(string endpoint)
+    {
+        _otlpEndpointOverride = endpoint;
+    }
+
+    /// <summary>
     /// The <see cref="SignedTokenHarness"/> this factory configured the real JwtBearer scheme
     /// to trust (via <see cref="SignedTokenHarness.PublicSigningKey"/>). T047 tests mint tokens
     /// from this same instance so the token's signature always matches what the host trusts.
@@ -157,6 +173,15 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
                 $"{nameof(ApiFactory)}.{nameof(UseConnectionString)} must be called (typically " +
                 "from the consuming test class's constructor, using the SqlServerFixture assembly " +
                 "fixture injected into that constructor) before the host is built.");
+        }
+
+        if (_otlpEndpointOverride is not null)
+        {
+            builder.ConfigureAppConfiguration(configBuilder => configBuilder.AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    [OpenTelemetryExtensions.OtlpEndpointConfigurationKey] = _otlpEndpointOverride,
+                }));
         }
 
         // Registered before ConfigureServices below so every category the host logs from
