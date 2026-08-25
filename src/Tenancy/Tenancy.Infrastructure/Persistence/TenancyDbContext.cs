@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Tenancy.Domain.Abstractions;
+using Tenancy.Domain.Auditing;
 using Tenancy.Domain.Invitations;
 using Tenancy.Domain.Memberships;
 using Tenancy.Domain.Tenants;
@@ -49,6 +50,8 @@ public class TenancyDbContext : DbContext
 
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
 
+    public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
+
     /// <summary>
     /// Registers the value converters for the project's strongly-typed ID structs once, globally,
     /// rather than repeating <c>HasConversion</c> in every entity configuration — see
@@ -60,6 +63,7 @@ public class TenancyDbContext : DbContext
         configurationBuilder.Properties<UserId>().HaveConversion<UserIdConverter>();
         configurationBuilder.Properties<MembershipId>().HaveConversion<MembershipIdConverter>();
         configurationBuilder.Properties<InvitationId>().HaveConversion<InvitationIdConverter>();
+        configurationBuilder.Properties<AuditEntryId>().HaveConversion<AuditEntryIdConverter>();
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
