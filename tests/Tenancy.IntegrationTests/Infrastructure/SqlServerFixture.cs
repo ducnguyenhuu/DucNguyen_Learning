@@ -48,4 +48,17 @@ public sealed class SqlServerFixture : IAsyncLifetime
     {
         await _container.DisposeAsync();
     }
+
+    /// <summary>
+    /// Stops the shared container. Exposed only so a readiness-check test can exercise the
+    /// "SQL Server unreachable" path against a real container; callers MUST restart it (via
+    /// <see cref="StartAsync"/>) in a <c>finally</c> block, since every other test class in this
+    /// assembly shares this same container instance.
+    /// </summary>
+    public Task StopAsync() => _container.StopAsync();
+
+    /// <summary>
+    /// Restarts the shared container after <see cref="StopAsync"/>. See that method's remarks.
+    /// </summary>
+    public Task StartAsync() => _container.StartAsync();
 }
