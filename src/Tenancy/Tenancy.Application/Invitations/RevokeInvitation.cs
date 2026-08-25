@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Tenancy.Application.Abstractions;
 using Tenancy.Domain.Abstractions;
+using Tenancy.Domain.Auditing;
 using Tenancy.Domain.Invitations;
 
 namespace Tenancy.Application.Invitations;
@@ -47,15 +48,21 @@ public class RevokeInvitation
 {
     private readonly IInvitationRepository _invitationRepository;
     private readonly ITenantContext _tenantContext;
+    private readonly IAuditWriter _auditWriter;
+    private readonly IClock _clock;
     private readonly ILogger<RevokeInvitation> _logger;
 
     public RevokeInvitation(
         IInvitationRepository invitationRepository,
         ITenantContext tenantContext,
+        IAuditWriter auditWriter,
+        IClock clock,
         ILogger<RevokeInvitation> logger)
     {
         _invitationRepository = invitationRepository;
         _tenantContext = tenantContext;
+        _auditWriter = auditWriter;
+        _clock = clock;
         _logger = logger;
     }
 
@@ -81,6 +88,18 @@ public class RevokeInvitation
             return RevokeInvitationResult.Conflict();
         }
 
+        var auditEntry = AuditEntry.Create(
+            _tenantContext.TenantId,
+            revokedByUserId,
+            "invitation.revoked",
+            "Invitation",
+            invitation.Id.Value.ToString(),
+            _clock);
+
+        // Staged into the same TenancyDbContext instance SaveAsync uses — only staged, not
+        // saved, here. SaveAsync's own SaveChangesAsync below flushes the revoked status and
+        // this staged entry together, atomically.
+        await _auditWriter.RecordAsync(auditEntry, ct);
         await _invitationRepository.SaveAsync(invitation, ct);
 
         _logger.LogInformation(

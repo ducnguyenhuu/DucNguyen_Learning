@@ -5,6 +5,7 @@ using Tenancy.Application.Abstractions;
 using Tenancy.Application.Invitations;
 using Tenancy.Application.Users;
 using Tenancy.Domain.Abstractions;
+using Tenancy.Domain.Auditing;
 using Tenancy.Domain.Invitations;
 using Tenancy.Domain.Memberships;
 using Tenancy.Domain.Users;
@@ -98,12 +99,27 @@ public class AcceptInvitationTests
         return Invitation.Create(TestTenantId, email, Role.Member, tokenHash, expiresAtUtc);
     }
 
+    private sealed class FakeAuditWriter : IAuditWriter
+    {
+        public List<AuditEntry> RecordedEntries { get; } = [];
+
+        public Task RecordAsync(AuditEntry entry, CancellationToken ct)
+        {
+            RecordedEntries.Add(entry);
+            return Task.CompletedTask;
+        }
+    }
+
     private static AcceptInvitation CreateUseCase(
-        FakeInvitationRepository invitationRepository, FakeUserRepository? userRepository = null, FakeClock? clock = null) =>
+        FakeInvitationRepository invitationRepository,
+        FakeUserRepository? userRepository = null,
+        FakeClock? clock = null,
+        FakeAuditWriter? auditWriter = null) =>
         new(
             invitationRepository,
             new EnsureUserProvisioned(userRepository ?? new FakeUserRepository()),
             clock ?? new FakeClock(),
+            auditWriter ?? new FakeAuditWriter(),
             NullLogger<AcceptInvitation>.Instance);
 
     [CoversRequirement("FR-012")]

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Tenancy.Application.Abstractions;
 using Tenancy.Application.Users;
 using Tenancy.Domain.Abstractions;
+using Tenancy.Domain.Auditing;
 using Tenancy.Domain.Invitations;
 using Tenancy.Domain.Memberships;
 
@@ -68,17 +69,20 @@ public class AcceptInvitation
     private readonly IInvitationRepository _invitationRepository;
     private readonly EnsureUserProvisioned _ensureUserProvisioned;
     private readonly IClock _clock;
+    private readonly IAuditWriter _auditWriter;
     private readonly ILogger<AcceptInvitation> _logger;
 
     public AcceptInvitation(
         IInvitationRepository invitationRepository,
         EnsureUserProvisioned ensureUserProvisioned,
         IClock clock,
+        IAuditWriter auditWriter,
         ILogger<AcceptInvitation> logger)
     {
         _invitationRepository = invitationRepository;
         _ensureUserProvisioned = ensureUserProvisioned;
         _clock = clock;
+        _auditWriter = auditWriter;
         _logger = logger;
     }
 
@@ -133,6 +137,22 @@ public class AcceptInvitation
 
         var membership = Membership.Create(invitation.TenantId, caller.Id, invitation.Role);
 
+        // TenantId is invitation.TenantId, NOT _tenantContext.TenantId — this use case runs with
+        // no ambient tenant context at all (the third ADR-017 exception), so there is no
+        // ITenantContext to read from; invitation.TenantId is known once the invitation row was
+        // found above.
+        var auditEntry = AuditEntry.Create(
+            invitation.TenantId,
+            caller.Id,
+            "invitation.accepted",
+            "Invitation",
+            invitation.Id.Value.ToString(),
+            _clock);
+
+        // Staged into the same TenancyDbContext instance SaveAcceptedAsync uses — only staged,
+        // not saved, here. SaveAcceptedAsync's own SaveChangesAsync below flushes the invitation
+        // status change, the new membership, and this staged entry together, atomically.
+        await _auditWriter.RecordAsync(auditEntry, ct);
         await _invitationRepository.SaveAcceptedAsync(invitation, membership, ct);
 
         _logger.LogInformation(

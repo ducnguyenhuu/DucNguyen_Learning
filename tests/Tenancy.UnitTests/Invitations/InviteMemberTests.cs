@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Tenancy.Application.Abstractions;
 using Tenancy.Application.Invitations;
 using Tenancy.Domain.Abstractions;
+using Tenancy.Domain.Auditing;
 using Tenancy.Domain.Invitations;
 using Xunit;
 
@@ -98,16 +99,29 @@ public class InviteMemberTests
         }
     }
 
+    private sealed class FakeAuditWriter : IAuditWriter
+    {
+        public List<AuditEntry> RecordedEntries { get; } = [];
+
+        public Task RecordAsync(AuditEntry entry, CancellationToken ct)
+        {
+            RecordedEntries.Add(entry);
+            return Task.CompletedTask;
+        }
+    }
+
     private static InviteMember CreateUseCase(
         FakeInvitationRepository repository,
         FakeTenantContext? tenantContext = null,
         FakeClock? clock = null,
-        FakeInvitationDeliverySink? deliverySink = null) =>
+        FakeInvitationDeliverySink? deliverySink = null,
+        FakeAuditWriter? auditWriter = null) =>
         new(
             repository,
             tenantContext ?? new FakeTenantContext(),
             clock ?? new FakeClock(),
             deliverySink ?? new FakeInvitationDeliverySink(),
+            auditWriter ?? new FakeAuditWriter(),
             NullLogger<InviteMember>.Instance);
 
     [CoversRequirement("FR-011")]

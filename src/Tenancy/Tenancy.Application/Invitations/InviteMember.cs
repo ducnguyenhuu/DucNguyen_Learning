@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Tenancy.Application.Abstractions;
 using Tenancy.Domain.Abstractions;
+using Tenancy.Domain.Auditing;
 using Tenancy.Domain.Invitations;
 
 namespace Tenancy.Application.Invitations;
@@ -66,6 +67,7 @@ public class InviteMember
     private readonly ITenantContext _tenantContext;
     private readonly IClock _clock;
     private readonly IInvitationDeliverySink _deliverySink;
+    private readonly IAuditWriter _auditWriter;
     private readonly ILogger<InviteMember> _logger;
 
     public InviteMember(
@@ -73,12 +75,14 @@ public class InviteMember
         ITenantContext tenantContext,
         IClock clock,
         IInvitationDeliverySink deliverySink,
+        IAuditWriter auditWriter,
         ILogger<InviteMember> logger)
     {
         _invitationRepository = invitationRepository;
         _tenantContext = tenantContext;
         _clock = clock;
         _deliverySink = deliverySink;
+        _auditWriter = auditWriter;
         _logger = logger;
     }
 
@@ -121,8 +125,25 @@ public class InviteMember
         var expiresAtUtc = _clock.UtcNow + TimeSpan.FromDays(7);
         var invitation = Invitation.Create(_tenantContext.TenantId, email, role, tokenHashBase64, expiresAtUtc);
 
+        var auditEntry = AuditEntry.Create(
+            _tenantContext.TenantId,
+            invitedByUserId,
+            "invitation.issued",
+            "Invitation",
+            invitation.Id.Value.ToString(),
+            _clock);
+
         try
         {
+            // Staged before AddAsync, into the same TenancyDbContext instance AddAsync uses —
+            // AddAsync's own SaveChangesAsync call is what would surface a genuine race-lost
+            // unique-constraint violation (see IInvitationRepository.AddAsync's implementation:
+            // it calls SaveChangesAsync itself, catching DbUpdateException and translating it to
+            // ConcurrencyConflictException). Confirmed by reading InvitationRepository.AddAsync
+            // directly: on that path, SaveChangesAsync itself throws, so EF Core rolls back the
+            // entire unit of work — nothing is committed, including this staged entry. There is
+            // no window where the audit entry is persisted but the invitation insert is not.
+            await _auditWriter.RecordAsync(auditEntry, ct);
             await _invitationRepository.AddAsync(invitation, ct);
         }
         catch (ConcurrencyConflictException)
