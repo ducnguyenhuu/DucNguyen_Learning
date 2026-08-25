@@ -1,8 +1,10 @@
 services:
   otel-collector:
-    image: otel/opentelemetry-collector:latest
+    image: otel/opentelemetry-collector-contrib:latest
     container_name: otel-collector
     command: ["--config=/etc/otelcol/config.yaml"]
+    environment:
+      - SAMPLE_RATE=${SAMPLE_RATE:-10}
     volumes:
       - ./config.yaml:/etc/otelcol/config.yaml:ro
     ports:

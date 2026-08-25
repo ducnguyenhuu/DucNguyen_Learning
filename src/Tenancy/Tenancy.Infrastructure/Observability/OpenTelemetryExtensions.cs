@@ -22,6 +22,14 @@ public static class OpenTelemetryExtensions
         services.AddOpenTelemetry()
             .ConfigureResource(resource => resource.AddService(ServiceName))
             .WithTracing(tracing => tracing
+                // Tail-based sampling (FR-007) is decided by the Collector's
+                // tail_sampling processor, which needs every span for a trace
+                // to evaluate the error/success outcome after the fact. The
+                // app itself must therefore never drop spans: explicitly use
+                // AlwaysOnSampler rather than relying on the SDK's default
+                // (which is also AlwaysOn, but implicit) so this invariant is
+                // visible and can't regress silently.
+                .SetSampler(new AlwaysOnSampler())
                 .AddAspNetCoreInstrumentation()
                 .AddSqlClientInstrumentation()
                 .AddOtlpExporter())
