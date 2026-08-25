@@ -6,7 +6,9 @@ using Tenancy.Api.Authorization;
 using Tenancy.Api.Configuration;
 using Tenancy.Api.Endpoints;
 using Tenancy.Api.ErrorHandling;
+using Tenancy.Api.HealthChecks;
 using Tenancy.Api.Middleware;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Tenancy.Application.Abstractions;
 using Tenancy.Application.Tenants;
 using Tenancy.Application.Users;
@@ -154,6 +156,23 @@ builder.Services.AddAuthorization(options =>
 });
 builder.Services.AddScoped<IAuthorizationHandler, AdministratorOnlyAuthorizationHandler>();
 
+// T028: FR-008's /health/ready dependency check. Uses the connectionStringFactory overload
+// (resolved per check execution, from the request-scoped IServiceProvider health checks run
+// under) rather than a string captured once at startup, so this always reuses whatever
+// connection string TenancyDbContext is actually configured with right now — including
+// Tenancy.IntegrationTests' ApiFactory, which repoints TenancyDbContext's DbContextOptions at its
+// test container after Program.cs's own registration above runs. Capturing
+// builder.Configuration.GetConnectionString("TenancyDb") once here would silently go stale in
+// that scenario (and in general, if the connection string could ever change post-startup).
+// Tagged "ready" so /health/live's route mapping (T030) can select "run no checks at all" via a
+// predicate that simply never matches this tag, while /health/ready's mapping selects it via a
+// predicate that does.
+builder.Services.AddHealthChecks()
+    .AddSqlServer(
+        sp => sp.GetRequiredService<TenancyDbContext>().Database.GetConnectionString()!,
+        name: "sqlserver",
+        tags: ["ready"]);
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -210,6 +229,25 @@ app.UseAuthentication();
 app.UseUserIdentityEnrichment();
 
 app.UseAuthorization();
+
+// T030: FR-008's liveness/readiness probes. Mapped outside any authorization requirement (and
+// explicitly .AllowAnonymous()'d) since infrastructure probes (load balancers, orchestrators)
+// have no credentials to present — see contracts/health-endpoints.md. /health/live's predicate
+// matches no registered check (not even the "ready"-tagged SQL Server one) so liveness never
+// depends on SQL Server; /health/ready's predicate selects exactly the "ready"-tagged check(s).
+// Both use HealthCheckResponseWriter (T029) for the response body; ResultStatusCodes' own default
+// already maps HealthStatus.Unhealthy to 503, so /health/ready gets that for free.
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false,
+    ResponseWriter = HealthCheckResponseWriter.WriteResponse,
+}).AllowAnonymous();
+
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = HealthCheckResponseWriter.WriteResponse,
+}).AllowAnonymous();
 
 // T058: the four /tenants endpoints wiring together T032-T057.
 app.MapTenantEndpoints();
