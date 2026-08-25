@@ -176,6 +176,11 @@ if (app.Environment.IsDevelopment())
     await db.Database.MigrateAsync();
 }
 
+// FR-001's log-correlation half (T021): pushes the request's TraceId into an ILogger scope for
+// the whole pipeline. Registered before UseExceptionHandler() so log lines emitted while
+// producing an error response are correlated too, not just the happy path.
+app.UseTraceCorrelationLogging();
+
 // Registered before UseAuthentication()/UseAuthorization() (and everything else) so it catches
 // unhandled exceptions thrown anywhere downstream in the pipeline, including auth/authz.
 app.UseExceptionHandler();
