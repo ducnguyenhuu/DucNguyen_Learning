@@ -202,6 +202,13 @@ app.Use((context, next) =>
 });
 
 app.UseAuthentication();
+
+// FR-004's user-identity enrichment half (T022): tags Activity.Current and pushes a log scope
+// for every authenticated request, regardless of whether the endpoint ever resolves a tenant
+// context (the three ADR-017-exempt operations included). Registered after UseAuthentication()
+// so context.User is populated, and before UseAuthorization() so the enrichment covers 403s too.
+app.UseUserIdentityEnrichment();
+
 app.UseAuthorization();
 
 // T058: the four /tenants endpoints wiring together T032-T057.

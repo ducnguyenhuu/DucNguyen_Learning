@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -148,7 +149,21 @@ public sealed class TenantContextResolutionMiddleware : IEndpointFilter
             user.Id,
             membership.Role);
 
-        return await next(context);
+        // FR-004's tenant-identity enrichment half (T022): tenant identity is only known from
+        // this point on, so it is tagged/scoped here — nested inside the user-id scope
+        // UserIdentityEnrichmentMiddleware already pushed further up the pipeline — rather than
+        // in classic middleware, which cannot see this filter's resolved TenantId at all.
+        Activity.Current?.SetTag("tenant.id", candidateTenantId.Value.ToString());
+
+        var tenantLogger = httpContext.RequestServices
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger(typeof(TenantContextResolutionMiddleware).FullName!);
+
+        using (tenantLogger.BeginScope(
+            new Dictionary<string, object?> { ["TenantId"] = candidateTenantId.Value.ToString() }))
+        {
+            return await next(context);
+        }
     }
 
     /// <summary>
