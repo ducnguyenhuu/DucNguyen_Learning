@@ -254,18 +254,18 @@ blocked, confirm the local Collector still receives and displays telemetry.
 
 ### Tests for User Story 4
 
-- [ ] T038 [US4] Quickstart-driven manual verification: follow
+- [x] T038 [US4] Quickstart-driven manual verification: follow
   `specs/003-observability/quickstart.md` §1–2 with the local Collector as the only
   configured exporter target and no route to any external endpoint; confirm spans and
   correlated logs appear in the Collector's console output
 
 ### Implementation for User Story 4
 
-- [ ] T039 [US4] Default `OpenTelemetryExtensions`'s exporter endpoint to the local
+- [x] T039 [US4] Default `OpenTelemetryExtensions`'s exporter endpoint to the local
   Collector (`deploy/otel-collector/`) via configuration, with the New Relic endpoint
   as an alternative value only (never a code branch) — confirm switching between them
   needs no code change (depends on T013, T003; makes SC-006 true)
-- [ ] T039a [US4] Read the New Relic OTLP endpoint URL and ingest API key through
+- [x] T039a [US4] Read the New Relic OTLP endpoint URL and ingest API key through
   `IConfiguration` only — never hardcoded, never added to
   `src/Tenancy/Tenancy.Api/appsettings.json` or `appsettings.Development.json`; set the
   local override via .NET User Secrets (existing convention, matching how the SQL

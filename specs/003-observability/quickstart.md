@@ -69,13 +69,34 @@ accepted:
 
 ## 6. Switch to the New Relic backend (non-local)
 
-Change the OTLP exporter endpoint in configuration (`OTEL_EXPORTER_OTLP_ENDPOINT` and
-the New Relic ingest API key, per ADR-018) — no code change. Confirm the same trace
-that appeared in the local Collector's console now appears in New Relic's UI.
+Change the OTLP exporter endpoint and ingest API key in configuration only — no code
+change. `OpenTelemetryExtensions.cs` reads both via `IConfiguration`:
 
-Locally, set the API key via .NET User Secrets (`dotnet user-secrets set ...`), never
-in `appsettings.json`. Once this service is actually deployed to AKS, the same key is
-read from Azure Key Vault via workload identity instead (Constitution Principle V) —
-provisioning that Key Vault entry is out of scope for this slice, since no Terraform
-exists yet for any service's non-local secrets; it belongs to whichever slice first
-deploys a service to AKS.
+- `Observability:OtlpEndpoint` — the OTLP endpoint URL. Leave unset for local dev
+  (the OpenTelemetry .NET SDK then defaults to `http://localhost:4317`, the local
+  Collector); set it to New Relic's OTLP endpoint (`https://otlp.nr-data.net:4317`) to
+  switch backends.
+- `Observability:NewRelicApiKey` — New Relic's "Ingest - License Key". When present and
+  non-empty, it is sent as the OTLP exporter's `api-key` header (New Relic's documented
+  OTLP ingest convention). When absent (the local-dev default), no such header is added
+  and the exporter talks to the local Collector exactly as before.
+
+Set both locally via .NET User Secrets for the `Tenancy.Api` project — never in
+`appsettings.json` or `appsettings.Development.json` (Constitution Principle V):
+
+```bash
+dotnet user-secrets set "Observability:OtlpEndpoint" "https://otlp.nr-data.net:4317" \
+  --project src/Tenancy/Tenancy.Api
+dotnet user-secrets set "Observability:NewRelicApiKey" "<your-ingest-license-key>" \
+  --project src/Tenancy/Tenancy.Api
+```
+
+Confirm the same trace that appeared in the local Collector's console now appears in
+New Relic's UI.
+
+Once this service is actually deployed to AKS, the same two configuration keys are
+resolved from Azure Key Vault via workload identity instead (Constitution Principle
+V) — the `IConfiguration` read in `OpenTelemetryExtensions.cs` does not change, only
+where the value comes from. Provisioning that Key Vault entry is out of scope for this
+slice, since no Terraform exists yet for any service's non-local secrets; it belongs
+to whichever slice first deploys a service to AKS.

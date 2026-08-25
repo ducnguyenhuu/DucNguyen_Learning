@@ -18,13 +18,32 @@ public static class OpenTelemetryExtensions
     private const string ServiceName = "Tenancy";
 
     /// <summary>
-    /// Configuration key a test host can set (via an in-memory
-    /// <see cref="IConfiguration"/> source added before the host is built) to point the OTLP
-    /// exporter at a specific endpoint, overriding the SDK's own default/env-var resolution.
-    /// Production configuration should leave this unset and rely on the standard
-    /// <c>OTEL_EXPORTER_OTLP_ENDPOINT</c> environment variable instead.
+    /// Configuration key that points the OTLP exporter at a specific endpoint, overriding the
+    /// OpenTelemetry .NET SDK's own default/env-var resolution (which otherwise defaults to
+    /// <c>http://localhost:4317</c> or honors <c>OTEL_EXPORTER_OTLP_ENDPOINT</c>). A test host
+    /// sets this via an in-memory <see cref="IConfiguration"/> source added before the host is
+    /// built; it is equally the mechanism for switching between the local Collector
+    /// (`deploy/otel-collector/`) and New Relic's OTLP endpoint in any environment — always a
+    /// configuration change, never a code branch. Left unset, the SDK's own default applies
+    /// (the local Collector for local dev).
     /// </summary>
     public const string OtlpEndpointConfigurationKey = "Observability:OtlpEndpoint";
+
+    /// <summary>
+    /// Configuration key for the New Relic OTLP ingest API key (New Relic's documented
+    /// "Ingest - License Key" type). Read via <see cref="IConfiguration"/> only — never
+    /// hardcoded and never present in <c>appsettings.json</c>/<c>appsettings.Development.json</c>
+    /// (Constitution Principle V). Locally this is set via .NET User Secrets for the
+    /// <c>Tenancy.Api</c> project, matching the existing convention for the SQL Server
+    /// connection string (see quickstart.md §6). Once this service is deployed to AKS, the
+    /// same key is resolved from Azure Key Vault via workload identity instead — the
+    /// <see cref="IConfiguration"/> read here does not change, only where the value comes
+    /// from (infrastructure/deployment concern, not application code).
+    /// When unset (the local-dev default), no header is added and the exporter talks to the
+    /// local Collector exactly as before — switching backends is a configuration change only,
+    /// never a code branch.
+    /// </summary>
+    public const string NewRelicApiKeyConfigurationKey = "Observability:NewRelicApiKey";
 
     public static IServiceCollection AddTenancyObservability(
         this IServiceCollection services,
@@ -53,14 +72,24 @@ public static class OpenTelemetryExtensions
             options.ExportProcessorType = ExportProcessorType.Batch;
             options.TimeoutMilliseconds = 10_000;
 
-            // Test-only override hook (see OtlpEndpointConfigurationKey): production
-            // configuration has no such key, so this is a no-op outside tests and the SDK's
+            // Endpoint override hook (see OtlpEndpointConfigurationKey). A test host sets this
+            // via an in-memory configuration source; local dev leaves it unset, so the SDK's
             // normal endpoint resolution (OTEL_EXPORTER_OTLP_ENDPOINT env var, else
-            // http://localhost:4317) applies unchanged.
+            // http://localhost:4317) applies unchanged and points at the local Collector.
             var endpointOverride = configuration[OtlpEndpointConfigurationKey];
             if (!string.IsNullOrWhiteSpace(endpointOverride))
             {
                 options.Endpoint = new Uri(endpointOverride);
+            }
+
+            // New Relic's OTLP ingest requires the license key sent as an "api-key" header
+            // (New Relic's documented OTLP setup, not a code branch — see
+            // NewRelicApiKeyConfigurationKey). Absent locally, so this is a no-op and the
+            // exporter talks to the local Collector without any header, as before.
+            var newRelicApiKey = configuration[NewRelicApiKeyConfigurationKey];
+            if (!string.IsNullOrWhiteSpace(newRelicApiKey))
+            {
+                options.Headers = $"api-key={newRelicApiKey}";
             }
         }
 
