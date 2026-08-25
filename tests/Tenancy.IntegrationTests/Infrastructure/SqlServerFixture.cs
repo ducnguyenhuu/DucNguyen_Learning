@@ -37,6 +37,16 @@ public sealed class SqlServerFixture : IAsyncLifetime
     /// Connection string to the running SQL Server container. Consumed by <c>ApiFactory</c>
     /// (T042) to point <c>TenancyDbContext</c> at this container for integration tests.
     /// </summary>
+    /// <remarks>
+    /// Read this fresh (not cached) after calling <see cref="StopAsync"/>/<see cref="StartAsync"/>
+    /// — Docker assigns a new random host port on each restart of a stopped container, confirmed
+    /// empirically, so the string this returns changes across a stop/start cycle. This is not a
+    /// problem for other test classes in the assembly: each one only reads this property (via
+    /// <see cref="TenancyIntegrationTestBase"/>'s constructor) when its own <c>ApiFactory</c> is
+    /// first built, which — because <c>[assembly: CollectionBehavior(DisableTestParallelization =
+    /// true)]</c> above serializes every class against every other — never happens concurrently
+    /// with a restart in progress.
+    /// </remarks>
     public string ConnectionString => _container.GetConnectionString();
 
     public async ValueTask InitializeAsync()
@@ -58,7 +68,40 @@ public sealed class SqlServerFixture : IAsyncLifetime
     public Task StopAsync() => _container.StopAsync();
 
     /// <summary>
-    /// Restarts the shared container after <see cref="StopAsync"/>. See that method's remarks.
+    /// Restarts the shared container after <see cref="StopAsync"/>, then blocks until SQL
+    /// Server inside it is actually accepting connections before returning.
     /// </summary>
-    public Task StartAsync() => _container.StartAsync();
+    /// <remarks>
+    /// <c>MsSqlBuilder</c>'s built-in wait strategy (an <c>sqlcmd SELECT 1</c> probe) only runs
+    /// as part of the container's very first start; a bare <c>_container.StartAsync()</c> after
+    /// a stop returns as soon as Docker reports the container running, which can be measurably
+    /// before SQL Server itself has finished coming back up inside it — confirmed empirically:
+    /// callers that immediately open a connection after a bare restart can hit "connection
+    /// refused". Re-running the same probe here closes that gap.
+    /// </remarks>
+    public async Task StartAsync()
+    {
+        await _container.StartAsync();
+
+        var deadline = DateTime.UtcNow.AddSeconds(60);
+        while (true)
+        {
+            var result = await _container.ExecAsync(
+                ["/opt/mssql-tools18/bin/sqlcmd", "-C", "-Q", "SELECT 1;"]);
+
+            if (result.ExitCode == 0)
+            {
+                return;
+            }
+
+            if (DateTime.UtcNow >= deadline)
+            {
+                throw new TimeoutException(
+                    "SQL Server did not become ready within 60 seconds of restarting the " +
+                    "shared Testcontainer.");
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(1));
+        }
+    }
 }
