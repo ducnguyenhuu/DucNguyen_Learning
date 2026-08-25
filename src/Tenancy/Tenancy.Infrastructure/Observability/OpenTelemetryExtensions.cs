@@ -21,7 +21,10 @@ public static class OpenTelemetryExtensions
     {
         services.AddOpenTelemetry()
             .ConfigureResource(resource => resource.AddService(ServiceName))
-            .WithTracing(tracing => tracing.AddOtlpExporter())
+            .WithTracing(tracing => tracing
+                .AddAspNetCoreInstrumentation()
+                .AddSqlClientInstrumentation()
+                .AddOtlpExporter())
             .WithMetrics(metrics => metrics.AddOtlpExporter())
             .WithLogging(logging => { }, options => options.AddOtlpExporter());
 
