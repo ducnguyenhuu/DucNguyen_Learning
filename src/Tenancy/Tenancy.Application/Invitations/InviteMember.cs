@@ -8,30 +8,30 @@ namespace Tenancy.Application.Invitations;
 
 /// <summary>
 /// Invites a prospective member to join the current tenant by email (FR-020), for
-/// <c>POST /tenants/{tenantId}/invitations</c> (T078 wires the endpoint — this is
-/// application-layer only). The first use case operating on the <see cref="Invitation"/>
+/// <c>POST /tenants/{tenantId}/invitations</c> (the endpoint wiring is application-layer only,
+/// not part of this use case). The first use case operating on the <see cref="Invitation"/>
 /// aggregate.
 /// </summary>
 /// <remarks>
 /// <para>
 /// <b>409 conflicts:</b> two invariants are checked, in this order, before anything is persisted
 /// — "already an active member" and "already has a pending invitation" — both signalled by
-/// throwing <see cref="ConflictException"/> (T071 introduces this <see cref="DomainException"/>
-/// subtype specifically so the API layer, T078, can map it to <c>409 Conflict</c> rather than the
+/// throwing <see cref="ConflictException"/> (a dedicated <see cref="DomainException"/>
+/// subtype so the API layer can map it to <c>409 Conflict</c> rather than the
 /// generic <see cref="DomainException"/>-to-<c>400</c> mapping <c>TenantEndpoints</c> already
 /// uses). The "already pending" check is also backed by the database's own
 /// <c>UNIQUE (TenantId, Email) WHERE Status = 'Pending'</c> constraint per data-model.md — see
 /// <see cref="ExecuteAsync"/>'s handling of <see cref="ConcurrencyConflictException"/> from
-/// <see cref="IInvitationRepository.AddAsync"/> for the race backstop, following
-/// <c>EnsureUserProvisioned</c> (T036) and <c>IdempotencyFilter</c> (T056)'s established
-/// insert-and-catch-duplicate pattern. The "already an active member" check has no equivalent DB
+/// <see cref="IInvitationRepository.AddAsync"/> for the race backstop, following the
+/// established insert-and-catch-duplicate pattern also used by <c>EnsureUserProvisioned</c>
+/// and <c>IdempotencyFilter</c>. The "already an active member" check has no equivalent DB
 /// race backstop here — a concurrent membership creation is a materially different, much rarer
 /// race (it would require a separate concurrent invite-acceptance) not addressed by this task.
 /// </para>
 /// <para>
-/// <b>Token handling:</b> <see cref="InvitationToken.Generate"/> (T070) returns the raw,
+/// <b>Token handling:</b> <see cref="InvitationToken.Generate"/> returns the raw,
 /// base64url-encoded token — returned once, in <see cref="InviteMemberResult.RawToken"/>, for the
-/// caller (ultimately T078's response body) to hand to the invitee. Only
+/// caller (ultimately the endpoint's response body) to hand to the invitee. Only
 /// <see cref="InvitationToken.Hash"/>'s <c>byte[32]</c> output is ever persisted, via
 /// <see cref="Invitation.TokenHash"/>.
 /// </para>
@@ -43,7 +43,7 @@ namespace Tenancy.Application.Invitations;
 /// <see cref="Convert.ToBase64String(byte[])"/> (standard base64, not the base64url
 /// <see cref="InvitationToken"/> itself uses for the raw token — this value is never a URL
 /// segment, only a persisted, opaque column value, so there is no need to avoid <c>+</c>/<c>/</c>
-/// /<c>=</c>). This mirrors <c>RowVersionETag</c>'s (T057) precedent of representing a
+/// /<c>=</c>). This mirrors <c>RowVersionETag</c>'s precedent of representing a
 /// fixed-length byte array as text for a boundary that expects <see langword="string"/> —
 /// <c>RowVersionETag</c> uses base64 for the <c>ETag</c> HTTP-header boundary; this use case uses
 /// it for the domain constructor's <see langword="string"/>-typed parameter boundary.
@@ -55,7 +55,7 @@ namespace Tenancy.Application.Invitations;
 /// </para>
 /// <para>
 /// <b>Logging and email (FR-025):</b> this logs the invited email address, unlike
-/// <c>EnsureUserProvisioned</c>/T059's auth-event logging, which deliberately omits email as
+/// <c>EnsureUserProvisioned</c>'s auth-event logging, which deliberately omits email as
 /// "unnecessary personal data" for that scope. An invitation's entire purpose is the invited
 /// address — omitting it from FR-025's audit trail here would make the log entry useless for
 /// answering "who invited whom" — so it is logged deliberately, not by oversight.
@@ -162,7 +162,7 @@ public class InviteMember
             invitation.TenantId,
             invitedByUserId);
 
-        // T080/Assumption 8's "delivery" seam — a dev-time stand-in today, a real email send
+        // Assumption 8's "delivery" seam — a dev-time stand-in today, a real email send
         // later, both behind the same port. Called only after the invitation is durably
         // persisted above, never before.
         await _deliverySink.DeliverAsync(email, rawToken, ct);
@@ -174,7 +174,7 @@ public class InviteMember
 /// <summary>
 /// The result of <see cref="InviteMember.ExecuteAsync"/>: the created, pending
 /// <see cref="Invitation"/> together with the raw token, returned once. Callers (ultimately
-/// T078's endpoint) must surface <see cref="RawToken"/> to the invitee immediately — it is never
+/// the invitation endpoint) must surface <see cref="RawToken"/> to the invitee immediately — it is never
 /// recoverable again, since only its hash (<see cref="Invitation.TokenHash"/>) is persisted.
 /// </summary>
 /// <param name="Invitation">The created, pending invitation.</param>

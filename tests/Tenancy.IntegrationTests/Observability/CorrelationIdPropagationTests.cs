@@ -7,11 +7,9 @@ using Xunit;
 namespace Tenancy.IntegrationTests.Observability;
 
 /// <summary>
-/// T015/T016 (Phase 3, User Story 1): tests written before the corresponding instrumentation
-/// tasks (T019-T021) exist, per this codebase's TDD convention. They are expected to fail today
-/// because no ASP.NET Core/SqlClient OpenTelemetry auto-instrumentation is wired into
-/// <c>AddTenancyObservability</c> yet (see <c>OpenTelemetryExtensions</c>) — that wiring is
-/// T019's job. Do not "fix" these tests by adding that instrumentation here.
+/// Verifies that ASP.NET Core/SqlClient OpenTelemetry auto-instrumentation, wired into
+/// <c>AddTenancyObservability</c> (see <c>OpenTelemetryExtensions</c>), correctly correlates
+/// activities and log lines for a single request.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -27,7 +25,7 @@ namespace Tenancy.IntegrationTests.Observability;
 /// check, same as OpenTelemetry's own SDK would).
 /// </para>
 /// <para>
-/// <b>What T015 actually needs from T019, and why it may or may not fail today.</b> The
+/// <b>What the trace-connectivity assertion depends on.</b> The
 /// correctness property under test is "the HTTP-server activity and the SQL-client activity for
 /// one request share a single <c>TraceId</c>" — trace *connectivity*, not merely that either
 /// activity individually exists. ASP.NET Core's hosting <see cref="Activity"/> establishes the
@@ -36,12 +34,10 @@ namespace Tenancy.IntegrationTests.Observability;
 /// <see cref="Activity.Current"/> flowing correctly through the async call chain from the
 /// controller/endpoint into the EF Core/SqlClient call — something the .NET runtime's ambient
 /// <see cref="Activity.Current"/> propagation generally does on its own via
-/// <see cref="System.Threading.ExecutionContext"/>, with no OpenTelemetry involvement at all. So
-/// this test's TraceId-sharing assertion may already pass today purely from framework-level
-/// ambient activity propagation, even before T019 wires OpenTelemetry's own
-/// AddAspNetCoreInstrumentation/AddSqlClientInstrumentation packages — see this class's actual
-/// test run output (reported alongside this file) for which outcome actually occurred, reported
-/// honestly either way per this task's brief.
+/// <see cref="System.Threading.ExecutionContext"/>, with no OpenTelemetry involvement at all. This
+/// TraceId-sharing assertion is therefore reinforced by both the runtime's ambient activity
+/// propagation and OpenTelemetry's own
+/// AddAspNetCoreInstrumentation/AddSqlClientInstrumentation packages.
 /// </para>
 /// </remarks>
 public sealed class CorrelationIdPropagationTests : TenancyIntegrationTestBase
@@ -52,7 +48,7 @@ public sealed class CorrelationIdPropagationTests : TenancyIntegrationTestBase
     }
 
     /// <summary>
-    /// T015: a request that touches the database (<c>GET /tenants/{tenantId}</c>, an existing
+    /// A request that touches the database (<c>GET /tenants/{tenantId}</c>, an existing
     /// endpoint from spec 001/002) must produce one connected trace — at least one HTTP-server
     /// activity and at least one SQL-client activity, all sharing the same <c>TraceId</c>.
     /// </summary>
@@ -121,21 +117,21 @@ public sealed class CorrelationIdPropagationTests : TenancyIntegrationTestBase
 
         sqlClientActivity.Should().NotBeNull(
             "the request touches the database (GetTenant reads via EF Core/SqlClient), so a " +
-            "SQL-client activity must exist — this is the piece T019's SqlClient " +
+            "SQL-client activity must exist — this is the piece the SqlClient " +
             $"instrumentation is responsible for; captured activities were: " +
             $"[{string.Join(", ", activities.Select(a => $"{a.Source.Name}/{a.OperationName}"))}].");
 
         sqlClientActivity!.TraceId.Should().Be(
             httpServerActivity!.TraceId,
             "the HTTP-server activity and the SQL-client activity for one request must share a " +
-            "single TraceId to form one connected trace — this is the property T019's " +
+            "single TraceId to form one connected trace — this is the property the " +
             "instrumentation wiring produces.");
     }
 
     /// <summary>
-    /// T016: the structured log line for a request must carry the same <c>TraceId</c> as its
-    /// corresponding span/activity. Uses <see cref="ApiFactory.CapturedLogMessages"/> (T053's
-    /// existing log-capture mechanism) alongside an <see cref="ActivityListener"/> capturing the
+    /// The structured log line for a request must carry the same <c>TraceId</c> as its
+    /// corresponding span/activity. Uses <see cref="ApiFactory.CapturedLogMessages"/> (the
+    /// log-capture mechanism) alongside an <see cref="ActivityListener"/> capturing the
     /// request's HTTP-server activity.
     /// </summary>
     [Fact]
@@ -208,14 +204,14 @@ public sealed class CorrelationIdPropagationTests : TenancyIntegrationTestBase
         capturedLogs.Should().Contain(
             message => message.Contains(traceId, StringComparison.OrdinalIgnoreCase),
             "the structured log line for this request must carry the same TraceId " +
-            $"({traceId}) as its corresponding HTTP-server activity — this is what T019-T021's " +
+            $"({traceId}) as its corresponding HTTP-server activity — this is what the " +
             "OpenTelemetry logging wiring (trace-context-aware log formatting/enrichment) is " +
             "responsible for producing. Captured log messages were: " +
             $"[{string.Join(" | ", capturedLogs)}].");
     }
 
     /// <summary>
-    /// T020: a request bearing a malformed <c>traceparent</c> header must not have that value
+    /// A request bearing a malformed <c>traceparent</c> header must not have that value
     /// adopted or propagated, and must not fail — ASP.NET Core's built-in W3C Trace Context
     /// propagator (the default <see cref="System.Diagnostics.DistributedContextPropagator"/>)
     /// discards malformed input and generates a fresh, valid <c>TraceId</c> for the request's
@@ -299,7 +295,7 @@ public sealed class CorrelationIdPropagationTests : TenancyIntegrationTestBase
     }
 
     /// <summary>
-    /// T020: a request bearing a well-formed <c>traceparent</c> header must have its TraceId
+    /// A request bearing a well-formed <c>traceparent</c> header must have its TraceId
     /// adopted by the server's root activity — proving the "propagate if valid" half of FR-001,
     /// complementing the malformed-header test above.
     /// </summary>

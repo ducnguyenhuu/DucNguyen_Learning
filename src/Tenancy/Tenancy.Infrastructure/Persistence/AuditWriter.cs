@@ -41,7 +41,7 @@ public class AuditWriter : IAuditWriter
 
     /// <summary>
     /// Stages <paramref name="entry"/> the same way <see cref="RecordAsync"/> does, then calls
-    /// <c>SaveChangesAsync</c> itself — for call sites (T037: authorization refusals) that have no
+    /// <c>SaveChangesAsync</c> itself — for call sites (authorization refusals) that have no
     /// later use-case save in the same request to piggyback on. Any exception from
     /// <c>SaveChangesAsync</c> propagates unhandled.
     /// </summary>

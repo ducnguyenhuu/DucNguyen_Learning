@@ -9,29 +9,29 @@ namespace Tenancy.Application.Members;
 
 /// <summary>
 /// Changes a member's (by <c>userId</c>) role within the current tenant, for
-/// <c>PATCH /tenants/{tenantId}/members/{userId}</c> (T087 wires the endpoint — this is
-/// application-layer only). Administrator-only per the contract; that authorization check, and
+/// <c>PATCH /tenants/{tenantId}/members/{userId}</c> (the endpoint wiring is application-layer
+/// only, not part of this use case). Administrator-only per the contract; that authorization check, and
 /// all <c>If-Match</c>/<c>RowVersion</c> precondition handling, are deliberately not this use
 /// case's concern — see the remarks below.
 /// </summary>
 /// <remarks>
 /// <para>
 /// <b>Scope boundary — no <c>If-Match</c> here:</b> mirroring <c>RenameTenant</c>/
-/// <c>TenantEndpoints.cs</c>'s established split (T055/T058) and <c>RemoveMember</c>'s (T076) own
+/// <c>TenantEndpoints.cs</c>'s established split and <c>RemoveMember</c>'s own
 /// precedent for this exact division, the <c>RowVersion</c>/<c>If-Match</c> precondition
-/// disambiguation (412-vs-409) is T087's job at the endpoint layer. This use case is the
+/// disambiguation (412-vs-409) is the endpoint layer's job, not this use case's. This use case is the
 /// business-logic layer beneath that: given a target <see cref="UserId"/> and a new
 /// <see cref="Role"/>, resolve the target's active membership, resolve all active memberships in
-/// the tenant, apply T074's <see cref="TenantAdministration.EnsureRoleChangeAllowed"/> guard, call
+/// the tenant, apply the <see cref="TenantAdministration.EnsureRoleChangeAllowed"/> guard, call
 /// <see cref="Membership.ChangeRole"/>, and persist via
 /// <see cref="IMembershipRepository.SaveAsync"/>. It deliberately takes no
-/// <c>RowVersion</c>/<c>If-Match</c> parameter — T087's endpoint is expected to have already
+/// <c>RowVersion</c>/<c>If-Match</c> parameter — the endpoint is expected to have already
 /// pinned the tracked entity's original <c>RowVersion</c> before calling
 /// <see cref="ExecuteAsync"/>, exactly as <c>TenantEndpoints.cs</c>'s
 /// <c>RenameWithOriginalRowVersionAsync</c> does for <c>Tenant</c>.
 /// </para>
 /// <para>
-/// <b>404 vs. 409, mirroring <c>RemoveMember</c>'s (T076) precedent:</b> a <c>userId</c> with no
+/// <b>404 vs. 409, mirroring <c>RemoveMember</c>'s precedent:</b> a <c>userId</c> with no
 /// active membership in the current tenant maps to
 /// <see cref="ChangeMemberRoleResultKind.NotFound"/> (404) — resolved via
 /// <see cref="IMembershipRepository.GetActiveMembershipForUserAsync"/>, which is already scoped to
@@ -43,7 +43,7 @@ namespace Tenancy.Application.Members;
 /// <see cref="DomainException"/>, except here the guard is evaluated in this use case rather than
 /// inside the repository, since no concurrency-sensitive counting is required (unlike
 /// <c>RemoveMembershipAsync</c>'s race-guarded write, this use case's save is a plain
-/// <c>SaveChangesAsync</c> whose own optimistic-concurrency check is T087's concern).
+/// <c>SaveChangesAsync</c> whose own optimistic-concurrency check is the endpoint's concern).
 /// </para>
 /// <para>
 /// <b>Logging (FR-025):</b> logs the tenant id, the acting administrator's user id, the target
@@ -129,7 +129,7 @@ public class ChangeMemberRole
 
 /// <summary>
 /// The outcome of <see cref="ChangeMemberRole.ExecuteAsync"/>. See
-/// <see cref="ChangeMemberRoleResultKind"/> for how the API layer (T087) is expected to map each
+/// <see cref="ChangeMemberRoleResultKind"/> for how the API layer is expected to map each
 /// kind to an HTTP status.
 /// </summary>
 public record ChangeMemberRoleResult(ChangeMemberRoleResultKind Kind, Membership? Membership = null)

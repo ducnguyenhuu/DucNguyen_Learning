@@ -14,10 +14,10 @@ using Xunit;
 namespace Tenancy.UnitTests.Invitations;
 
 /// <summary>
-/// Unit tests for <see cref="AcceptInvitation"/> (T072), using hand-rolled in-memory fakes of
+/// Unit tests for <see cref="AcceptInvitation"/>, using hand-rolled in-memory fakes of
 /// <see cref="IInvitationRepository"/>/<see cref="IUserRepository"/>/<see cref="IClock"/> —
-/// following <c>InviteMemberTests</c>' (T071) and <c>CreateTenantTests</c>' (T054) established
-/// convention.
+/// following the established convention from <c>InviteMemberTests</c> and
+/// <c>CreateTenantTests</c>.
 /// </summary>
 public class AcceptInvitationTests
 {

@@ -35,7 +35,7 @@ public sealed class SqlServerFixture : IAsyncLifetime
 
     /// <summary>
     /// Connection string to the running SQL Server container. Consumed by <c>ApiFactory</c>
-    /// (T042) to point <c>TenancyDbContext</c> at this container for integration tests.
+    /// to point <c>TenancyDbContext</c> at this container for integration tests.
     /// </summary>
     /// <remarks>
     /// Read this fresh (not cached) after calling <see cref="StopAsync"/>/<see cref="StartAsync"/>

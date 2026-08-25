@@ -7,7 +7,7 @@ namespace Tenancy.UnitTests.Auditing;
 
 /// <summary>
 /// Failing (red) unit tests specifying the public API of the not-yet-implemented
-/// <see cref="AuditEntry"/> entity (Task T005). These tests define the contract:
+/// <see cref="AuditEntry"/> entity. These tests define the contract:
 /// - Static factory <c>AuditEntry.Create(TenantId? tenantId, UserId? actorUserId, string action,
 ///   string resourceType, string resourceId, IClock clock)</c> creates a new audit entry with
 ///   <c>OccurredAtUtc</c> read from <paramref name="clock"/>'s current time — never

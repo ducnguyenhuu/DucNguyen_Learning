@@ -6,7 +6,7 @@ using Xunit;
 namespace Tenancy.IntegrationTests.Observability;
 
 /// <summary>
-/// T022 (Phase 3, User Story 1): FR-004's span/log enrichment with tenant and user identity
+/// FR-004's span/log enrichment with tenant and user identity
 /// "when known at the point of emission." Two enrichment points exist at two different pipeline
 /// depths — <see cref="Tenancy.Api.Middleware.UserIdentityEnrichmentMiddleware"/> (registered
 /// right after <c>app.UseAuthentication()</c>, so it fires for every authenticated request) and

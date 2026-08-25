@@ -42,11 +42,21 @@ public static class HealthCheckResponseWriter
             context.RequestAborted);
     }
 
+    /// <summary>
+    /// Never surfaces <see cref="HealthReportEntry.Exception"/>'s message: both health routes are
+    /// anonymous, and exception text (e.g. a SQL connection failure) routinely carries
+    /// server/instance/network detail. Only the curated <see cref="HealthReportEntry.Description"/>
+    /// is exposed — the same discipline <c>ProblemDetailsHandler</c> (spec 001) applies to error
+    /// responses. An unhealthy check with no description falls back to a fixed generic string
+    /// rather than ever reaching for the exception.
+    /// </summary>
     private static object BuildCheck(string name, HealthReportEntry entry)
     {
-        var description = entry.Exception?.Message ?? entry.Description;
+        var description = entry.Status == HealthStatus.Healthy
+            ? entry.Description
+            : (string.IsNullOrEmpty(entry.Description) ? "Health check failed" : entry.Description);
 
-        return description is null
+        return string.IsNullOrEmpty(description)
             ? new { name, status = entry.Status.ToString() }
             : new { name, status = entry.Status.ToString(), description };
     }

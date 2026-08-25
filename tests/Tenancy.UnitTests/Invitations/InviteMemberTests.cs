@@ -11,9 +11,9 @@ using Xunit;
 namespace Tenancy.UnitTests.Invitations;
 
 /// <summary>
-/// Unit tests for <see cref="InviteMember"/> (T071), using hand-rolled in-memory fakes of
+/// Unit tests for <see cref="InviteMember"/>, using hand-rolled in-memory fakes of
 /// <see cref="IInvitationRepository"/>/<see cref="ITenantContext"/>/<see cref="IClock"/> —
-/// following <c>CreateTenantTests</c>' (T054) established convention. No real database is needed
+/// following the established convention from <c>CreateTenantTests</c>. No real database is needed
 /// to verify this use case's own logic (the two 409 pre-checks, the 7-day expiry math, and the
 /// raw-token-returned-once contract); whether the persistence layer actually enforces the
 /// database-level unique-constraint race backstop is an Infrastructure-level concern, not this
@@ -153,7 +153,7 @@ public class InviteMemberTests
         result.Invitation.TokenHash.Should().Be(Convert.ToBase64String(InvitationToken.Hash(result.RawToken)));
         result.Invitation.TokenHash.Should().NotBe(result.RawToken);
 
-        // T080: delivery is attempted exactly once, after persistence, with the recipient and
+        // Delivery is attempted exactly once, after persistence, with the recipient and
         // the real raw token (the same one returned to the caller above) — not the persisted hash.
         deliverySink.CallCount.Should().Be(1);
         deliverySink.LastRecipient.Should().Be(email);

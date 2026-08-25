@@ -6,15 +6,25 @@ using Xunit;
 namespace Tenancy.IntegrationTests.Observability;
 
 /// <summary>
-/// T026 + T027 (Phase 4, User Story 2), FR-008: liveness and readiness endpoints for
-/// infrastructure probes, per <c>specs/003-observability/contracts/health-endpoints.md</c>.
+/// FR-008: liveness and readiness endpoints for infrastructure probes, per
+/// <c>specs/003-observability/contracts/health-endpoints.md</c>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Written before the routes exist.</b> No health-check middleware/endpoints are registered
-/// yet — that is T028/T030 (separate, later tasks). Both tests here are expected to fail against
-/// the current codebase (404 Not Found, since neither route exists), and will start passing once
-/// T028/T030 land.
+/// <b>Coverage of FR-008's three states.</b> This class exercises "healthy"
+/// (<see cref="GetHealthLive_ReturnsHealthy"/>, and the first half of
+/// <see cref="GetHealthReady_ReflectsSqlServerReachability"/>) and "unhealthy, dependency named"
+/// (the second half of the same test, via the SQL Server container stop/restart below). The
+/// third state — "not-yet-ready" (startup/initialization incomplete) — is deliberately not
+/// exercised end-to-end here: <c>Program.cs</c> marks <c>StartupState</c> ready before
+/// <c>app.Run()</c> starts listening, so there is no window in which an HTTP client (including
+/// <c>ApiFactory</c>'s in-memory <c>TestServer</c>) can observe the process while that flag is
+/// still false — the race this state exists to cover is over before the server accepts its first
+/// request. That state's logic (does the health check report the right status/description given
+/// the flag's value) is instead covered by a focused unit test:
+/// <c>tests/Tenancy.UnitTests/Observability/StartupHealthCheckTests.cs</c>. See
+/// <c>specs/003-observability/quickstart.md</c>'s requirement-coverage table for FR-008, which
+/// cites both.
 /// </para>
 /// <para>
 /// <b>Why the SQL Server container is stopped and restarted inside a single test.</b> The
@@ -40,8 +50,9 @@ public sealed class HealthCheckTests : TenancyIntegrationTestBase
     }
 
     /// <summary>
-    /// T026: <c>/health/live</c> reports the process is up, unconditionally — it is not supposed
-    /// to depend on SQL Server (or anything else) being reachable.
+    /// <c>/health/live</c> reports the process is up, unconditionally — it is not supposed to
+    /// depend on SQL Server (or anything else, including the "startup" check) being reachable
+    /// or complete.
     /// </summary>
     [Fact]
     public async Task GetHealthLive_ReturnsHealthy()
@@ -62,10 +73,10 @@ public sealed class HealthCheckTests : TenancyIntegrationTestBase
     }
 
     /// <summary>
-    /// T027: <c>/health/ready</c> reports 200 Healthy (naming <c>"sqlserver"</c>) while SQL
-    /// Server is reachable, then 503 Unhealthy (still naming <c>"sqlserver"</c>) once the shared
-    /// container is stopped — and restores the container before returning, via
-    /// <c>try/finally</c>, so no other test in the assembly is affected.
+    /// <c>/health/ready</c> reports 200 Healthy (naming <c>"sqlserver"</c>) while SQL Server is
+    /// reachable, then 503 Unhealthy (still naming <c>"sqlserver"</c>) once the shared container
+    /// is stopped — and restores the container before returning, via <c>try/finally</c>, so no
+    /// other test in the assembly is affected.
     /// </summary>
     [Fact]
     public async Task GetHealthReady_ReflectsSqlServerReachability()
@@ -82,6 +93,7 @@ public sealed class HealthCheckTests : TenancyIntegrationTestBase
         var healthyBody = await healthyResponse.Content.ReadAsStringAsync(
             TestContext.Current.CancellationToken);
         healthyBody.Should().Contain("sqlserver");
+        healthyBody.Should().Contain("startup");
         healthyBody.Should().Contain("Healthy");
 
         try

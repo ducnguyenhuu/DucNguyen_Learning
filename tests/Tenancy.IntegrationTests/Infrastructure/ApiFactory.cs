@@ -21,9 +21,9 @@ using Tenancy.Infrastructure.Persistence.Interceptors;
 namespace Tenancy.IntegrationTests.Infrastructure;
 
 /// <summary>
-/// The shared test host for Tenancy integration tests. Ties together T039
-/// (<see cref="SqlServerFixture"/>), T040 (<see cref="TestAuthHandler"/>) and T041
-/// (<see cref="SignedTokenHarness"/>) into one running <see cref="WebApplicationFactory{TEntryPoint}"/>.
+/// The shared test host for Tenancy integration tests. Ties together
+/// <see cref="SqlServerFixture"/>, <see cref="TestAuthHandler"/> and
+/// <see cref="SignedTokenHarness"/> into one running <see cref="WebApplicationFactory{TEntryPoint}"/>.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -49,16 +49,17 @@ namespace Tenancy.IntegrationTests.Infrastructure;
 /// </list>
 /// <para>
 /// This is exactly the "have <c>ApiFactory</c> itself expose a method/property to receive the
-/// connection string post-construction" option flagged in T042's task brief, chosen deliberately
-/// over the unverified constructor-injection alternative.
+/// connection string post-construction" option, chosen deliberately over the unverified
+/// constructor-injection alternative.
 /// </para>
 /// <para>
-/// <b>Dual auth scheme wiring.</b> Production (<c>Program.cs</c>, T032) registers a single
+/// <b>Dual auth scheme wiring.</b> Production (<c>Program.cs</c>) registers a single
 /// scheme: real JwtBearer under <see cref="JwtBearerDefaults.AuthenticationScheme"/> ("Bearer"),
 /// backed by live Entra metadata. Tests need two different things from that one scheme slot:
 /// Tier 1 tests (most tests) want <see cref="TestAuthHandler"/>'s zero-network, header-driven
-/// identity; Tier 2 tests (T047) want the *real* JwtBearer handler and validation pipeline,
-/// fed a controlled signing key instead of live Entra metadata (<see cref="SignedTokenHarness"/>).
+/// identity; Tier 2 tests (the signed-token negative-validation tests) want the *real* JwtBearer
+/// handler and validation pipeline, fed a controlled signing key instead of live Entra metadata
+/// (<see cref="SignedTokenHarness"/>).
 /// </para>
 /// <para>
 /// Both schemes are registered simultaneously — <c>"TestScheme"</c>
@@ -70,8 +71,8 @@ namespace Tenancy.IntegrationTests.Infrastructure;
 /// scheme prefix on each request and forwards to whichever real scheme matches: a header of
 /// <c>"Bearer &lt;jwt&gt;"</c> forwards to the real JwtBearer handler; anything else (including
 /// <c>"TestScheme oid=...;tid=..."</c> or any other prefix) forwards to <see cref="TestAuthHandler"/>.
-/// This is the "choose via the <c>Authorization</c> header scheme prefix" option from the task
-/// brief: a test opts into Tier 2 purely by setting
+/// This is the "choose via the <c>Authorization</c> header scheme prefix" option: a test opts
+/// into Tier 2 purely by setting
 /// <c>request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jwt)</c> instead of
 /// the Tier 1 <c>X-Test-Oid</c>/<c>X-Test-Tid</c> headers — no per-test host reconfiguration, no
 /// second <c>ApiFactory</c> instance, and no risk of the two tiers silently interfering because
@@ -79,12 +80,12 @@ namespace Tenancy.IntegrationTests.Infrastructure;
 /// </para>
 /// <para>
 /// The real JwtBearer scheme's <see cref="Microsoft.IdentityModel.Protocols.ConfigurationManager{T}"/>
-/// and <c>Authority</c> are nulled out (per T041's brief) so no live Entra metadata fetch is ever
-/// attempted in-process; its
+/// and <c>Authority</c> are nulled out so no live Entra metadata fetch is ever attempted
+/// in-process; its
 /// <see cref="Microsoft.IdentityModel.Tokens.TokenValidationParameters.IssuerSigningKey"/> is
 /// pointed at <see cref="SignedTokenHarness.PublicSigningKey"/>, and issuer/audience validation is
-/// pinned to <see cref="ExpectedIssuer"/>/<see cref="ExpectedAudience"/> so T047's tokens can
-/// deliberately mismatch those values to exercise the negative-validation paths.
+/// pinned to <see cref="ExpectedIssuer"/>/<see cref="ExpectedAudience"/> so the negative-validation
+/// tests can deliberately mismatch those values to exercise those paths.
 /// </para>
 /// </remarks>
 public sealed class ApiFactory : WebApplicationFactory<Program>
@@ -98,14 +99,14 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     /// <summary>
     /// The <c>ValidIssuer</c> the real JwtBearer scheme is configured to accept in this test
     /// host. <see cref="SignedTokenHarness.MintToken"/> callers should pass this value for the
-    /// happy path, and a different value to exercise T047's "wrong issuer" negative case.
+    /// happy path, and a different value to exercise the "wrong issuer" negative case.
     /// </summary>
     public const string ExpectedIssuer = "https://login.microsoftonline.com/test-tenant/v2.0";
 
     /// <summary>
     /// The <c>ValidAudience</c> the real JwtBearer scheme is configured to accept in this test
     /// host. <see cref="SignedTokenHarness.MintToken"/> callers should pass this value for the
-    /// happy path, and a different value to exercise T047's "wrong audience" negative case.
+    /// happy path, and a different value to exercise the "wrong audience" negative case.
     /// </summary>
     public const string ExpectedAudience = "api://tenancy-test";
 
@@ -118,7 +119,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
 
     /// <summary>
     /// Every formatted log message the host has produced since construction or since
-    /// <see cref="ClearCapturedLogs"/> was last called (T053). See
+    /// <see cref="ClearCapturedLogs"/> was last called. See
     /// <see cref="CapturingLoggerProvider"/>'s remarks for why messages are captured as
     /// fully-formatted strings shared across all log categories.
     /// </summary>
@@ -134,8 +135,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     public void ClearCapturedLogs() => _loggerProvider.Clear();
 
     /// <summary>
-    /// Receives the running container's connection string from <see cref="SqlServerFixture"/>
-    /// (T039). Must be called by every test class's constructor before this factory's host is
+    /// Receives the running container's connection string from <see cref="SqlServerFixture"/>.
+    /// Must be called by every test class's constructor before this factory's host is
     /// first built (i.e. before <see cref="WebApplicationFactory{TEntryPoint}.CreateClient"/> or
     /// <c>Server</c> is touched) — see the type-level remarks for why this replaces relying on
     /// constructor injection of the assembly fixture directly into <see cref="ApiFactory"/>.
@@ -146,7 +147,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     }
 
     /// <summary>
-    /// Test-only hook (T024) that points the OTLP exporter at a specific endpoint instead of
+    /// Test-only hook that points the OTLP exporter at a specific endpoint instead of
     /// whatever <c>OTEL_EXPORTER_OTLP_ENDPOINT</c>/the SDK default would otherwise resolve to.
     /// Used by <c>TelemetryResilienceTests</c> to point the exporter at an address nothing is
     /// listening on, so a normal request can be proven not to fail, block, or slow down when the
@@ -160,7 +161,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
 
     /// <summary>
     /// The <see cref="SignedTokenHarness"/> this factory configured the real JwtBearer scheme
-    /// to trust (via <see cref="SignedTokenHarness.PublicSigningKey"/>). T047 tests mint tokens
+    /// to trust (via <see cref="SignedTokenHarness.PublicSigningKey"/>). Tier 2 tests mint tokens
     /// from this same instance so the token's signature always matches what the host trusts.
     /// </summary>
     public SignedTokenHarness TokenHarness => _tokenHarness;
@@ -186,7 +187,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
 
         // Registered before ConfigureServices below so every category the host logs from
         // (ASP.NET Core's own request/hosting diagnostics, Microsoft.Identity.Web, etc.) is
-        // captured by CapturingLoggerProvider (T053) in addition to whatever providers the host
+        // captured by CapturingLoggerProvider in addition to whatever providers the host
         // would otherwise use — this augments, it does not replace, default logging.
         builder.ConfigureLogging(logging => logging.AddProvider(_loggerProvider));
 
@@ -233,7 +234,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             });
 
             // 3. Point the real JwtBearer scheme at the SignedTokenHarness's public key instead
-            // of live Entra metadata (T041's brief: never fetch OIDC metadata in tests).
+            // of live Entra metadata — tests never fetch OIDC metadata.
             services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
             {
                 // Authority null (and MetadataAddress left at its own unset default) means
@@ -254,8 +255,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     }
 
     /// <summary>
-    /// Applies the <c>InitialTenancy</c> migration (T030) against the container's database.
-    /// Per T031's project-wide constraint, this must never be replaced with
+    /// Applies the <c>InitialTenancy</c> migration against the container's database.
+    /// Per this project's constraint on schema setup, this must never be replaced with
     /// <c>EnsureCreated()</c> — see <c>TenancyDbContext</c>'s remarks for why.
     /// </summary>
     public async Task InitializeDatabaseAsync()
@@ -274,8 +275,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     /// </summary>
     /// <remarks>
     /// This method exists so test base classes/fixtures (e.g. an <c>IAsyncLifetime.DisposeAsync</c>
-    /// hook in a later task) have a reset mechanism to call between tests. No such call site is
-    /// wired up yet in this task, since T043 is the first test class.
+    /// hook) have a reset mechanism to call between tests.
     /// </remarks>
     public async Task ResetDatabaseAsync()
     {
@@ -291,13 +291,13 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         _respawner ??= await Respawner.CreateAsync(connection, new RespawnerOptions
         {
             DbAdapter = DbAdapter.SqlServer,
-            // AuditEntries (T010) has a database trigger that rejects any DELETE outright — the
+            // AuditEntries has a database trigger that rejects any DELETE outright — the
             // whole point of FR-011's append-only guarantee — so Respawn's reset-via-DELETE would
             // fail against it just like any other caller. It is intentionally excluded from the
             // reset: audit rows accumulate across tests within a shared container instead of being
-            // wiped, which is safe today because no test asserts an exact AuditEntries row count;
-            // a future test that needs to (e.g. T011's trigger-rejection test) should scope its
-            // assertions to rows it itself inserted rather than relying on a clean table.
+            // wiped, which is safe because no test asserts an exact AuditEntries row count;
+            // any trigger-rejection test should scope its assertions to rows it itself inserted
+            // rather than relying on a clean table.
             TablesToIgnore = ["__EFMigrationsHistory", "AuditEntries"],
         });
 
@@ -306,7 +306,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
 
     /// <summary>
     /// Seeds two independent tenants, each with exactly one distinct, active member — the
-    /// fixture every cross-tenant isolation test (starting with T043) builds on. Returns enough
+    /// fixture every cross-tenant isolation test builds on. Returns enough
     /// identifying information for a test to authenticate as Tenant A's user (via
     /// <see cref="TestAuthHandler"/>'s <c>X-Test-Oid</c>/<c>X-Test-Tid</c> headers, populated from
     /// <see cref="SeededTenant.EntraObjectId"/>/<see cref="SeededTenant.EntraTenantId"/>) and then
@@ -330,13 +330,13 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             entraObjectId: Guid.CreateVersion7(),
             email: new EmailAddress("member-b@tenant-b.example.com"));
 
-        // T088: each is the sole member of their own tenant, so — mirroring real
+        // Each is the sole member of their own tenant, so — mirroring real
         // CreateTenant/CreateTenantAsync behavior, where the creator becomes Administrator —
-        // both are seeded as Administrator rather than Member. Several pre-existing tests using
+        // both are seeded as Administrator rather than Member. Several tests using
         // this fixture exercise administrator-only operations (PATCH /tenants/{tenantId}, invite,
-        // etc.) that only became role-gated once T088 wired the TenantAdministrator policy;
+        // etc.) that are role-gated by the TenantAdministrator policy;
         // Administrator is a strict superset of what those tests' non-administrator-agnostic
-        // assertions (isolation/"not Forbidden" checks) already required, so this does not weaken
+        // assertions (isolation/"not Forbidden" checks) require, so this does not weaken
         // any existing assertion.
         var membershipA = Membership.Create(tenantA.Id, userA.Id, Role.Administrator);
         var membershipB = Membership.Create(tenantB.Id, userB.Id, Role.Administrator);
@@ -344,7 +344,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         db.Tenants.AddRange(tenantA, tenantB);
         db.Users.AddRange(userA, userB);
 
-        // TenantSaveChangesInterceptor (T017) unconditionally stamps every newly-added
+        // TenantSaveChangesInterceptor unconditionally stamps every newly-added
         // ITenantOwned entity's TenantId with the context's ambient CurrentTenantId before it
         // hits the database — it does not trust whatever TenantId the entity was constructed
         // with. CurrentTenantId defaults to TenantId.Empty until something sets it, so batching
@@ -370,7 +370,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
 
     /// <summary>
     /// Seeds two independent tenants and <b>one</b> <see cref="User"/> with an active
-    /// <see cref="Membership"/> in <b>each</b> tenant — the fixture T049's multi-tenant
+    /// <see cref="Membership"/> in <b>each</b> tenant — the fixture the multi-tenant
     /// membership test builds on. Unlike <see cref="SeedTwoTenantsAsync"/> (distinct members
     /// per tenant), this models a single real user who legitimately belongs to both tenants, so
     /// a test can authenticate once (via <see cref="TestAuthHandler"/>'s
@@ -383,7 +383,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     /// <remarks>
     /// <b>Why two <c>SaveChangesAsync</c> calls, each preceded by setting
     /// <see cref="TenancyDbContext.CurrentTenantId"/>.</b> <see cref="TenantSaveChangesInterceptor"/>
-    /// (T017's write-side isolation guard) stamps <b>every</b> newly-added <c>ITenantOwned</c>
+    /// (the write-side isolation guard) stamps <b>every</b> newly-added <c>ITenantOwned</c>
     /// entity's <c>TenantId</c> with the context's ambient <c>CurrentTenantId</c> before it hits
     /// the database — it does not trust whatever <c>TenantId</c> the caller constructed the
     /// entity with. A single batched save (as <see cref="SeedTwoTenantsAsync"/> does) works there
@@ -430,7 +430,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     /// <summary>
     /// Seeds the same two-tenant/two-member fixture as <see cref="SeedTwoTenantsAsync"/>, plus
     /// one genuinely-persisted, still-<see cref="InvitationStatus.Pending"/>
-    /// <see cref="Invitation"/> in Tenant B — the fixture T062's invitation-isolation tests
+    /// <see cref="Invitation"/> in Tenant B — the fixture the invitation-isolation tests
     /// (invite/list/revoke) build on so that a cross-tenant "revoke Tenant B's invitation via
     /// Tenant A's route" attempt targets an invitation id that legitimately exists, rather than
     /// one that is merely absent.
@@ -501,7 +501,7 @@ public sealed record SeededTenant(
 
 /// <summary>
 /// Two independent, seeded tenants with distinct members, as produced by
-/// <see cref="ApiFactory.SeedTwoTenantsAsync"/>. Tenant A's member is the caller in T043's
+/// <see cref="ApiFactory.SeedTwoTenantsAsync"/>. Tenant A's member is the caller in the
 /// cross-tenant read attempt against Tenant B.
 /// </summary>
 public sealed record TwoTenantSeed(SeededTenant TenantA, SeededTenant TenantB);
@@ -521,8 +521,9 @@ public sealed record TwoTenantSeedWithInvitation(
 /// <see cref="ApiFactory.SeedOneUserInTwoTenantsAsync"/>.
 /// </summary>
 /// <param name="TenantId">The platform tenant aggregate's id.</param>
-/// <param name="DisplayName">The tenant's seeded display name — used by T049's test to assert
-/// each <c>GET /tenants/{id}</c> response reflects the correct tenant and never the other one.</param>
+/// <param name="DisplayName">The tenant's seeded display name — used by the multi-tenant
+/// membership test to assert each <c>GET /tenants/{id}</c> response reflects the correct tenant
+/// and never the other one.</param>
 /// <param name="MembershipId">The shared user's active membership id in this tenant.</param>
 public sealed record TenantMembership(TenantId TenantId, string DisplayName, MembershipId MembershipId);
 

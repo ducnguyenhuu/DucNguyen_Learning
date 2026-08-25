@@ -11,8 +11,8 @@ using Xunit;
 namespace Tenancy.UnitTests.Members;
 
 /// <summary>
-/// Unit tests for <see cref="ChangeMemberRole"/> (T086), using hand-rolled in-memory fakes
-/// following <c>RemoveMemberTests</c>' (T076) established convention.
+/// Unit tests for <see cref="ChangeMemberRole"/>, using hand-rolled in-memory fakes
+/// following the established convention from <c>RemoveMemberTests</c>.
 /// </summary>
 public class ChangeMemberRoleTests
 {

@@ -14,13 +14,13 @@ namespace Tenancy.Application.Tenants;
 /// <para>
 /// <b>No role check here:</b> per ADR-017 step 5, "Role authorization is evaluated against that
 /// membership, not against the token" — that check is a cross-cutting concern layered on top
-/// (likely T058's endpoint or a filter), not this use case's job. This use case is pure business
+/// (the endpoint or a filter), not this use case's job. This use case is pure business
 /// logic: fetch, rename, save.
 /// </para>
 /// <para>
 /// <b>No concurrency handling here either:</b> this does not implement <c>If-Match</c>/ETag
-/// checking (that's T057/T058). EF Core's own optimistic concurrency, via
-/// <see cref="Tenant.RowVersion"/> (T025), throws <c>DbUpdateConcurrencyException</c> naturally
+/// checking (that's the endpoint layer's job). EF Core's own optimistic concurrency, via
+/// <see cref="Tenant.RowVersion"/>, throws <c>DbUpdateConcurrencyException</c> naturally
 /// if the row changed since it was loaded — this use case doesn't translate that into an HTTP
 /// status code, that's the HTTP layer's job.
 /// </para>

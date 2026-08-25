@@ -5,10 +5,10 @@ using Microsoft.Extensions.Logging;
 namespace Tenancy.Api.Middleware;
 
 /// <summary>
-/// FR-001's "attached to every structured log line" half. ASP.NET Core's own hosting
-/// diagnostics (plus T019's OpenTelemetry instrumentation) already give every request a root
-/// <see cref="Activity"/> whose <see cref="Activity.TraceId"/> is either adopted from an
-/// incoming W3C <c>traceparent</c> header or freshly generated (T020) — that covers "every
+/// The "attached to every structured log line" half of request tracing. ASP.NET Core's own
+/// hosting diagnostics (plus this codebase's OpenTelemetry instrumentation) already give every
+/// request a root <see cref="Activity"/> whose <see cref="Activity.TraceId"/> is either adopted
+/// from an incoming W3C <c>traceparent</c> header or freshly generated — that covers "every
 /// trace span." This middleware is the other half: it pushes that same TraceId into an
 /// <see cref="ILogger.BeginScope{TState}"/> for the lifetime of the request, so every log line
 /// any code emits while handling it — present and future call sites, not just ones remembering

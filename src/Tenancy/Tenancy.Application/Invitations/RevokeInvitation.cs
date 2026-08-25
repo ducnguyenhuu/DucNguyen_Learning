@@ -8,8 +8,8 @@ namespace Tenancy.Application.Invitations;
 
 /// <summary>
 /// Revokes a pending invitation by id, in the current tenant (FR-014), for
-/// <c>DELETE /tenants/{tenantId}/invitations/{invitationId}</c> (T078 wires the endpoint — this is
-/// application-layer only). Administrator-only per the contract; that authorization check is not
+/// <c>DELETE /tenants/{tenantId}/invitations/{invitationId}</c> (the endpoint wiring is
+/// application-layer only, not part of this use case). Administrator-only per the contract; that authorization check is not
 /// this use case's concern (same division of responsibility as <c>RenameTenant</c>'s remarks).
 /// </summary>
 /// <remarks>
@@ -115,7 +115,7 @@ public class RevokeInvitation
 
 /// <summary>
 /// The outcome of <see cref="RevokeInvitation.ExecuteAsync"/>. See
-/// <see cref="RevokeInvitationResultKind"/> for how the API layer (T078) is expected to map each
+/// <see cref="RevokeInvitationResultKind"/> for how the API layer is expected to map each
 /// kind to an HTTP status.
 /// </summary>
 public record RevokeInvitationResult(RevokeInvitationResultKind Kind)

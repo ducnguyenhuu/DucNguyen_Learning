@@ -17,7 +17,7 @@ namespace ArchitectureTests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>T017 — vendor SDK gate mirrors <c>DependencyPinGates</c>' provider-SDK check.</b> Reuses
+/// <b>The vendor SDK gate mirrors <c>DependencyPinGates</c>' provider-SDK check.</b> Reuses
 /// <see cref="ProjectFile.GetCentralPackageVersions"/> rather than re-parsing
 /// <c>Directory.Packages.props</c>, and matches package names against a small, illustrative
 /// pattern list rather than an exhaustive one — same shape as
@@ -31,7 +31,7 @@ namespace ArchitectureTests;
 /// packages, which are the one telemetry SDK this codebase is allowed to reference.
 /// </para>
 /// <para>
-/// <b>T018 — metric-tenant-tag gate is a text scan, following <c>RawSqlGates</c>'
+/// <b>The metric-tenant-tag gate is a text scan, following <c>RawSqlGates</c>'
 /// documented-limitations style.</b> This slice's own metric-recording surface is minimal today:
 /// auto-instrumentation (added in a later task) emits ASP.NET Core's and SqlClient's own built-in
 /// metrics, which carry route/status/command-type tags, not tenant or user identity. So this gate
@@ -45,7 +45,7 @@ namespace ArchitectureTests;
 /// a guarantee of it.
 /// </para>
 /// <para>
-/// <b>T018's known limits.</b> Like <c>RawSqlGates</c>, this is line/window text matching, not a
+/// <b>This gate's known limits.</b> Like <c>RawSqlGates</c>, this is line/window text matching, not a
 /// syntax-tree analysis: it has no notion of which method call a string literal is actually an
 /// argument to. It can produce a false positive if an unrelated tenant/user-id literal (e.g. a
 /// log message) happens to sit within the line window of an unrelated metrics call in the same

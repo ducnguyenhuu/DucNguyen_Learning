@@ -10,9 +10,9 @@ namespace Tenancy.Application.Invitations;
 
 /// <summary>
 /// Accepts a pending invitation by its raw token (FR-013), for
-/// <c>POST /invitations/{token}/accept</c> (T078 wires the endpoint — this is application-layer
-/// only). The third ADR-017 exception, alongside <c>CreateTenant</c> (T054) and
-/// <see cref="ITenantRepository.GetManyByIdsAsync"/> (T055): the caller has no ambient tenant
+/// <c>POST /invitations/{token}/accept</c> (the endpoint wiring is application-layer
+/// only, not part of this use case). The third ADR-017 exception, alongside <c>CreateTenant</c> and
+/// <see cref="ITenantRepository.GetManyByIdsAsync"/>: the caller has no ambient tenant
 /// context yet at entry — they are not a member of anything until acceptance succeeds.
 /// </summary>
 /// <remarks>
@@ -24,19 +24,19 @@ namespace Tenancy.Application.Invitations;
 /// </para>
 /// <para>
 /// <b>Unknown token vs. found-but-not-acceptable, both map to 404, distinguished internally:</b>
-/// per T065's tests and contracts/openapi.yaml, an unrecognised token and a
+/// per the acceptance tests and contracts/openapi.yaml, an unrecognised token and a
 /// found/expired/already-accepted/revoked token both surface as <c>404 Not Found</c> at the API
 /// layer — but this use case distinguishes them via
 /// <see cref="AcceptInvitationResultKind.NotFound"/> (no matching row at all) vs.
 /// <see cref="AcceptInvitationResultKind.NotAcceptable"/> (a row exists but
 /// <see cref="Invitation.Accept"/> refused it — not <see cref="InvitationStatus.Pending"/>, or
-/// past <see cref="Invitation.ExpiresAtUtc"/>), so the API layer (T078) can map both to the same
+/// past <see cref="Invitation.ExpiresAtUtc"/>), so the API layer can map both to the same
 /// 404 without needing to inspect a <see cref="DomainException"/> message.
 /// </para>
 /// <para>
 /// <b>Wrong identity maps to 403, distinct from the 404 family:</b> per FR-013 and
 /// contracts/openapi.yaml, if the authenticated caller's (JIT-provisioned via
-/// <see cref="EnsureUserProvisioned"/>, T036 — same as <c>POST /tenants</c>'s T058 wiring)
+/// <see cref="EnsureUserProvisioned"/> — the same mechanism <c>POST /tenants</c>'s endpoint wiring uses)
 /// <c>User.Email</c> does not match <see cref="Invitation.Email"/>, this is reported as
 /// <see cref="AcceptInvitationResultKind.WrongIdentity"/> (403), checked before
 /// <see cref="Invitation.Accept"/> is called — a caller who is not the invitee should not be able
@@ -53,14 +53,14 @@ namespace Tenancy.Application.Invitations;
 /// invitation's tenant with the invitation's <see cref="Invitation.Role"/>, and both the
 /// <see cref="Invitation"/>'s status change and the new <see cref="Membership"/> are persisted in
 /// one <see cref="IInvitationRepository.SaveAcceptedAsync"/> call — mirroring
-/// <c>CreateTenant</c>'s (T054) "set <c>CurrentTenantId</c> before the save that includes the new
+/// <c>CreateTenant</c>'s "set <c>CurrentTenantId</c> before the save that includes the new
 /// aggregate, one <c>SaveChangesAsync</c> call" precedent for the same "no ambient tenant yet"
 /// shape.
 /// </para>
 /// <para>
 /// <b>Logging (FR-025):</b> logs the tenant id, new user id, and granted role — never the raw
 /// token or its hash. A token hash is still credential-adjacent (it identifies exactly one
-/// invitation/invitee, the same reasoning <c>EnsureUserProvisioned</c>/T059 applied to bearer
+/// invitation/invitee, the same reasoning <c>EnsureUserProvisioned</c> applies to bearer
 /// tokens), so it is deliberately omitted, not merely forgotten.
 /// </para>
 /// </remarks>
@@ -130,8 +130,7 @@ public class AcceptInvitation
         catch (DomainException)
         {
             // Found, but not pending or already past expiry — collapses to the same 404 signal
-            // as an unknown token per T065's tests; the API layer does not need to distinguish
-            // the two.
+            // as an unknown token; the API layer does not need to distinguish the two.
             return AcceptInvitationResult.NotAcceptable();
         }
 
@@ -167,7 +166,7 @@ public class AcceptInvitation
 
 /// <summary>
 /// The outcome of <see cref="AcceptInvitation.ExecuteAsync"/>. See
-/// <see cref="AcceptInvitationResultKind"/> for how the API layer (T078) is expected to map each
+/// <see cref="AcceptInvitationResultKind"/> for how the API layer is expected to map each
 /// kind to an HTTP status.
 /// </summary>
 /// <param name="Kind">Which outcome occurred.</param>
@@ -196,7 +195,7 @@ public record AcceptInvitationResult(
 /// <summary>
 /// The discriminant of <see cref="AcceptInvitationResult"/>. <see cref="NotFound"/> and
 /// <see cref="NotAcceptable"/> are deliberately distinct signals despite both mapping to the same
-/// <c>404 Not Found</c> at the API layer (T078) — see <see cref="AcceptInvitation"/>'s remarks for
+/// <c>404 Not Found</c> at the API layer — see <see cref="AcceptInvitation"/>'s remarks for
 /// why they are not collapsed into one signal here.
 /// </summary>
 public enum AcceptInvitationResultKind
@@ -212,7 +211,7 @@ public enum AcceptInvitationResultKind
     /// <summary>An <see cref="Invitation"/> was found, but is not
     /// <see cref="InvitationStatus.Pending"/> (already accepted/revoked) or is past
     /// <see cref="Invitation.ExpiresAtUtc"/>. Maps to <c>404 Not Found</c>, indistinguishable from
-    /// <see cref="NotFound"/> at the API layer per T065's tests.</summary>
+    /// <see cref="NotFound"/> at the API layer.</summary>
     NotAcceptable,
 
     /// <summary>An <see cref="Invitation"/> was found and is still acceptable, but the

@@ -9,7 +9,7 @@ using Xunit;
 namespace Tenancy.IntegrationTests.Observability;
 
 /// <summary>
-/// T024 (Phase 3, User Story 1), FR-006: "A telemetry export failure or backend unavailability
+/// FR-006: "A telemetry export failure or backend unavailability
 /// MUST NOT cause a request to fail, block, or slow down beyond a bounded, small overhead —
 /// telemetry emission is fire-and-forget from the request's perspective."
 /// </summary>
@@ -61,7 +61,7 @@ public sealed class TelemetryResilienceTests : TenancyIntegrationTestBase
     }
 
     /// <summary>
-    /// T024's acceptance test: a normal, existing request (<c>GET /tenants/{tenantId}</c>) must
+    /// The acceptance test for FR-006: a normal, existing request (<c>GET /tenants/{tenantId}</c>) must
     /// still succeed and complete promptly even though the OTLP exporter is configured to point
     /// at an address nothing is listening on. A generous upper bound (well under the exporter's
     /// own 10-second <c>TimeoutMilliseconds</c>) is used for the latency assertion — the point is

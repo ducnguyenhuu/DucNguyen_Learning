@@ -100,10 +100,9 @@ public sealed class AuditEntryAppendOnlyTests : TenancyIntegrationTestBase
     }
 
     /// <summary>
-    /// T031: removing a membership through the real endpoint must produce exactly one
+    /// Removing a membership through the real endpoint produces exactly one
     /// <see cref="Tenancy.Domain.Auditing.AuditEntry"/> row describing that removal, persisted
-    /// atomically with the removal itself. Currently red: no use case calls
-    /// <c>IAuditWriter</c> yet (that wiring is T033-T037), so no matching row will ever appear.
+    /// atomically with the removal itself.
     /// </summary>
     [Fact]
     public async Task Delete_ActiveMember_ProducesExactlyOneMatchingAuditEntry()
@@ -141,13 +140,12 @@ public sealed class AuditEntryAppendOnlyTests : TenancyIntegrationTestBase
         var matchingRowCount = (int)(await select.ExecuteScalarAsync(cancellationToken))!;
 
         matchingRowCount.Should().Be(1,
-            "removing a membership must produce exactly one matching audit entry " +
-            "(currently fails: no use case calls IAuditWriter yet — see T033-T037)");
+            "removing a membership must produce exactly one matching audit entry");
     }
 
     /// <summary>
-    /// T031 (atomicity half): an attempt to remove a tenant's <em>last</em> administrator is
-    /// already refused today (409 Conflict, the existing last-administrator invariant in
+    /// The atomicity half of this coverage: an attempt to remove a tenant's <em>last</em> administrator is refused
+    /// (409 Conflict, the last-administrator invariant in
     /// <c>RemoveMember.cs</c>) — neither the membership nor an audit entry for the attempt should
     /// exist afterward, proving the removal and its audit entry rise and fall together without
     /// needing an artificially injected failure.
@@ -191,10 +189,9 @@ public sealed class AuditEntryAppendOnlyTests : TenancyIntegrationTestBase
     }
 
     /// <summary>
-    /// T032: an authorization refusal that spec 001 FR-025 already requires to be logged (a
+    /// An authorization refusal that spec 001 FR-025 requires to be logged (a
     /// non-administrator attempting an administrator-only action — here, inviting a member) must
-    /// also produce a matching <see cref="Tenancy.Domain.Auditing.AuditEntry"/> row. Currently
-    /// red: no audit-writing exists yet for refusals (that's T037, later).
+    /// also produce a matching <see cref="Tenancy.Domain.Auditing.AuditEntry"/> row.
     /// </summary>
     [Fact]
     public async Task Post_Invitation_AsNonAdministrator_IsRefused_AndProducesMatchingAuditEntry()
@@ -230,8 +227,7 @@ public sealed class AuditEntryAppendOnlyTests : TenancyIntegrationTestBase
         var matchingRowCount = (int)(await select.ExecuteScalarAsync(cancellationToken))!;
 
         matchingRowCount.Should().BeGreaterThanOrEqualTo(1,
-            "an authorization refusal per spec 001 FR-025 must produce a matching audit entry " +
-            "(currently fails: no audit-writing exists yet for refusals — see T037)");
+            "an authorization refusal per spec 001 FR-025 must produce a matching audit entry");
     }
 
     private HttpClient CreateAuthenticatedClient(SeededTenant seededTenant) =>

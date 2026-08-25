@@ -11,8 +11,8 @@ using Xunit;
 namespace Tenancy.UnitTests.Members;
 
 /// <summary>
-/// Unit tests for <see cref="RemoveMember"/> (T076), using hand-rolled in-memory fakes following
-/// <c>RevokeInvitationTests</c>' (T073) established convention.
+/// Unit tests for <see cref="RemoveMember"/>, using hand-rolled in-memory fakes following
+/// the established convention from <c>RevokeInvitationTests</c>.
 /// </summary>
 public class RemoveMemberTests
 {

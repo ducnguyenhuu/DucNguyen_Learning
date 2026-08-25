@@ -13,11 +13,11 @@ namespace Tenancy.UnitTests.Tenants;
 
 /// <summary>
 /// Unit tests for <see cref="GetTenant"/>, <see cref="RenameTenant"/>, and
-/// <see cref="ListTenants"/> (T055), using hand-rolled in-memory fakes of
+/// <see cref="ListTenants"/>, using hand-rolled in-memory fakes of
 /// <see cref="ITenantRepository"/> and <see cref="IMembershipDirectory"/> — no real database is
 /// needed to verify these use cases' own logic (get, get-then-mutate-then-save, and
 /// get-memberships-then-get-many, respectively). Follows the same fake-repository pattern as
-/// T054's <see cref="CreateTenantTests"/>.
+/// <see cref="CreateTenantTests"/>.
 /// </summary>
 public class GetRenameListTenantsTests
 {

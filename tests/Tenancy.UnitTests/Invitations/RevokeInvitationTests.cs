@@ -12,8 +12,8 @@ using Xunit;
 namespace Tenancy.UnitTests.Invitations;
 
 /// <summary>
-/// Unit tests for <see cref="RevokeInvitation"/> (T073), using hand-rolled in-memory fakes
-/// following <c>InviteMemberTests</c>' (T071) established convention.
+/// Unit tests for <see cref="RevokeInvitation"/>, using hand-rolled in-memory fakes
+/// following the established convention from <c>InviteMemberTests</c>.
 /// </summary>
 public class RevokeInvitationTests
 {

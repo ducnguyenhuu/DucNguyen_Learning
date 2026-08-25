@@ -89,8 +89,8 @@ public sealed class TenantContextResolutionMiddleware : IEndpointFilter
         var candidateTenantId = new TenantId(candidateGuid);
 
         // Step 2: the caller's identity comes only from the validated token's claims, never from
-        // anything client-supplied in the request itself. MapInboundClaims = false (T032) means
-        // these are literally "tid"/"oid" — not the legacy WS-Fed claim URIs.
+        // anything client-supplied in the request itself. MapInboundClaims = false means these
+        // are literally "tid"/"oid" — not the legacy WS-Fed claim URIs.
         var tidClaim = httpContext.User.FindFirst("tid")?.Value;
         var oidClaim = httpContext.User.FindFirst("oid")?.Value;
         if (!Guid.TryParse(tidClaim, out var entraTenantId) ||
@@ -114,7 +114,7 @@ public sealed class TenantContextResolutionMiddleware : IEndpointFilter
         // ITenantOwned (confirmed by reading Tenancy.Domain.Users.User), so this composite
         // lookup by Entra identity is unaffected by CurrentTenantId either way. A user that
         // doesn't exist yet (first-ever request from this identity) is "no membership" — JIT
-        // provisioning is T036's concern, not this filter's.
+        // provisioning is EnsureUserProvisioned's concern, not this filter's.
         var user = await dbContext.Users
             .AsNoTracking()
             .SingleOrDefaultAsync(u => u.EntraTenantId == entraTenantId && u.EntraObjectId == entraObjectId);
@@ -149,7 +149,7 @@ public sealed class TenantContextResolutionMiddleware : IEndpointFilter
             user.Id,
             membership.Role);
 
-        // FR-004's tenant-identity enrichment half (T022): tenant identity is only known from
+        // Tenant identity is only known from
         // this point on, so it is tagged/scoped here — nested inside the user-id scope
         // UserIdentityEnrichmentMiddleware already pushed further up the pipeline — rather than
         // in classic middleware, which cannot see this filter's resolved TenantId at all.
@@ -193,7 +193,7 @@ public sealed class TenantContextResolutionMiddleware : IEndpointFilter
 /// <c>app.Use(...)</c>: ADR-017 requires this seam be applied per tenant-scoped route group, and
 /// never to the three enumerated exceptions (<c>POST /tenants</c>, <c>GET /tenants</c>,
 /// <c>POST /invitations/{token}/accept</c>), none of which have a <c>{tenantId}</c> segment to
-/// resolve in the first place. Phase 3 tasks (T044+) wire tenant-scoped route groups by calling
+/// resolve in the first place. Tenant-scoped route groups wire this by calling
 /// this extension once on the group, not by adding it endpoint-by-endpoint.
 /// </summary>
 public static class TenantContextResolutionEndpointConventionBuilderExtensions

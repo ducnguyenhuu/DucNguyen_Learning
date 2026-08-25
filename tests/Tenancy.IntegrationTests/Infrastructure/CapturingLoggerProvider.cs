@@ -6,14 +6,14 @@ namespace Tenancy.IntegrationTests.Infrastructure;
 /// <summary>
 /// A minimal, test-only <see cref="ILoggerProvider"/> that captures every formatted log message
 /// produced by the running host into an in-memory, thread-safe collection. Registered by
-/// <see cref="ApiFactory.ConfigureWebHost"/> (T053) via
+/// <see cref="ApiFactory.ConfigureWebHost"/> via
 /// <c>builder.ConfigureLogging(logging =&gt; logging.AddProvider(...))</c>, alongside whatever
 /// providers the host would otherwise use — this does not replace or suppress them.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Why capture the fully-formatted message string, not the structured state.</b> T053's log
-/// hygiene test needs to grep captured output for literal substrings (a bearer token, a header
+/// <b>Why capture the fully-formatted message string, not the structured state.</b> The log
+/// hygiene tests need to grep captured output for literal substrings (a bearer token, a header
 /// value, a fake secret marker) the same way a real log aggregator's full-text search would. The
 /// formatted string (<c>formatter(state, exception)</c>, exactly as
 /// <see cref="ILogger.Log{TState}"/> hands it to every other provider) is the right representation
@@ -56,7 +56,7 @@ public sealed class CapturingLoggerProvider : ILoggerProvider
     /// instance's lifetime, not per-test. Without an explicit reset, messages from an earlier
     /// test in the same class would still be present when a later test inspects captured logs,
     /// making "no secret appears in the logs for <em>this</em> request" unreliable to assert.
-    /// Callers (T053's <c>LogHygieneTests</c>) must call this before the request under test, not
+    /// Callers (<c>LogHygieneTests</c>) must call this before the request under test, not
     /// rely on a fresh provider per test.
     /// </summary>
     public void Clear() => _messages.Clear();
@@ -76,7 +76,7 @@ public sealed class CapturingLoggerProvider : ILoggerProvider
         // AsyncLocal<T> is what BeginScope itself is built on (see Microsoft.Extensions.Logging's
         // Logger<T>/LoggerExternalScopeProvider), so mirroring that here — rather than returning
         // null and discarding scope state as before — is what makes this test-only provider
-        // actually observe request-scoped enrichment (e.g. T021's TraceId scope) the same way a
+        // actually observe request-scoped enrichment (e.g. the TraceId scope) the same way a
         // real provider would, instead of being permanently blind to it.
         private static readonly AsyncLocal<ScopeNode?> CurrentScope = new();
 

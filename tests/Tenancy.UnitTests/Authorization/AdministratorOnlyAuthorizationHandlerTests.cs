@@ -13,10 +13,10 @@ using Xunit;
 namespace Tenancy.UnitTests.Authorization;
 
 /// <summary>
-/// Unit tests for <see cref="AdministratorOnlyAuthorizationHandler"/> (T085), using ASP.NET
+/// Unit tests for <see cref="AdministratorOnlyAuthorizationHandler"/>, using ASP.NET
 /// Core's own test-friendly <see cref="AuthorizationHandlerContext"/> construction directly — no
 /// full HTTP pipeline needed — with a hand-rolled fake <see cref="ITenantContext"/> following
-/// <c>RemoveMemberTests</c>' (T076) established convention.
+/// <c>RemoveMemberTests</c>' established convention.
 /// </summary>
 public class AdministratorOnlyAuthorizationHandlerTests
 {
@@ -33,7 +33,7 @@ public class AdministratorOnlyAuthorizationHandlerTests
     /// Fake standing in for "the tenant context was never resolved" — mirrors
     /// <c>HttpContextTenantContext</c>'s documented contract (see <see cref="ITenantContext"/>'s
     /// remarks) that both properties must throw, never return a default value, if accessed
-    /// before <c>TenantContextResolutionMiddleware</c> (T035) has populated them.
+    /// before <c>TenantContextResolutionMiddleware</c> has populated them.
     /// </summary>
     private sealed class UnresolvedTenantContext : ITenantContext
     {
@@ -166,7 +166,7 @@ public class AdministratorOnlyAuthorizationHandlerTests
     /// <summary>
     /// FR-025 gap closure: a role-based refusal must produce a structured log entry — tenant id,
     /// required role, and actual role — via a templated <c>LogWarning</c> call, not string
-    /// interpolation. Mirrors <c>TenantContextResolutionMiddleware</c>'s (T059) established
+    /// interpolation. Mirrors <c>TenantContextResolutionMiddleware</c>'s established
     /// logging convention for the earlier "not a member at all" refusal path.
     /// </summary>
     [CoversRequirement("FR-025")]
@@ -203,20 +203,20 @@ public class AdministratorOnlyAuthorizationHandlerTests
     [Fact]
     public async Task HandleRequirementAsync_UnresolvedTenantContext_PropagatesException()
     {
-        // Documents T085's deliberate design decision: this handler does not guard against an
+        // Documents a deliberate design decision: this handler does not guard against an
         // unresolved ITenantContext. ASP.NET Core's own pipeline ordering does not guarantee
         // TenantContextResolutionMiddleware (an IEndpointFilter, running as part of endpoint
         // invocation) has already run by the time a policy using this handler is evaluated by
         // AuthorizationMiddleware (registered earlier, via UseAuthorization()). Letting the
         // exception propagate here turns a broken precondition into a fail-closed 500 (via
-        // ProblemDetailsHandler, T083) rather than silently succeeding or failing open.
+        // ProblemDetailsHandler) rather than silently succeeding or failing open.
         var act = () => EvaluateAsync(new UnresolvedTenantContext());
 
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
 
     /// <summary>
-    /// T037: a role-based refusal must also stage-and-save an <see cref="AuditEntry"/> — via
+    /// A role-based refusal must also stage-and-save an <see cref="AuditEntry"/> — via
     /// <see cref="IAuditWriter.RecordAndSaveAsync"/>, not <see cref="IAuditWriter.RecordAsync"/>,
     /// since a refusal short-circuits the request before any later use-case save would ever run.
     /// </summary>
