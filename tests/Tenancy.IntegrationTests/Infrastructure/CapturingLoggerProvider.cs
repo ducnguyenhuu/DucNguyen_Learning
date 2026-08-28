@@ -6,14 +6,14 @@ namespace Tenancy.IntegrationTests.Infrastructure;
 /// <summary>
 /// A minimal, test-only <see cref="ILoggerProvider"/> that captures every formatted log message
 /// produced by the running host into an in-memory, thread-safe collection. Registered by
-/// <see cref="ApiFactory.ConfigureWebHost"/> (T053) via
+/// <see cref="ApiFactory.ConfigureWebHost"/> via
 /// <c>builder.ConfigureLogging(logging =&gt; logging.AddProvider(...))</c>, alongside whatever
 /// providers the host would otherwise use — this does not replace or suppress them.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Why capture the fully-formatted message string, not the structured state.</b> T053's log
-/// hygiene test needs to grep captured output for literal substrings (a bearer token, a header
+/// <b>Why capture the fully-formatted message string, not the structured state.</b> The log
+/// hygiene tests need to grep captured output for literal substrings (a bearer token, a header
 /// value, a fake secret marker) the same way a real log aggregator's full-text search would. The
 /// formatted string (<c>formatter(state, exception)</c>, exactly as
 /// <see cref="ILogger.Log{TState}"/> hands it to every other provider) is the right representation
@@ -56,7 +56,7 @@ public sealed class CapturingLoggerProvider : ILoggerProvider
     /// instance's lifetime, not per-test. Without an explicit reset, messages from an earlier
     /// test in the same class would still be present when a later test inspects captured logs,
     /// making "no secret appears in the logs for <em>this</em> request" unreliable to assert.
-    /// Callers (T053's <c>LogHygieneTests</c>) must call this before the request under test, not
+    /// Callers (<c>LogHygieneTests</c>) must call this before the request under test, not
     /// rely on a fresh provider per test.
     /// </summary>
     public void Clear() => _messages.Clear();
@@ -71,7 +71,22 @@ public sealed class CapturingLoggerProvider : ILoggerProvider
 
     private sealed class CapturingLogger(string categoryName, ConcurrentQueue<string> messages) : ILogger
     {
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        // A real provider configured with IncludeScopes = true renders every currently-active
+        // BeginScope value into each log line it writes for as long as that scope is in effect.
+        // AsyncLocal<T> is what BeginScope itself is built on (see Microsoft.Extensions.Logging's
+        // Logger<T>/LoggerExternalScopeProvider), so mirroring that here — rather than returning
+        // null and discarding scope state as before — is what makes this test-only provider
+        // actually observe request-scoped enrichment (e.g. the TraceId scope) the same way a
+        // real provider would, instead of being permanently blind to it.
+        private static readonly AsyncLocal<ScopeNode?> CurrentScope = new();
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+        {
+            var parent = CurrentScope.Value;
+            var node = new ScopeNode(state, parent);
+            CurrentScope.Value = node;
+            return new ScopePopper(node, parent);
+        }
 
         public bool IsEnabled(LogLevel logLevel) => true;
 
@@ -83,7 +98,82 @@ public sealed class CapturingLoggerProvider : ILoggerProvider
             Func<TState, Exception?, string> formatter)
         {
             var formatted = formatter(state, exception);
-            messages.Enqueue($"[{categoryName}] {formatted}");
+            var scopeSuffix = FormatActiveScopes();
+            messages.Enqueue($"[{categoryName}] {formatted}{scopeSuffix}");
+        }
+
+        private static string FormatActiveScopes()
+        {
+            var scope = CurrentScope.Value;
+            if (scope is null)
+            {
+                return string.Empty;
+            }
+
+            var rendered = new List<string>();
+            for (var node = scope; node is not null; node = node.Parent)
+            {
+                rendered.Add(FormatScopeState(node.State));
+            }
+
+            // Outermost scope first, matching the order a real ILogger provider with
+            // IncludeScopes = true renders nested BeginScope calls.
+            rendered.Reverse();
+            return $" [scope: {string.Join(" ", rendered)}]";
+        }
+
+        // Mirrors how a real formatted-text provider (e.g. the console logger with
+        // IncludeScopes = true) renders a BeginScope(new Dictionary&lt;string, object?&gt; { ... })
+        // call: as "Key=Value" pairs, not the object's raw ToString() (which for a
+        // Dictionary&lt;,&gt; would just be its type name and would never contain the actual
+        // TraceId value this exists to surface).
+        private static string FormatScopeState(object? state)
+        {
+            if (state is System.Collections.IEnumerable enumerable && state is not string)
+            {
+                var pairs = new List<string>();
+                foreach (var entry in enumerable)
+                {
+                    if (entry is System.Collections.DictionaryEntry dictionaryEntry)
+                    {
+                        pairs.Add($"{dictionaryEntry.Key}={dictionaryEntry.Value}");
+                        continue;
+                    }
+
+                    var entryType = entry?.GetType();
+                    var keyProperty = entryType?.GetProperty("Key");
+                    var valueProperty = entryType?.GetProperty("Value");
+                    if (keyProperty is not null && valueProperty is not null)
+                    {
+                        pairs.Add($"{keyProperty.GetValue(entry)}={valueProperty.GetValue(entry)}");
+                        continue;
+                    }
+
+                    pairs.Add(entry?.ToString() ?? "null");
+                }
+
+                return string.Join(", ", pairs);
+            }
+
+            return state?.ToString() ?? "null";
+        }
+
+        private sealed class ScopeNode(object state, ScopeNode? parent)
+        {
+            public object State { get; } = state;
+
+            public ScopeNode? Parent { get; } = parent;
+        }
+
+        private sealed class ScopePopper(ScopeNode node, ScopeNode? parent) : IDisposable
+        {
+            public void Dispose()
+            {
+                if (CurrentScope.Value == node)
+                {
+                    CurrentScope.Value = parent;
+                }
+            }
         }
     }
 }

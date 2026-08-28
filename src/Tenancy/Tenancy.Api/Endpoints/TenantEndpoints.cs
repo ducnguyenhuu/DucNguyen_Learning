@@ -14,10 +14,10 @@ using Tenancy.Infrastructure.Persistence;
 namespace Tenancy.Api.Endpoints;
 
 /// <summary>
-/// T058 — the four <c>/tenants</c> endpoints, wiring together every seam built in T032-T057:
-/// authentication (T032), JIT user provisioning (T036), ADR-017 tenant context resolution
-/// (T035), the idempotency filter (T056), ETag/If-Match handling (T057), and the
-/// CreateTenant/GetTenant/RenameTenant/ListTenants use cases (T054/T055).
+/// The four <c>/tenants</c> endpoints, wiring together every seam built so far:
+/// authentication, JIT user provisioning, ADR-017 tenant context resolution,
+/// the idempotency filter, ETag/If-Match handling, and the
+/// CreateTenant/GetTenant/RenameTenant/ListTenants use cases.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -45,8 +45,8 @@ namespace Tenancy.Api.Endpoints;
 /// <para>
 /// This is not a perfect closure of the race window (a fresh read immediately followed by a
 /// concurrency-checked save still has a — much narrower — window of its own), but it is the
-/// distinguishing signal T058's brief calls for, and matches T051's own test framing ("stale →
-/// 412, race at save → 409").
+/// distinguishing signal this endpoint needs, and matches the corresponding test framing
+/// ("stale → 412, race at save → 409").
 /// </para>
 /// </remarks>
 public static class TenantEndpoints
@@ -57,7 +57,7 @@ public static class TenantEndpoints
         // to resolve, so neither opts into WithTenantContextResolution().
         var tenants = app.MapGroup("/tenants");
 
-        // Ordering matters: T056's IdempotencyFilter resolves the caller's UserId (to build its
+        // Ordering matters: IdempotencyFilter resolves the caller's UserId (to build its
         // cache key) by looking up an *already-existing* User row — it does not JIT-provision.
         // POST /tenants is exactly the route where a brand-new identity's first-ever request
         // has no User row yet (see this class's remarks on ProvisionCallerAsync), so without a
@@ -75,7 +75,7 @@ public static class TenantEndpoints
         tenants.MapGet("/", ListTenantsAsync)
             .RequireAuthorization();
 
-        // Tenant-scoped: both opt into T035's resolution filter.
+        // Tenant-scoped: both opt into the tenant context resolution filter.
         var scopedTenant = app.MapGroup("/tenants/{tenantId}")
             .RequireAuthorization()
             .WithTenantContextResolution();
@@ -138,9 +138,9 @@ public static class TenantEndpoints
                 statusCode: StatusCodes.Status401Unauthorized);
         }
 
-        // ListTenants (T055) returns the caller's Tenant rows but not their per-tenant Role, and
+        // ListTenants returns the caller's Tenant rows but not their per-tenant Role, and
         // openapi.yaml's TenantSummary schema requires one — re-fetch the caller's own
-        // memberships (the one sanctioned cross-tenant read, T037) to build the tenantId->role
+        // memberships (the one sanctioned cross-tenant read) to build the tenantId->role
         // lookup this response shape needs. Both calls are cheap, tenant-count-bounded reads.
         var memberships = await membershipDirectory.GetMembershipsForUserAsync(caller.Id, ct);
         var roleByTenantId = memberships.ToDictionary(m => m.TenantId, m => m.Role);
@@ -162,9 +162,9 @@ public static class TenantEndpoints
         var tenant = await getTenant.ExecuteAsync(ct);
         if (tenant is null)
         {
-            // Shouldn't happen: T035's filter already proved membership in this candidate
-            // tenant before this handler ever runs. Defend against it the same closed way T035
-            // itself does, rather than leak anything more specific.
+            // Shouldn't happen: WithTenantContextResolution's filter already proved membership in
+            // this candidate tenant before this handler ever runs. Defend against it the same
+            // fail-closed way that filter itself does, rather than leak anything more specific.
             return Results.NotFound();
         }
 
@@ -176,9 +176,23 @@ public static class TenantEndpoints
         HttpContext httpContext,
         RenameTenantRequest request,
         RenameTenant renameTenant,
+        EnsureUserProvisioned ensureUserProvisioned,
         TenancyDbContext dbContext,
         CancellationToken ct)
     {
+        // The caller already has a proven active membership in this tenant
+        // (WithTenantContextResolution ran ahead of this handler) and thus is already a
+        // provisioned User row — ProvisionCallerAsync's JIT-provisioning path is a no-op lookup
+        // here, mirroring MemberEndpoints.PatchMemberRoleAsync's identical caller resolution.
+        var caller = await ProvisionCallerAsync(httpContext, ensureUserProvisioned, ct);
+        if (caller is null)
+        {
+            return Results.Problem(
+                title: "Caller could not be resolved",
+                detail: "No usable identity claims were present on the token.",
+                statusCode: StatusCodes.Status401Unauthorized);
+        }
+
         if (!httpContext.Request.Headers.TryGetValue("If-Match", out var ifMatchValues) ||
             string.IsNullOrWhiteSpace(ifMatchValues.ToString()))
         {
@@ -228,7 +242,7 @@ public static class TenantEndpoints
         try
         {
             updated = await RenameWithOriginalRowVersionAsync(
-                dbContext, renameTenant, decodedIfMatch, request.DisplayName, ct);
+                dbContext, renameTenant, decodedIfMatch, request.DisplayName, caller.Id, ct);
         }
         catch (DomainException ex)
         {
@@ -280,6 +294,7 @@ public static class TenantEndpoints
         RenameTenant renameTenant,
         byte[] originalRowVersion,
         string newDisplayName,
+        UserId renamedByUserId,
         CancellationToken ct)
     {
         var tracked = await dbContext.Tenants
@@ -301,11 +316,11 @@ public static class TenantEndpoints
         // at all. Mirrors MemberEndpoints.PatchMemberRoleAsync's identical fix.
         trackedEntry.State = EntityState.Modified;
 
-        return await renameTenant.ExecuteAsync(newDisplayName, ct);
+        return await renameTenant.ExecuteAsync(newDisplayName, renamedByUserId, ct);
     }
 
     /// <summary>
-    /// JIT-provisions the caller (T036) from the validated token's <c>(tid, oid)</c> claims, with
+    /// JIT-provisions the caller from the validated token's <c>(tid, oid)</c> claims, with
     /// a best-effort email claim lookup. Test tokens (Tier 1 <c>TestAuthHandler</c> and Tier 2
     /// <c>SignedTokenHarness</c>) carry no email claim at all, so a deterministic placeholder is
     /// synthesized from the caller's <c>oid</c> when none is present — display/invitation-matching
@@ -394,7 +409,7 @@ public sealed class JitProvisionCallerFilter : IEndpointFilter
         // If the claims are unusable, do nothing here — CreateTenantAsync's own
         // ProvisionCallerAsync call (and its 401 fallback) is still the source of truth for that
         // failure mode; this filter's only job is to make the *happy* path resolvable for
-        // T056's filter.
+        // the idempotency filter that runs after it.
         return await next(context);
     }
 }

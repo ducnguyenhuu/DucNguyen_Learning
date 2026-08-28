@@ -1,13 +1,14 @@
 using Microsoft.Extensions.Logging;
 using Tenancy.Application.Abstractions;
 using Tenancy.Domain.Abstractions;
+using Tenancy.Domain.Auditing;
 
 namespace Tenancy.Application.Members;
 
 /// <summary>
 /// Removes a member (by <c>userId</c>) from the current tenant, for
-/// <c>DELETE /tenants/{tenantId}/members/{userId}</c> (T079 wires the endpoint — this is
-/// application-layer only). Administrator-only per the contract; that authorization check, and
+/// <c>DELETE /tenants/{tenantId}/members/{userId}</c> (the endpoint wiring is application-layer
+/// only, not part of this use case). Administrator-only per the contract; that authorization check, and
 /// all <c>If-Match</c>/<c>RowVersion</c> precondition handling, are deliberately not this use
 /// case's concern — see the remarks below.
 /// </summary>
@@ -16,18 +17,18 @@ namespace Tenancy.Application.Members;
 /// <b>Scope boundary — no <c>If-Match</c> here:</b> <c>contracts/openapi.yaml</c>'s
 /// <c>DELETE /tenants/{tenantId}/members/{userId}</c> requires an <c>If-Match</c> header and
 /// documents 412/428 (stale/missing precondition) alongside 409 (concurrency race or
-/// last-administrator conflict). That HTTP-level precondition disambiguation (mirroring T058's
-/// established 412-vs-409 pattern for <c>PATCH /tenants/{tenantId}</c>) is T079's job, at the
-/// endpoint layer. This use case is the business-logic layer beneath that: given a target
+/// last-administrator conflict). That HTTP-level precondition disambiguation (mirroring the
+/// established 412-vs-409 pattern for <c>PATCH /tenants/{tenantId}</c>) is the endpoint layer's
+/// job, not this use case's. This use case is the business-logic layer beneath that: given a target
 /// <see cref="UserId"/>, resolve the active membership, remove it race-safely via
-/// <see cref="IMembershipRepository.RemoveMembershipAsync"/> (T075 — this use case does not
+/// <see cref="IMembershipRepository.RemoveMembershipAsync"/> (this use case does not
 /// re-implement any of its concurrency protection), and translate the last-administrator
 /// <see cref="DomainException"/> into a distinct <see cref="RemoveMemberResultKind.Conflict"/>
-/// signal T079 can map to 409. It deliberately takes no <c>RowVersion</c>/<c>If-Match</c>
+/// signal the endpoint layer can map to 409. It deliberately takes no <c>RowVersion</c>/<c>If-Match</c>
 /// parameter.
 /// </para>
 /// <para>
-/// <b>404 vs. 409, mirroring <c>RevokeInvitation</c>'s (T073) precedent:</b> a <c>userId</c> with
+/// <b>404 vs. 409, mirroring <c>RevokeInvitation</c>'s precedent:</b> a <c>userId</c> with
 /// no active membership in the current tenant (never a member, already removed, or a member of a
 /// different tenant only) maps to <see cref="RemoveMemberResultKind.NotFound"/> (404) — resolved
 /// via <see cref="IMembershipRepository.GetActiveMembershipForUserAsync"/>, which is already
@@ -35,7 +36,7 @@ namespace Tenancy.Application.Members;
 /// then refuses to remove because it is the tenant's last administrator throws
 /// <see cref="DomainException"/>, caught here and translated to
 /// <see cref="RemoveMemberResultKind.Conflict"/> (409) — the same catch-and-translate shape
-/// <c>InviteMember</c> (T071) uses for its own <see cref="ConflictException"/> signal, though this
+/// <c>InviteMember</c> uses for its own <see cref="ConflictException"/> signal, though this
 /// use case reuses the plain <see cref="DomainException"/> the repository already throws rather
 /// than introducing a second exception type, since the repository is the sole thrower and this is
 /// the sole catcher.
@@ -51,15 +52,21 @@ public class RemoveMember
 {
     private readonly IMembershipRepository _membershipRepository;
     private readonly ITenantContext _tenantContext;
+    private readonly IAuditWriter _auditWriter;
+    private readonly IClock _clock;
     private readonly ILogger<RemoveMember> _logger;
 
     public RemoveMember(
         IMembershipRepository membershipRepository,
         ITenantContext tenantContext,
+        IAuditWriter auditWriter,
+        IClock clock,
         ILogger<RemoveMember> logger)
     {
         _membershipRepository = membershipRepository;
         _tenantContext = tenantContext;
+        _auditWriter = auditWriter;
+        _clock = clock;
         _logger = logger;
     }
 
@@ -76,8 +83,24 @@ public class RemoveMember
             return RemoveMemberResult.NotFound();
         }
 
+        var auditEntry = AuditEntry.Create(
+            membership.TenantId,
+            removedByUserId,
+            "membership.removed",
+            "Membership",
+            targetUserId.Value.ToString(),
+            _clock);
+
         try
         {
+            // Staged into the same TenancyDbContext instance that IMembershipRepository uses
+            // (both scoped DI registrations sharing the request's DbContext) — only staged, not
+            // saved, here. RemoveMembershipAsync below throws DomainException (last-administrator
+            // conflict) BEFORE its own SaveChangesAsync ever runs, so the staged entry is never
+            // flushed on the rejected path; on the success path, RemoveMembershipAsync's own
+            // SaveChangesAsync flushes both the membership removal and this staged entry together,
+            // atomically, inside its explicit transaction.
+            await _auditWriter.RecordAsync(auditEntry, ct);
             await _membershipRepository.RemoveMembershipAsync(membership.Id, ct);
         }
         catch (DomainException)
@@ -97,7 +120,7 @@ public class RemoveMember
 
 /// <summary>
 /// The outcome of <see cref="RemoveMember.ExecuteAsync"/>. See
-/// <see cref="RemoveMemberResultKind"/> for how the API layer (T079) is expected to map each kind
+/// <see cref="RemoveMemberResultKind"/> for how the API layer is expected to map each kind
 /// to an HTTP status.
 /// </summary>
 public record RemoveMemberResult(RemoveMemberResultKind Kind)

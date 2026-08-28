@@ -4,14 +4,15 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Tenancy.Application.Abstractions;
 using Tenancy.Application.Members;
 using Tenancy.Domain.Abstractions;
+using Tenancy.Domain.Auditing;
 using Tenancy.Domain.Memberships;
 using Xunit;
 
 namespace Tenancy.UnitTests.Members;
 
 /// <summary>
-/// Unit tests for <see cref="ChangeMemberRole"/> (T086), using hand-rolled in-memory fakes
-/// following <c>RemoveMemberTests</c>' (T076) established convention.
+/// Unit tests for <see cref="ChangeMemberRole"/>, using hand-rolled in-memory fakes
+/// following the established convention from <c>RemoveMemberTests</c>.
 /// </summary>
 public class ChangeMemberRoleTests
 {
@@ -50,8 +51,27 @@ public class ChangeMemberRoleTests
         }
     }
 
+    private sealed class FakeAuditWriter : IAuditWriter
+    {
+        public List<AuditEntry> RecordedEntries { get; } = [];
+
+        public Task RecordAsync(AuditEntry entry, CancellationToken ct)
+        {
+            RecordedEntries.Add(entry);
+            return Task.CompletedTask;
+        }
+
+        public Task RecordAndSaveAsync(AuditEntry entry, CancellationToken ct) =>
+            throw new NotSupportedException("Not used by this test suite; only RecordAsync is exercised.");
+    }
+
+    private sealed class FakeClock : IClock
+    {
+        public DateTimeOffset UtcNow => new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+    }
+
     private static ChangeMemberRole CreateUseCase(FakeMembershipRepository repository) =>
-        new(repository, new FakeTenantContext(), NullLogger<ChangeMemberRole>.Instance);
+        new(repository, new FakeTenantContext(), new FakeAuditWriter(), new FakeClock(), NullLogger<ChangeMemberRole>.Instance);
 
     [CoversRequirement("FR-014")]
     [Fact]

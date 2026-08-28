@@ -1,0 +1,47 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # Tail-based sampling (FR-007): the sampling decision is made after each
+  # trace completes, once all spans have arrived and the outcome is known.
+  # This requires the app to export 100% of spans (see OpenTelemetryExtensions.cs)
+  # so the Collector has the full trace to evaluate.
+  tail_sampling:
+    decision_wait: 10s
+    num_traces: 50000
+    expected_new_traces_per_sec: 10
+    policies:
+      # Always retain every trace that contains an errored span (FR-007: 100%,
+      # no exceptions, for failed/errored requests).
+      - name: errors-policy
+        type: status_code
+        status_code:
+          status_codes: [ERROR]
+      # Fallback: sample the configurable default rate of all remaining
+      # (successful) traces. Override per environment via SAMPLE_RATE.
+      - name: default-rate-policy
+        type: probabilistic
+        probabilistic:
+          sampling_percentage: ${env:SAMPLE_RATE:-10}
+
+exporters:
+  debug:
+    verbosity: detailed
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [tail_sampling]
+      exporters: [debug]
+    metrics:
+      receivers: [otlp]
+      exporters: [debug]
+    logs:
+      receivers: [otlp]
+      exporters: [debug]

@@ -5,6 +5,7 @@ using Tenancy.Application.Abstractions;
 using Tenancy.Application.Invitations;
 using Tenancy.Application.Users;
 using Tenancy.Domain.Abstractions;
+using Tenancy.Domain.Auditing;
 using Tenancy.Domain.Invitations;
 using Tenancy.Domain.Memberships;
 using Tenancy.Domain.Users;
@@ -13,10 +14,10 @@ using Xunit;
 namespace Tenancy.UnitTests.Invitations;
 
 /// <summary>
-/// Unit tests for <see cref="AcceptInvitation"/> (T072), using hand-rolled in-memory fakes of
+/// Unit tests for <see cref="AcceptInvitation"/>, using hand-rolled in-memory fakes of
 /// <see cref="IInvitationRepository"/>/<see cref="IUserRepository"/>/<see cref="IClock"/> —
-/// following <c>InviteMemberTests</c>' (T071) and <c>CreateTenantTests</c>' (T054) established
-/// convention.
+/// following the established convention from <c>InviteMemberTests</c> and
+/// <c>CreateTenantTests</c>.
 /// </summary>
 public class AcceptInvitationTests
 {
@@ -98,12 +99,30 @@ public class AcceptInvitationTests
         return Invitation.Create(TestTenantId, email, Role.Member, tokenHash, expiresAtUtc);
     }
 
+    private sealed class FakeAuditWriter : IAuditWriter
+    {
+        public List<AuditEntry> RecordedEntries { get; } = [];
+
+        public Task RecordAsync(AuditEntry entry, CancellationToken ct)
+        {
+            RecordedEntries.Add(entry);
+            return Task.CompletedTask;
+        }
+
+        public Task RecordAndSaveAsync(AuditEntry entry, CancellationToken ct) =>
+            throw new NotSupportedException("Not used by this test suite; only RecordAsync is exercised.");
+    }
+
     private static AcceptInvitation CreateUseCase(
-        FakeInvitationRepository invitationRepository, FakeUserRepository? userRepository = null, FakeClock? clock = null) =>
+        FakeInvitationRepository invitationRepository,
+        FakeUserRepository? userRepository = null,
+        FakeClock? clock = null,
+        FakeAuditWriter? auditWriter = null) =>
         new(
             invitationRepository,
             new EnsureUserProvisioned(userRepository ?? new FakeUserRepository()),
             clock ?? new FakeClock(),
+            auditWriter ?? new FakeAuditWriter(),
             NullLogger<AcceptInvitation>.Instance);
 
     [CoversRequirement("FR-012")]

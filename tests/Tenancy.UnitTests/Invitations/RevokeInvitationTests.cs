@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Tenancy.Application.Abstractions;
 using Tenancy.Application.Invitations;
 using Tenancy.Domain.Abstractions;
+using Tenancy.Domain.Auditing;
 using Tenancy.Domain.Invitations;
 using Tenancy.Domain.Memberships;
 using Xunit;
@@ -11,8 +12,8 @@ using Xunit;
 namespace Tenancy.UnitTests.Invitations;
 
 /// <summary>
-/// Unit tests for <see cref="RevokeInvitation"/> (T073), using hand-rolled in-memory fakes
-/// following <c>InviteMemberTests</c>' (T071) established convention.
+/// Unit tests for <see cref="RevokeInvitation"/>, using hand-rolled in-memory fakes
+/// following the established convention from <c>InviteMemberTests</c>.
 /// </summary>
 public class RevokeInvitationTests
 {
@@ -60,8 +61,28 @@ public class RevokeInvitationTests
         }
     }
 
-    private static RevokeInvitation CreateUseCase(FakeInvitationRepository repository) =>
-        new(repository, new FakeTenantContext(), NullLogger<RevokeInvitation>.Instance);
+    private sealed class FakeAuditWriter : IAuditWriter
+    {
+        public List<AuditEntry> RecordedEntries { get; } = [];
+
+        public Task RecordAsync(AuditEntry entry, CancellationToken ct)
+        {
+            RecordedEntries.Add(entry);
+            return Task.CompletedTask;
+        }
+
+        public Task RecordAndSaveAsync(AuditEntry entry, CancellationToken ct) =>
+            throw new NotSupportedException("Not used by this test suite; only RecordAsync is exercised.");
+    }
+
+    private static RevokeInvitation CreateUseCase(
+        FakeInvitationRepository repository, FakeAuditWriter? auditWriter = null) =>
+        new(
+            repository,
+            new FakeTenantContext(),
+            auditWriter ?? new FakeAuditWriter(),
+            new FixedClock(),
+            NullLogger<RevokeInvitation>.Instance);
 
     private static Invitation CreatePendingInvitation() =>
         Invitation.Create(

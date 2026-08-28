@@ -1,14 +1,15 @@
 using Microsoft.Extensions.Logging;
 using Tenancy.Application.Abstractions;
 using Tenancy.Domain.Abstractions;
+using Tenancy.Domain.Auditing;
 using Tenancy.Domain.Invitations;
 
 namespace Tenancy.Application.Invitations;
 
 /// <summary>
 /// Revokes a pending invitation by id, in the current tenant (FR-014), for
-/// <c>DELETE /tenants/{tenantId}/invitations/{invitationId}</c> (T078 wires the endpoint — this is
-/// application-layer only). Administrator-only per the contract; that authorization check is not
+/// <c>DELETE /tenants/{tenantId}/invitations/{invitationId}</c> (the endpoint wiring is
+/// application-layer only, not part of this use case). Administrator-only per the contract; that authorization check is not
 /// this use case's concern (same division of responsibility as <c>RenameTenant</c>'s remarks).
 /// </summary>
 /// <remarks>
@@ -47,15 +48,21 @@ public class RevokeInvitation
 {
     private readonly IInvitationRepository _invitationRepository;
     private readonly ITenantContext _tenantContext;
+    private readonly IAuditWriter _auditWriter;
+    private readonly IClock _clock;
     private readonly ILogger<RevokeInvitation> _logger;
 
     public RevokeInvitation(
         IInvitationRepository invitationRepository,
         ITenantContext tenantContext,
+        IAuditWriter auditWriter,
+        IClock clock,
         ILogger<RevokeInvitation> logger)
     {
         _invitationRepository = invitationRepository;
         _tenantContext = tenantContext;
+        _auditWriter = auditWriter;
+        _clock = clock;
         _logger = logger;
     }
 
@@ -81,6 +88,18 @@ public class RevokeInvitation
             return RevokeInvitationResult.Conflict();
         }
 
+        var auditEntry = AuditEntry.Create(
+            _tenantContext.TenantId,
+            revokedByUserId,
+            "invitation.revoked",
+            "Invitation",
+            invitation.Id.Value.ToString(),
+            _clock);
+
+        // Staged into the same TenancyDbContext instance SaveAsync uses — only staged, not
+        // saved, here. SaveAsync's own SaveChangesAsync below flushes the revoked status and
+        // this staged entry together, atomically.
+        await _auditWriter.RecordAsync(auditEntry, ct);
         await _invitationRepository.SaveAsync(invitation, ct);
 
         _logger.LogInformation(
@@ -96,7 +115,7 @@ public class RevokeInvitation
 
 /// <summary>
 /// The outcome of <see cref="RevokeInvitation.ExecuteAsync"/>. See
-/// <see cref="RevokeInvitationResultKind"/> for how the API layer (T078) is expected to map each
+/// <see cref="RevokeInvitationResultKind"/> for how the API layer is expected to map each
 /// kind to an HTTP status.
 /// </summary>
 public record RevokeInvitationResult(RevokeInvitationResultKind Kind)

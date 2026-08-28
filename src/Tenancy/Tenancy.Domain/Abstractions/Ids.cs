@@ -56,3 +56,15 @@ public readonly record struct InvitationId(Guid Value)
     /// </summary>
     public static InvitationId New() => new(Guid.CreateVersion7());
 }
+
+/// <summary>
+/// Strongly-typed identifier for an audit entry.
+/// Uses Version 7 GUIDs (time-ordered) to avoid clustered index fragmentation.
+/// </summary>
+public readonly record struct AuditEntryId(Guid Value)
+{
+    /// <summary>
+    /// Creates a new audit entry ID using a Version 7 GUID.
+    /// </summary>
+    public static AuditEntryId New() => new(Guid.CreateVersion7());
+}

@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Tenancy.Domain.Abstractions;
+using Tenancy.Domain.Auditing;
 using Tenancy.Domain.Invitations;
 using Tenancy.Domain.Memberships;
 using Tenancy.Domain.Tenants;
@@ -13,7 +14,7 @@ namespace Tenancy.Infrastructure.Persistence;
 /// global query filter — <c>"TenantFilter"</c> — to every entity implementing
 /// <see cref="ITenantOwned"/>, so every LINQ query issued through this context is silently
 /// scoped to <see cref="CurrentTenantId"/> unless the filter is explicitly disabled by name
-/// (only <c>MembershipDirectory</c>, per T037, may do so, and only with an audit trail).
+/// (only <c>MembershipDirectory</c> may do so, and only with an audit trail).
 /// </summary>
 /// <remarks>
 /// The filter predicate reads <see cref="CurrentTenantId"/> via a member access on the
@@ -21,15 +22,15 @@ namespace Tenancy.Infrastructure.Persistence;
 /// EF Core lifts it into a SQL query parameter that is re-evaluated on every query execution.
 /// A captured local would instead be baked into the compiled query cache at model-build time
 /// and never change again for the lifetime of the context — silently breaking isolation for a
-/// reused context. This is also why this project does not use <c>AddDbContextPool</c> (see
-/// T028): a pooled context's <see cref="CurrentTenantId"/> must be reset per logical
-/// request/scope, which pooling does not guarantee without extra care.
+/// reused context. This is also why this project does not use <c>AddDbContextPool</c>: a pooled
+/// context's <see cref="CurrentTenantId"/> must be reset per logical request/scope, which
+/// pooling does not guarantee without extra care.
 /// </remarks>
 public class TenancyDbContext : DbContext
 {
     /// <summary>
     /// The tenant that every query issued through this context instance is scoped to. Must be
-    /// set by request-scoped DI wiring (T028/T035) before any query runs; read by the
+    /// set by request-scoped DI wiring before any query runs; read by the
     /// <c>"TenantFilter"</c> global query filter applied in <see cref="OnModelCreating"/>.
     /// </summary>
     public TenantId CurrentTenantId { get; set; }
@@ -49,6 +50,8 @@ public class TenancyDbContext : DbContext
 
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
 
+    public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
+
     /// <summary>
     /// Registers the value converters for the project's strongly-typed ID structs once, globally,
     /// rather than repeating <c>HasConversion</c> in every entity configuration — see
@@ -60,6 +63,7 @@ public class TenancyDbContext : DbContext
         configurationBuilder.Properties<UserId>().HaveConversion<UserIdConverter>();
         configurationBuilder.Properties<MembershipId>().HaveConversion<MembershipIdConverter>();
         configurationBuilder.Properties<InvitationId>().HaveConversion<InvitationIdConverter>();
+        configurationBuilder.Properties<AuditEntryId>().HaveConversion<AuditEntryIdConverter>();
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

@@ -46,3 +46,12 @@ public sealed class InvitationIdConverter : ValueConverter<InvitationId, Guid>
     {
     }
 }
+
+/// <inheritdoc cref="TenantIdConverter"/>
+public sealed class AuditEntryIdConverter : ValueConverter<AuditEntryId, Guid>
+{
+    public AuditEntryIdConverter()
+        : base(id => id.Value, value => new AuditEntryId(value))
+    {
+    }
+}
