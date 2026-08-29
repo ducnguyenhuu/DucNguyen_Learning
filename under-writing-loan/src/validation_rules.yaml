@@ -1,0 +1,229 @@
+# Validation Rules Configuration
+# This file defines business rules for document validation
+# Add new rules here instead of modifying Python code
+
+# Rule Types:
+# - comparison: Compare two fields (e.g., net <= gross)
+# - range: Check value is within range
+# - date_order: Check dates are chronological
+# - format: Validate format (regex, SSN, EIN)
+# - calculation: Verify calculations are correct
+# - existence: Check required fields are present
+
+pay_stub:
+  rules:
+    - rule_id: PAY_001
+      name: "Net income must not exceed gross income"
+      type: comparison
+      field1: net_monthly_income
+      operator: "<="
+      field2: gross_monthly_income
+      error_message: "Net income ({field1}) exceeds gross income ({field2})"
+      severity: critical  # critical, warning, info
+      
+    - rule_id: PAY_002
+      name: "Pay period dates must be chronological"
+      type: date_order
+      start_field: pay_period_start
+      end_field: pay_period_end
+      error_message: "Pay period start ({start_field}) must be before end ({end_field})"
+      severity: critical
+      
+    - rule_id: PAY_003
+      name: "Income amounts must be non-negative"
+      type: range
+      fields:
+        - gross_monthly_income
+        - net_monthly_income
+        - ytd_gross
+      min_value: 0
+      max_value: null  # No upper limit
+      error_message: "{field} cannot be negative: {value}"
+      severity: critical
+      
+    - rule_id: PAY_004
+      name: "YTD consistency check"
+      type: calculation
+      formula: "ytd_gross ~= gross_monthly_income * months_worked"
+      tolerance: 0.5  # 50% tolerance
+      fields:
+        ytd_gross: required
+        gross_monthly_income: required
+        pay_period_end: required  # For calculating months_worked
+      error_message: "YTD gross ({ytd_gross}) inconsistent with monthly gross ({gross_monthly_income}) × {months_worked} months"
+      severity: warning
+      
+    - rule_id: PAY_005
+      name: "SSN format validation"
+      type: format
+      field: employee_ssn
+      patterns:
+        - '^\d{3}-\d{2}-\d{4}$'  # Full SSN with dashes
+        - '^\d{9}$'               # Full SSN without dashes
+        - '^\*\*\*-\*\*-\d{4}$'   # Masked with dashes
+        - '^\d{4}$'               # Last 4 only
+      error_message: "Invalid SSN format in {field}: {value}"
+      severity: warning
+      optional: true  # Only validate if field exists
+
+bank_statement:
+  rules:
+    - rule_id: BANK_001
+      name: "Statement dates must be chronological"
+      type: date_order
+      start_field: statement_start_date
+      end_field: statement_end_date
+      error_message: "Statement start ({start_field}) must be before end ({end_field})"
+      severity: critical
+      
+    - rule_id: BANK_002
+      name: "Balance equation must be correct"
+      type: calculation
+      formula: "ending_balance = beginning_balance + total_deposits - total_withdrawals"
+      tolerance: 1.00  # $1 tolerance for rounding
+      fields:
+        beginning_balance: required
+        total_deposits: required
+        total_withdrawals: required
+        ending_balance: required
+      error_message: "Ending balance ({ending_balance}) inconsistent with beginning ({beginning_balance}) + deposits ({total_deposits}) - withdrawals ({total_withdrawals})"
+      severity: critical
+      
+    - rule_id: BANK_003
+      name: "Flag large negative balances"
+      type: range
+      fields:
+        - ending_balance
+      min_value: -1000
+      max_value: null
+      error_message: "Unusually large negative balance: {value}"
+      severity: warning
+
+tax_return:
+  rules:
+    - rule_id: TAX_001
+      name: "Valid tax year"
+      type: range
+      fields:
+        - tax_year
+      min_value: 1900
+      max_value: 2025  # Current year (update annually or use dynamic)
+      error_message: "Invalid tax year: {value} (must be 1900-2025)"
+      severity: critical
+      
+    - rule_id: TAX_002
+      name: "Non-negative amounts"
+      type: range
+      fields:
+        - wages_annual
+        - federal_tax_withheld
+        - wages_monthly
+      min_value: 0
+      max_value: null
+      error_message: "{field} cannot be negative: {value}"
+      severity: critical
+      
+    - rule_id: TAX_003
+      name: "Monthly calculation accuracy"
+      type: calculation
+      formula: "wages_monthly = wages_annual / 12"
+      tolerance: 1.00  # $1 tolerance
+      fields:
+        wages_annual: required
+        wages_monthly: required
+      error_message: "Monthly wages ({wages_monthly}) inconsistent with annual wages ({wages_annual} / 12)"
+      severity: critical
+
+drivers_license:
+  rules:
+    - rule_id: DL_001
+      name: "DOB must be in the past"
+      type: date_order
+      start_field: date_of_birth
+      end_field: TODAY  # Special keyword for current date
+      error_message: "Date of birth ({start_field}) cannot be in the future"
+      severity: critical
+      
+    - rule_id: DL_002
+      name: "Age must be reasonable"
+      type: range
+      fields:
+        - age  # Calculated field
+      min_value: 16
+      max_value: 120
+      error_message: "Age ({value}) outside reasonable range (16-120)"
+      severity: critical
+      
+    - rule_id: DL_003
+      name: "License not expired over 1 year"
+      type: date_order
+      start_field: expiration_date
+      end_field: ONE_YEAR_AGO  # Special keyword
+      error_message: "License expired over a year ago: {start_field}"
+      severity: warning
+      
+    - rule_id: DL_004
+      name: "Issue date before expiration"
+      type: date_order
+      start_field: issue_date
+      end_field: expiration_date
+      error_message: "Issue date ({start_field}) must be before expiration ({end_field})"
+      severity: critical
+
+employment_letter:
+  rules:
+    - rule_id: EMP_001
+      name: "Employment start date in past"
+      type: date_order
+      start_field: employment_start_date
+      end_field: TODAY
+      error_message: "Employment start date ({start_field}) cannot be in the future"
+      severity: critical
+      
+    - rule_id: EMP_002
+      name: "Non-negative salary"
+      type: range
+      fields:
+        - annual_salary
+        - monthly_salary
+      min_value: 0
+      max_value: null
+      error_message: "{field} cannot be negative: {value}"
+      severity: critical
+      
+    - rule_id: EMP_003
+      name: "Monthly salary calculation"
+      type: calculation
+      formula: "monthly_salary = annual_salary / 12"
+      tolerance: 1.00
+      fields:
+        annual_salary: required
+        monthly_salary: required
+      error_message: "Monthly salary ({monthly_salary}) inconsistent with annual salary ({annual_salary} / 12)"
+      severity: critical
+
+# Common rules applied to all document types
+common:
+  rules:
+    - rule_id: COMMON_001
+      name: "No empty string placeholders"
+      type: format
+      pattern: "^$"
+      negate: true  # Should NOT match empty string
+      error_message: "Field '{field}' is empty string (should be null)"
+      severity: warning
+      
+    - rule_id: COMMON_002
+      name: "No placeholder values"
+      type: format
+      pattern: "^(null|none|n/a)$"
+      negate: true  # Should NOT match these values
+      error_message: "Field '{field}' contains placeholder value: {value}"
+      severity: warning
+      case_insensitive: true
+
+# Rule execution configuration
+execution:
+  stop_on_first_critical: false  # Continue checking all rules even if critical fails
+  max_errors_per_document: 20    # Prevent overwhelming output
+  skip_warnings_if_critical: false  # Show warnings even when critical errors exist

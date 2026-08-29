@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>StockTrader Fundamental Metrics Reference Guide</title>
+    <style>
+        @media print {
+            body { margin: 0.5in; font-size: 11pt; }
+            h1 { page-break-before: always; }
+            .no-print { display: none; }
+        }
+        body { 
+            font-family: 'Times New Roman', serif; 
+            line-height: 1.5; 
+            margin: 40px;
+            font-size: 12pt;
+            color: #333;
+            max-width: 900px;
+        }
+        h1 { 
+            color: #1a365d; 
+            border-bottom: 3px solid #3182ce;
+            padding-bottom: 10px;
+            margin-top: 40px;
+            font-size: 20pt;
+        }
+        h2 { 
+            color: #2d3748; 
+            border-bottom: 2px solid #718096;
+            margin-top: 30px;
+            font-size: 16pt;
+        }
+        h3 { 
+            color: #2b6cb0; 
+            margin-top: 25px;
+            font-size: 14pt;
+        }
+        h4 {
+            color: #4a5568;
+            font-size: 12pt;
+            margin-top: 20px;
+        }
+        table { 
+            border-collapse: collapse; 
+            width: 100%; 
+            margin: 15px 0;
+            font-size: 10pt;
+        }
+        th, td { 
+            border: 1px solid #a0aec0; 
+            padding: 8px; 
+            text-align: left;
+            vertical-align: top;
+        }
+        th { 
+            background-color: #edf2f7; 
+            font-weight: bold;
+        }
+        tr:nth-child(even) {
+            background-color: #f7fafc;
+        }
+        .formula {
+            background-color: #f0f8f0;
+            padding: 10px;
+            border-left: 4px solid #38a169;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 11pt;
+        }
+        .interpretation {
+            background-color: #fef5e7;
+            padding: 10px;
+            border-left: 4px solid #ed8936;
+            margin: 10px 0;
+        }
+        .insight {
+            background-color: #ebf8ff;
+            padding: 10px;
+            border-left: 4px solid #4299e1;
+            margin: 10px 0;
+            font-style: italic;
+        }
+        .example {
+            background-color: #f0fff4;
+            padding: 8px;
+            border: 1px solid #9ae6b4;
+            margin: 8px 0;
+            border-radius: 4px;
+        }
+        .star { color: #ffd700; font-size: 14pt; }
+        strong { color: #2d3748; }
+        em { color: #4a5568; }
+        ul, ol { margin-left: 20px; }
+        li { margin-bottom: 5px; }
+        .toc { 
+            background-color: #f8f9fa; 
+            padding: 20px; 
+            border: 1px solid #dee2e6;
+            margin-bottom: 30px;
+        }
+        .category-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            margin: 30px 0 20px 0;
+            border-radius: 8px;
+        }
+        .metric-box {
+            border: 1px solid #e2e8f0;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 6px;
+            background-color: #fafafa;
+        }
+    </style>
+</head>
+<body>
+
+<h1>📊 StockTrader Fundamental Metrics Reference Guide</h1>
+<p><strong>Complete Guide to Financial Analysis Metrics Used in StockTrader Application</strong></p>
+<p><em>Print-Ready Reference Document</em></p>
+
+<div class="toc">
+<h2>Table of Contents</h2>
+<ol>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#valuation">Valuation Metrics</a></li>
+    <li><a href="#profitability">Profitability Metrics</a></li>
+    <li><a href="#growth">Growth Metrics</a></li>
+    <li><a href="#health">Financial Health Metrics</a></li>
+    <li><a href="#market">Market Metrics</a></li>
+    <li><a href="#income">Income Metrics</a></li>
+    <li><a href="#integration">StockTrader Integration</a></li>
+    <li><a href="#framework">Investment Decision Framework</a></li>
+    <li><a href="#reference">Quick Reference Tables</a></li>
+</ol>
+</div>
+
+<h1 id="overview">Overview</h1>
+<p>StockTrader uses <strong>17 key fundamental metrics</strong> organized into 6 categories to evaluate stocks alongside AI-powered forecasting. This guide provides detailed explanations of each metric and how to interpret them for investment decisions.</p>
+
+<h3>Scoring System</h3>
+<ul>
+    <li><strong>Combined Score</strong>: 60% Forecast + 40% Fundamental (0-10 scale)</li>
+    <li><strong>Fundamental Score</strong>: Based on all 17 metrics below</li>
+    <li><strong>Value Assessment</strong>: Automatic categorization of investment attractiveness</li>
+</ul>
+
+<div class="category-header">
+<h1 id="valuation">💼 Valuation Metrics</h1>
+<p><em>"How expensive is the stock?"</em></p>
+</div>
+
+<div class="metric-box">
+<h3>1. P/E Ratio (Price-to-Earnings)</h3>
+<div class="formula"><strong>Formula:</strong> Current Stock Price ÷ Earnings Per Share (EPS)</div>
+<p><strong>What it measures:</strong> How much investors pay for each dollar of company earnings</p>
+<div class="interpretation">
+<strong>Interpretation:</strong><br>
+• <strong>&lt; 15:</strong> Undervalued (value stock territory)<br>
+• <strong>15-25:</strong> Fair value range for most stocks<br>
+• <strong>&gt; 25:</strong> Expensive (growth premium or overvalued)
+</div>
+<div class="example"><strong>Example:</strong> Apple at $150 with $6 EPS = P/E of 25</div>
+<div class="insight"><strong>Investment insight:</strong> Lower P/E may indicate bargain, but verify company isn't declining</div>
+</div>
+
+<div class="metric-box">
+<h3>2. PEG Ratio (Price/Earnings-to-Growth)</h3>
+<div class="formula"><strong>Formula:</strong> P/E Ratio ÷ Annual Earnings Growth Rate</div>
+<p><strong>What it measures:</strong> Whether the P/E ratio is justified by the company's growth rate</p>
+<div class="interpretation">
+<strong>Interpretation:</strong><br>
+• <strong>&lt; 1.0:</strong> Attractive (growth at reasonable price - GARP investing)<br>
+• <strong>1.0-1.5:</strong> Reasonable valuation for growth<br>
+• <strong>&gt; 1.5:</strong> Expensive relative to growth rate
+</div>
+<div class="example"><strong>Example:</strong> P/E of 20 with 20% earnings growth = PEG of 1.0 (fair value)</div>
+<div class="insight"><strong>Investment insight:</strong> Peter Lynch's favorite metric - "fair value" stock has PEG of 1.0</div>
+</div>
+
+<div class="metric-box">
+<h3>3. P/B Ratio (Price-to-Book)</h3>
+<div class="formula"><strong>Formula:</strong> Current Stock Price ÷ Book Value Per Share</div>
+<p><strong>What it measures:</strong> How much you pay for each dollar of company's net assets</p>
+<div class="interpretation">
+<strong>Interpretation:</strong><br>
+• <strong>&lt; 1.5:</strong> Potentially undervalued (asset play)<br>
+• <strong>1.5-3.0:</strong> Reasonable for quality companies<br>
+• <strong>&gt; 3.0:</strong> Premium valuation (better have strong ROE to justify)
+</div>
+<div class="insight"><strong>Investment insight:</strong> Warren Buffett often looks for P/B &lt; 1.5 with high ROE</div>
+</div>
+
+<div class="category-header">
+<h1 id="profitability">💰 Profitability Metrics</h1>
+<p><em>"How profitable is the company?"</em></p>
+</div>
+
+<div class="metric-box">
+<h3>4. ROE (Return on Equity) <span class="star">⭐ MOST IMPORTANT</span></h3>
+<div class="formula"><strong>Formula:</strong> Net Income ÷ Shareholder Equity × 100</div>
+<p><strong>What it measures:</strong> How efficiently company uses shareholder money to generate profits</p>
+<div class="interpretation">
+<strong>Interpretation:</strong><br>
+• <strong>&gt; 20%:</strong> Excellent (companies like Apple, Google, Microsoft)<br>
+• <strong>15-20%:</strong> Good profitability<br>
+• <strong>10-15%:</strong> Average performance<br>
+• <strong>&lt; 10%:</strong> Weak (avoid unless special circumstances)
+</div>
+<div class="insight"><strong>Investment insight:</strong> Buffett looks for consistent ROE &gt; 15%. It's the single most important profitability metric.</div>
+</div>
+
+<div class="metric-box">
+<h3>5. ROA (Return on Assets)</h3>
+<div class="formula"><strong>Formula:</strong> Net Income ÷ Total Assets × 100</div>
+<p><strong>What it measures:</strong> How efficiently company uses ALL its assets to generate profits</p>
+<div class="interpretation">
+<strong>Interpretation:</strong><br>
+• <strong>&gt; 10%:</strong> Excellent asset utilization<br>
+• <strong>5-10%:</strong> Good efficiency<br>
+• <strong>&lt; 5%:</strong> Poor asset management
+</div>
+<div class="insight"><strong>Investment insight:</strong> High ROA indicates efficient operations and good asset management</div>
+</div>
+
+<div class="metric-box">
+<h3>6. Profit Margin (Net Profit Margin)</h3>
+<div class="formula"><strong>Formula:</strong> Net Income ÷ Revenue × 100</div>
+<p><strong>What it measures:</strong> How much profit company keeps from each dollar of sales</p>
+<div class="interpretation">
+<strong>Interpretation:</strong><br>
+• <strong>&gt; 20%:</strong> High margin business (tech, pharma, luxury brands)<br>
+• <strong>10-20%:</strong> Decent margins<br>
+• <strong>5-10%:</strong> Low margin business (retail, groceries)<br>
+• <strong>&lt; 5%:</strong> Very competitive/commodity business
+</div>
+<div class="insight"><strong>Investment insight:</strong> Higher margins indicate competitive moats and pricing power</div>
+</div>
+
+<div class="category-header">
+<h1 id="growth">📈 Growth Metrics</h1>
+<p><em>"How fast is the company growing?"</em></p>
+</div>
+
+<div class="metric-box">
+<h3>7. Revenue Growth</h3>
+<div class="formula"><strong>Formula:</strong> (Current Year Revenue - Previous Year Revenue) ÷ Previous Year Revenue × 100</div>
+<p><strong>What it measures:</strong> How fast the company is expanding its business/market share</p>
+<div class="interpretation">
+<strong>Interpretation:</strong><br>
+• <strong>&gt; 15%:</strong> High growth (exciting for growth investors)<br>
+• <strong>5-15%:</strong> Moderate growth (steady expansion)<br>
+• <strong>0-5%:</strong> Slow growth (mature company)<br>
+• <strong>&lt; 0%:</strong> Declining business (value trap risk)
+</div>
+<div class="insight"><strong>Investment insight:</strong> Sustainable revenue growth is foundation for long-term stock appreciation</div>
+</div>
+
+<div class="metric-box">
+<h3>8. EPS Growth (Earnings Per Share Growth) <span class="star">⭐ KEY METRIC</span></h3>
+<div class="formula"><strong>Formula:</strong> (Current EPS - Previous EPS) ÷ Previous EPS × 100</div>
+<p><strong>What it measures:</strong> How fast profits per share are growing</p>
+<div class="interpretation">
+<strong>Interpretation:</strong><br>
+• <strong>&gt; 20%:</strong> Strong earnings growth (growth stock)<br>
+• <strong>10-20%:</strong> Good growth<br>
+• <strong>5-10%:</strong> Moderate growth<br>
+• <strong>&lt; 5%:</strong> Weak growth
+</div>
+<div class="insight"><strong>Investment insight:</strong> Consistent 15%+ EPS growth often leads to significant stock appreciation</div>
+</div>
+
+<div class="category-header">
+<h1 id="health">🏥 Financial Health Metrics</h1>
+<p><em>"How financially stable is the company?"</em></p>
+</div>
+
+<div class="metric-box">
+<h3>9. Debt-to-Equity Ratio <span class="star">⭐ RISK INDICATOR</span></h3>
+<div class="formula"><strong>Formula:</strong> Total Debt ÷ Total Equity</div>
+<p><strong>What it measures:</strong> How much debt company uses vs. equity financing</p>
+<div class="interpretation">
+<strong>Interpretation:</strong><br>
+• <strong>&lt; 0.3:</strong> Strong balance sheet (low financial risk)<br>
+• <strong>0.3-0.6:</strong> Moderate leverage (acceptable)<br>
+• <strong>0.6-1.0:</strong> High debt (risky in economic downturns)<br>
+• <strong>&gt; 1.0:</strong> Very high debt (dangerous in bear markets)
+</div>
+<div class="insight"><strong>Investment insight:</strong> Low debt companies survive recessions better and have more flexibility</div>
+</div>
+
+<div class="metric-box">
+<h3>10. Current Ratio</h3>
+<div class="formula"><strong>Formula:</strong> Current Assets ÷ Current Liabilities</div>
+<p><strong>What it measures:</strong> Company's ability to pay short-term debts with short-term assets</p>
+<div class="interpretation">
+<strong>Interpretation:</strong><br>
+• <strong>&gt; 2.0:</strong> Excellent liquidity (very safe)<br>
+• <strong>1.5-2.0:</strong> Good liquidity<br>
+• <strong>1.0-1.5:</strong> Adequate but watch closely<br>
+• <strong>&lt; 1.0:</strong> Liquidity problems (potential bankruptcy risk)
+</div>
+<div class="insight"><strong>Investment insight:</strong> Companies with current ratio &lt; 1.5 may struggle in cash crunches</div>
+</div>
+
+<div class="metric-box">
+<h3>11. Free Cash Flow (FCF) <span class="star">⭐ CRITICAL</span></h3>
+<div class="formula"><strong>Formula:</strong> Operating Cash Flow - Capital Expenditures</div>
+<p><strong>What it measures:</strong> Cash available for dividends, buybacks, debt reduction, acquisitions</p>
+<div class="interpretation">
+<strong>Interpretation:</strong><br>
+• <strong>Positive &amp; Growing:</strong> Healthy cash generation<br>
+• <strong>Positive &amp; Stable:</strong> Reliable business<br>
+• <strong>Negative:</strong> Company spending more than generating (growth phase or trouble)
+</div>
+<div class="insight"><strong>Investment insight:</strong> Warren Buffett: "Cash is oxygen" - FCF shows real business value</div>
+</div>
+
+<div class="category-header">
+<h1 id="market">🏛️ Market Metrics</h1>
+<p><em>"How does the market perceive the stock?"</em></p>
+</div>
+
+<div class="metric-box">
+<h3>12. Market Cap (Market Capitalization)</h3>
+<div class="formula"><strong>Formula:</strong> Current Share Price × Number of Outstanding Shares</div>
+<p><strong>What it measures:</strong> Total company value according to stock market</p>
+<div class="interpretation">
+<strong>Categories:</strong><br>
+• <strong>&gt; $10B:</strong> Large Cap (stable, often dividend-paying, lower risk)<br>
+• <strong>$2B-$10B:</strong> Mid Cap (growth potential, moderate risk)<br>
+• <strong>&lt; $2B:</strong> Small Cap (high risk/high reward potential)
+</div>
+<div class="insight"><strong>Investment insight:</strong> Larger companies generally more stable, smaller companies more growth potential</div>
+</div>
+
+<div class="metric-box">
+<h3>13. Beta (Volatility Measure)</h3>
+<div class="formula"><strong>Formula:</strong> Statistical correlation of stock movement vs. overall market</div>
+<p><strong>What it measures:</strong> How much the stock price moves relative to market movements</p>
+<div class="interpretation">
+<strong>Interpretation:</strong><br>
+• <strong>Beta = 1.0:</strong> Moves exactly with market (SPY)<br>
+• <strong>Beta &gt; 1.0:</strong> More volatile than market (tech stocks often 1.2-1.8)<br>
+• <strong>Beta &lt; 1.0:</strong> Less volatile than market (utilities often 0.5-0.8)
+</div>
+<div class="insight"><strong>Investment insight:</strong> High beta = higher risk/reward, low beta = more stable/defensive</div>
+</div>
+
+<div class="category-header">
+<h1 id="income">💵 Income Metrics</h1>
+<p><em>"Does the stock provide income?"</em></p>
+</div>
+
+<div class="metric-box">
+<h3>14. Dividend Yield</h3>
+<div class="formula"><strong>Formula:</strong> Annual Dividends Per Share ÷ Current Stock Price × 100</div>
+<p><strong>What it measures:</strong> Annual income return from dividend payments</p>
+<div class="interpretation">
+<strong>Interpretation:</strong><br>
+• <strong>0%:</strong> Growth company (reinvests all profits for expansion)<br>
+• <strong>1-3%:</strong> Moderate dividend (growth with some income)<br>
+• <strong>3-6%:</strong> Good dividend yield (income focus)<br>
+• <strong>&gt; 6%:</strong> Either excellent yield or dividend at risk (investigate!)
+</div>
+<div class="insight"><strong>Investment insight:</strong> Very high yields (&gt;6%) often signal dividend cut risk</div>
+</div>
+
+<div class="metric-box">
+<h3>15. Payout Ratio</h3>
+<div class="formula"><strong>Formula:</strong> Dividends Per Share ÷ Earnings Per Share × 100</div>
+<p><strong>What it measures:</strong> What percentage of earnings are paid out as dividends</p>
+<div class="interpretation">
+<strong>Interpretation:</strong><br>
+• <strong>&lt; 40%:</strong> Very safe dividend (lots of cushion)<br>
+• <strong>40-60%:</strong> Healthy dividend (sustainable)<br>
+• <strong>60-80%:</strong> Moderate risk (less flexibility)<br>
+• <strong>&gt; 80%:</strong> High risk of dividend cuts in tough times
+</div>
+<div class="insight"><strong>Investment insight:</strong> Lower payout ratios = safer dividends + room for growth</div>
+</div>
+
+<h1 id="integration">🎯 StockTrader Integration</h1>
+
+<h3>How StockTrader Uses These Metrics:</h3>
+
+<h4>1. Combined Scoring System</h4>
+<ul>
+    <li><strong>Forecast Score (60%):</strong> AI-powered technical/sentiment analysis</li>
+    <li><strong>Fundamental Score (40%):</strong> Weighted combination of all 17 metrics above</li>
+    <li><strong>Final Combined Score:</strong> 0-10 scale for investment attractiveness</li>
+</ul>
+
+<h4>2. Automated Value Assessment</h4>
+<ul>
+    <li><strong>🔥 EXCELLENT VALUE</strong> (Score 6+): Undervalued with strong fundamentals</li>
+    <li><strong>✅ GOOD VALUE</strong> (Score 4-5): Fair value with decent metrics</li>
+    <li><strong>⚖️ FAIR VALUE</strong> (Score 2-3): Reasonably priced</li>
+    <li><strong>⚠️ OVERVALUED</strong> (Score &lt;2): Expensive relative to fundamentals</li>
+</ul>
+
+<h4>3. Portfolio Construction Guidance</h4>
+<ul>
+    <li><strong>Core Holdings (40-50%):</strong> Balanced value stocks (Fund Score ≥ 6.0, Forecast ≥ 7.0)</li>
+    <li><strong>Growth Allocation (30-40%):</strong> High momentum plays (Forecast ≥ 8.0, Change &gt; 4%)</li>
+    <li><strong>Income Component (10-20%):</strong> Dividend stocks (Yield &gt; 2%, Payout &lt; 80%)</li>
+    <li><strong>Cash Reserve (5-10%):</strong> Risk management and opportunities</li>
+</ul>
+
+<h1 id="framework">🚀 Investment Decision Framework</h1>
+
+<h3>The "Big 3" Metrics (Most Important)</h3>
+<ol>
+    <li><strong>ROE &gt; 15%:</strong> Indicates competitive advantage and excellent management</li>
+    <li><strong>Debt-to-Equity &lt; 0.6:</strong> Ensures financial stability and flexibility</li>
+    <li><strong>Free Cash Flow:</strong> Positive and growing shows real value creation</li>
+</ol>
+
+<h3>Investment Style Focus Areas</h3>
+
+<h4>For Growth Investing Focus On:</h4>
+<ul>
+    <li>EPS Growth &gt; 15%</li>
+    <li>Revenue Growth &gt; 10%</li>
+    <li>PEG Ratio &lt; 1.5</li>
+    <li>ROE &gt; 20%</li>
+</ul>
+
+<h4>For Value Investing Focus On:</h4>
+<ul>
+    <li>P/E Ratio &lt; 15</li>
+    <li>P/B Ratio &lt; 1.5</li>
+    <li>Dividend Yield &gt; 3%</li>
+    <li>Strong balance sheet (low debt)</li>
+</ul>
+
+<h4>For Income Investing Focus On:</h4>
+<ul>
+    <li>Dividend Yield 3-6%</li>
+    <li>Payout Ratio &lt; 60%</li>
+    <li>Consistent earnings</li>
+    <li>Low debt-to-equity</li>
+</ul>
+
+<h3>Red Flags to Avoid</h3>
+<ul>
+    <li><strong>ROE &lt; 10%:</strong> Poor profitability</li>
+    <li><strong>Debt-to-Equity &gt; 1.0:</strong> Dangerous leverage</li>
+    <li><strong>Current Ratio &lt; 1.0:</strong> Liquidity crisis risk</li>
+    <li><strong>Negative Free Cash Flow:</strong> Burning cash</li>
+    <li><strong>Payout Ratio &gt; 100%:</strong> Unsustainable dividend</li>
+</ul>
+
+<h1 id="reference">📋 Quick Reference Tables</h1>
+
+<h3>Good vs. Poor Values Quick Reference</h3>
+<table>
+    <tr>
+        <th>Metric</th>
+        <th>Excellent</th>
+        <th>Good</th>
+        <th>Average</th>
+        <th>Poor</th>
+    </tr>
+    <tr>
+        <td><strong>ROE</strong></td>
+        <td>&gt;20%</td>
+        <td>15-20%</td>
+        <td>10-15%</td>
+        <td>&lt;10%</td>
+    </tr>
+    <tr>
+        <td><strong>P/E Ratio</strong></td>
+        <td>&lt;15</td>
+        <td>15-20</td>
+        <td>20-25</td>
+        <td>&gt;25</td>
+    </tr>
+    <tr>
+        <td><strong>PEG Ratio</strong></td>
+        <td>&lt;1.0</td>
+        <td>1.0-1.5</td>
+        <td>1.5-2.0</td>
+        <td>&gt;2.0</td>
+    </tr>
+    <tr>
+        <td><strong>Debt/Equity</strong></td>
+        <td>&lt;0.3</td>
+        <td>0.3-0.6</td>
+        <td>0.6-1.0</td>
+        <td>&gt;1.0</td>
+    </tr>
+    <tr>
+        <td><strong>Current Ratio</strong></td>
+        <td>&gt;2.0</td>
+        <td>1.5-2.0</td>
+        <td>1.0-1.5</td>
+        <td>&lt;1.0</td>
+    </tr>
+    <tr>
+        <td><strong>EPS Growth</strong></td>
+        <td>&gt;20%</td>
+        <td>10-20%</td>
+        <td>5-10%</td>
+        <td>&lt;5%</td>
+    </tr>
+    <tr>
+        <td><strong>Profit Margin</strong></td>
+        <td>&gt;20%</td>
+        <td>10-20%</td>
+        <td>5-10%</td>
+        <td>&lt;5%</td>
+    </tr>
+</table>
+
+<h3>Investment Style Preferences</h3>
+<table>
+    <tr>
+        <th>Style</th>
+        <th>Primary Metrics</th>
+        <th>Target Values</th>
+    </tr>
+    <tr>
+        <td><strong>Growth</strong></td>
+        <td>EPS Growth, Revenue Growth, PEG</td>
+        <td>&gt;15%, &gt;10%, &lt;1.5</td>
+    </tr>
+    <tr>
+        <td><strong>Value</strong></td>
+        <td>P/E, P/B, Dividend Yield</td>
+        <td>&lt;15, &lt;1.5, &gt;3%</td>
+    </tr>
+    <tr>
+        <td><strong>Quality</strong></td>
+        <td>ROE, Debt/Equity, FCF</td>
+        <td>&gt;20%, &lt;0.3, Positive</td>
+    </tr>
+    <tr>
+        <td><strong>Income</strong></td>
+        <td>Div Yield, Payout Ratio</td>
+        <td>3-6%, &lt;60%</td>
+    </tr>
+</table>
+
+<h3>💡 Famous Investor Approaches</h3>
+
+<h4>Warren Buffett's Favorites</h4>
+<ul>
+    <li>ROE &gt; 15% consistently</li>
+    <li>Low debt-to-equity</li>
+    <li>Predictable earnings growth</li>
+    <li>Strong competitive moats (high profit margins)</li>
+</ul>
+
+<h4>Peter Lynch's Growth Approach</h4>
+<ul>
+    <li>PEG ratio &lt; 1.0 (growth at reasonable price)</li>
+    <li>EPS growth 15-25% annually</li>
+    <li>Reasonable P/E for growth rate</li>
+    <li>Strong fundamentals backing growth</li>
+</ul>
+
+<h4>Benjamin Graham's Value Principles</h4>
+<ul>
+    <li>P/E &lt; 15</li>
+    <li>P/B &lt; 1.5</li>
+    <li>Current ratio &gt; 2.0</li>
+    <li>Debt-to-equity &lt; 0.5</li>
+</ul>
+
+<hr>
+
+<p><strong>Document Version:</strong> 1.0<br>
+<strong>Last Updated:</strong> August 2, 2025<br>
+<strong>Application:</strong> StockTrader v2.0<br>
+<strong>Total Metrics Covered:</strong> 17 fundamental metrics across 6 categories</p>
+
+<p><em>This guide provides educational information only and should not be considered as investment advice. Always consult with financial professionals and do your own research before making investment decisions.</em></p>
+
+<div class="no-print">
+<h3>📄 How to Print This Guide</h3>
+<ol>
+    <li>Press <strong>Ctrl+P</strong> (or Cmd+P on Mac) to open print dialog</li>
+    <li>Select "More settings" and choose "Landscape" orientation for better table formatting</li>
+    <li>Enable "Background graphics" to preserve color coding</li>
+    <li>Consider printing in color for better visual distinction</li>
+    <li>This document is optimized for standard 8.5x11" paper</li>
+</ol>
+</div>
+
+</body>
+</html>

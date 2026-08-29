@@ -1,0 +1,161 @@
+# =============================================================================
+# knowledge-base-ai — .gitignore
+# Python/FastAPI backend + TypeScript/React frontend + Docker
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Python
+# -----------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+.eggs/
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.env/
+
+# Type stubs cache
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytype/
+.pyre/
+
+# Test / coverage artefacts
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+*.cover
+nosetests.xml
+
+# Profiling
+*.prof
+
+# -----------------------------------------------------------------------------
+# Node.js / TypeScript / React
+# -----------------------------------------------------------------------------
+node_modules/
+dist/
+build/
+.next/
+out/
+
+# Dependency lock files (keep one; both are fine to track)
+# Uncomment the lock file you DON'T use:
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# Vite / esbuild cache
+.vite/
+*.local
+
+# Test artefacts
+coverage/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# -----------------------------------------------------------------------------
+# Environment & secrets  (NEVER commit)
+# -----------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+secrets/
+
+# -----------------------------------------------------------------------------
+# Runtime data (generated at runtime — not source)
+# -----------------------------------------------------------------------------
+# ChromaDB vector store
+data/
+# SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Log files
+*.log
+logs/
+
+# Uploaded / processed files
+uploads/
+
+# -----------------------------------------------------------------------------
+# Docker
+# -----------------------------------------------------------------------------
+# Keep docker-compose.yml and Dockerfiles; ignore local overrides
+docker-compose.override.yml
+docker-compose.local.yml
+
+# -----------------------------------------------------------------------------
+# OS artefacts
+# -----------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# -----------------------------------------------------------------------------
+# Editor / IDE
+# -----------------------------------------------------------------------------
+.idea/
+*.iml
+*.iws
+*.ipr
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# -----------------------------------------------------------------------------
+# Jupyter (in case notebooks are added later)
+# -----------------------------------------------------------------------------
+.ipynb_checkpoints/
+*.ipynb
+
+# -----------------------------------------------------------------------------
+# Alembic
+# -----------------------------------------------------------------------------
+# Keep alembic/ source; ignore generated migration temp files if any
+# (nothing specific to ignore by default)
+
+# -----------------------------------------------------------------------------
+# Miscellaneous
+# -----------------------------------------------------------------------------
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
+.cache/

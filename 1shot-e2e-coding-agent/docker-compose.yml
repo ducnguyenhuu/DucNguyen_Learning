@@ -1,0 +1,88 @@
+# docker-compose.yml — Devbox compose configuration (T057, US4)
+#
+# Provides a convenient `docker compose run` interface for the 1shot coding agent.
+# The agent runs inside the devbox container built from Dockerfile.devbox.
+#
+# tinyproxy runs inside the container (started by docker-entrypoint.sh) and
+# enforces the domain allowlist. No separate proxy service is required.
+#
+# Prerequisites:
+#   1. Build the devbox image first:
+#      docker compose build devbox
+#
+#   OR with a custom target repo:
+#      docker compose build \
+#        --build-arg REPO_URL=https://github.com/org/repo.git \
+#        devbox
+#
+# Usage:
+#   # Run a coding task (one-shot, disposable container):
+#   docker compose run --rm devbox run "Add email validation to POST /users"
+#
+#   # Override LLM provider:
+#   docker compose run --rm devbox run "Fix the login bug" --provider openai
+#
+#   # Dry-run (show plan without making changes):
+#   docker compose run --rm devbox run "Refactor auth module" --dry-run
+#
+# Environment variables (set in a .env file or export in your shell):
+#   ANTHROPIC_API_KEY   Required when using Anthropic provider (default)
+#   OPENAI_API_KEY      Required when using OpenAI provider
+#   GITHUB_TOKEN        Required for push + PR creation (FR-009)
+#   REPO_URL            Git URL of the target repository (build arg)
+#   REPO_BRANCH         Branch to clone (build arg, default: main)
+
+services:
+  devbox:
+    build:
+      context: .
+      dockerfile: Dockerfile.devbox
+      args:
+        # Target repository to clone into /workspace.
+        # Can be overridden with: docker compose build --build-arg REPO_URL=...
+        REPO_URL: ${REPO_URL:-}
+        REPO_BRANCH: ${REPO_BRANCH:-main}
+        # Override allowed domains (space-separated). Defaults defined in Dockerfile.devbox.
+        ALLOWED_DOMAINS: ${ALLOWED_DOMAINS:-}
+
+    image: pi-agent-devbox:latest
+
+    # tinyproxy runs inside the container; no host port mapping needed.
+    # The entrypoint starts tinyproxy and sets HTTP_PROXY before the CLI runs.
+
+    environment:
+      # ── LLM provider credentials ─────────────────────────────────────────
+      # Pass API keys from the host shell; never hard-code them here.
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+
+      # ── GitHub credentials (PR creation + git push, FR-009) ──────────────
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+
+      # ── Optional agent overrides ─────────────────────────────────────────
+      # These can also be supplied as CLI flags (--provider, --model, etc.)
+      - PI_AGENT_PROVIDER=${PI_AGENT_PROVIDER:-}
+      - PI_AGENT_MODEL=${PI_AGENT_MODEL:-}
+
+    # Mount a runs/ directory from the host so run artifacts (session transcripts,
+    # report.json, metrics.json) survive after `--rm` removes the container.
+    volumes:
+      - ${RUNS_DIR:-./runs}:/agent/runs
+
+    # Keep stdin open so the agent can prompt for input if needed in future.
+    stdin_open: true
+    tty: false
+
+    # Default command when `docker compose run devbox` is invoked without args.
+    # Override with: docker compose run devbox run "My task"
+    command: ["--help"]
+
+    # Resource limits — prevent runaway LLM sessions from consuming unbounded CPU/RAM.
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 4G
+        reservations:
+          cpus: "0.5"
+          memory: 512M

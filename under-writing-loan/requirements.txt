@@ -1,0 +1,37 @@
+# AI/ML Dependencies
+openai>=1.0.0
+langchain>=0.1.0
+langgraph>=0.0.20
+azure-ai-formrecognizer>=3.3.0
+azure-search-documents>=11.4.0
+
+# Data Validation
+pydantic>=2.0.0
+
+# API Framework
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+
+# ML Tracking
+mlflow>=2.8.0
+
+# Notebook Environment
+jupyter>=1.0.0
+ipykernel>=6.25.0
+ipywidgets>=8.1.0
+
+# Visualization
+plotly>=5.17.0
+matplotlib>=3.7.0
+
+# Document Processing
+pdfplumber>=0.10.0
+
+# Utilities
+python-dotenv>=1.0.0
+httpx>=0.24.0
+pandas>=2.0.0
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0

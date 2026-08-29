@@ -1,0 +1,14 @@
+# Requirements file for StockTrader application
+
+# Core dependencies
+yfinance>=0.2.18          # Yahoo Finance API
+pandas>=2.0.0             # Data manipulation
+numpy>=1.24.0             # Numerical computing
+
+# Optional dependencies for enhanced functionality
+matplotlib>=3.7.0         # Basic plotting
+plotly>=5.14.0           # Interactive charts (optional)
+
+# Development dependencies (optional)
+pytest>=7.0.0            # Testing framework
+black>=23.0.0            # Code formatting

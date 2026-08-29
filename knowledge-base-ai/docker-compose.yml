@@ -1,0 +1,126 @@
+# docker-compose.yml — Knowledge Base AI
+#
+# Usage:
+#   Development (SQLite):
+#     docker-compose up --build -d
+#
+#   Production (PostgreSQL):
+#     docker-compose --profile production up --build -d
+#
+# Pre-requisites:
+#   - Copy backend/.env.example → backend/.env and set KNOWLEDGE_FOLDER
+#   - For production profile, set DATABASE_URL in .env to the PostgreSQL URL
+
+version: "3.9"
+
+# ── Shared configuration ───────────────────────────────────────────────────
+x-backend-env: &backend-env
+  env_file: ./backend/.env
+  environment:
+    # Override host so FastAPI listens on all interfaces inside the container
+    HOST: "0.0.0.0"
+    PORT: "8000"
+    LLM_BASE_URL: "http://ollama:11434"
+
+# ── Services ───────────────────────────────────────────────────────────────
+services:
+
+  # ── Ollama — local LLM / embedding inference ──────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: kb-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_models:/root/.ollama
+    ports:
+      - "11434:11434"
+    # GPU support (optional — requires NVIDIA Container Toolkit)
+    # Uncomment the lines below if a compatible GPU is present:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  # ── Backend — FastAPI ─────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: kb-backend
+    restart: unless-stopped
+    <<: *backend-env
+    depends_on:
+      ollama:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist ChromaDB vector store between restarts
+      - chroma_data:/app/data/chromadb
+      # Persist SQLite database (default dev setup)
+      - sqlite_data:/app/data
+      # Mount knowledge folder from host (set KNOWLEDGE_FOLDER in .env)
+      - type: bind
+        source: ${KNOWLEDGE_FOLDER:-./data/knowledge}
+        target: /app/data/knowledge
+        read_only: true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── Frontend — Nginx (React SPA) ─────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: kb-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+
+  # ── PostgreSQL — production profile only ─────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: kb-postgres
+    restart: unless-stopped
+    profiles:
+      - production
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-kbuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kbpassword}
+      POSTGRES_DB: ${POSTGRES_DB:-knowledge_base}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kbuser}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# ── Volumes ────────────────────────────────────────────────────────────────
+volumes:
+  ollama_models:
+    driver: local
+  chroma_data:
+    driver: local
+  sqlite_data:
+    driver: local
+  postgres_data:
+    driver: local

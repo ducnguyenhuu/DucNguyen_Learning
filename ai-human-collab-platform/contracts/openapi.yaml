@@ -1,0 +1,1390 @@
+openapi: 3.1.0
+info:
+  title: HACP Backend API
+  version: 1.0.0
+  description: |
+    Human-AI Collaboration Platform (HACP) REST + SSE API.
+    Backend serves on localhost. Frontend communicates via HTTP and SSE.
+
+servers:
+  - url: http://localhost:3001
+    description: Local development server
+
+tags:
+  - name: Projects
+    description: Project Library CRUD (FR-046–FR-052)
+  - name: Workspace
+    description: Workspace initialization and ICM structure (FR-035–FR-045)
+  - name: Stages
+    description: Stage management and editing (FR-005, FR-006, FR-027–FR-029)
+  - name: Workflow
+    description: Execution, pause, resume, cancel (FR-012–FR-016, FR-022)
+  - name: HumanGate
+    description: Human review gate submission (FR-017–FR-021)
+  - name: Conversation
+    description: Per-stage AI conversation (FR-060–FR-065)
+  - name: RunHistory
+    description: Re-run, archive, restore, diff (FR-053–FR-059)
+  - name: Export
+    description: Output export (FR-092–FR-095)
+  - name: Templates
+    description: Template gallery and cloning (FR-066–FR-069)
+  - name: Settings
+    description: Platform settings and LLM config (FR-080–FR-091)
+  - name: Search
+    description: Project-wide search (FR-101)
+  - name: Events
+    description: SSE real-time events (FR-034, FR-065, FR-077)
+
+paths:
+  # ── Projects ──────────────────────────────────────────
+  /api/projects:
+    get:
+      tags: [Projects]
+      summary: List all projects
+      description: "FR-046: Project Library home screen data"
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [Draft, Running, Paused, Completed, Failed, Archived]
+        - name: tag
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [lastModifiedAt, createdAt, name]
+            default: lastModifiedAt
+      responses:
+        "200":
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProjectEntry"
+    post:
+      tags: [Projects]
+      summary: Create a new project
+      description: "FR-048: Create project via wizard"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProjectRequest"
+      responses:
+        "201":
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectEntry"
+
+  /api/projects/{projectId}:
+    get:
+      tags: [Projects]
+      summary: Get project details
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+      responses:
+        "200":
+          description: Project details with workspace metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectDetail"
+    patch:
+      tags: [Projects]
+      summary: Update project (tags, name, archive)
+      description: "FR-050, FR-051: Archive, tag, rename"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProjectRequest"
+      responses:
+        "200":
+          description: Updated project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectEntry"
+    delete:
+      tags: [Projects]
+      summary: Delete a project
+      description: "FR-103: Requires confirmation on frontend"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+      responses:
+        "204":
+          description: Deleted
+
+  /api/projects/{projectId}/duplicate:
+    post:
+      tags: [Projects]
+      summary: Duplicate a project
+      description: "FR-049: Copy workspace, clear outputs/runs/conversations"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                path:
+                  type: string
+              required: [name]
+      responses:
+        "201":
+          description: Duplicated project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectEntry"
+
+  # ── Workspace ─────────────────────────────────────────
+  /api/projects/{projectId}/workspace:
+    get:
+      tags: [Workspace]
+      summary: Get workspace structure and metadata
+      description: "FR-036: Read ICM structure, restore state from files"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+      responses:
+        "200":
+          description: Workspace metadata + routing table + stage list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceState"
+
+  /api/projects/{projectId}/workspace/disk-usage:
+    get:
+      tags: [Workspace]
+      summary: Get workspace disk usage
+      description: "FR-105"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalBytes:
+                    type: integer
+                  runsBytes:
+                    type: integer
+
+  # ── Stages ────────────────────────────────────────────
+  /api/projects/{projectId}/stages:
+    get:
+      tags: [Stages]
+      summary: List all stages
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StageSummary"
+    post:
+      tags: [Stages]
+      summary: Create a manual stage
+      description: "FR-027, FR-029: Manual stage creation and insertion"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStageRequest"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StageDetail"
+
+  /api/projects/{projectId}/stages/{stageNumber}:
+    get:
+      tags: [Stages]
+      summary: Get stage full details
+      description: "FR-011: Full stage info including contract, status, output preview"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+        - $ref: "#/components/parameters/stageNumber"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StageDetail"
+    patch:
+      tags: [Stages]
+      summary: Edit a stage (contract fields)
+      description: "FR-005, FR-030: Edit title, description, assignee, inputs, process, outputs"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+        - $ref: "#/components/parameters/stageNumber"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStageRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StageDetail"
+    delete:
+      tags: [Stages]
+      summary: Delete a stage
+      description: "FR-006, FR-103"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+        - $ref: "#/components/parameters/stageNumber"
+      responses:
+        "204":
+          description: Deleted
+
+  /api/projects/{projectId}/stages/{stageNumber}/output:
+    get:
+      tags: [Stages]
+      summary: Get stage output files
+      description: "FR-033: Full output content"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+        - $ref: "#/components/parameters/stageNumber"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  files:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/OutputFile"
+
+  /api/projects/{projectId}/stages/reorder:
+    post:
+      tags: [Stages]
+      summary: Reorder stages (drag-and-drop)
+      description: "FR-102: Update folder numbering and routing table"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                order:
+                  type: array
+                  items:
+                    type: integer
+                  description: New stage order by current stage numbers
+              required: [order]
+      responses:
+        "200":
+          description: Reordered successfully
+
+  # ── Workflow Execution ────────────────────────────────
+  /api/projects/{projectId}/workflow/start:
+    post:
+      tags: [Workflow]
+      summary: Start workflow execution
+      description: "FR-012: Single action to trigger execution"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+      responses:
+        "202":
+          description: Workflow started (async — progress via SSE)
+
+  /api/projects/{projectId}/workflow/pause:
+    post:
+      tags: [Workflow]
+      summary: Pause workflow
+      description: "FR-022"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+      responses:
+        "200":
+          description: Paused
+
+  /api/projects/{projectId}/workflow/resume:
+    post:
+      tags: [Workflow]
+      summary: Resume workflow
+      description: "FR-022"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+      responses:
+        "202":
+          description: Resumed
+
+  /api/projects/{projectId}/workflow/cancel:
+    post:
+      tags: [Workflow]
+      summary: Cancel workflow
+      description: "FR-022"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+      responses:
+        "200":
+          description: Cancelled
+
+  /api/projects/{projectId}/workflow/status:
+    get:
+      tags: [Workflow]
+      summary: Get workflow status
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowStatus"
+
+  # ── Plan (AI Decomposition) ──────────────────────────
+  /api/projects/{projectId}/plan:
+    post:
+      tags: [Workflow]
+      summary: Generate stage plan from project description
+      description: "FR-001, FR-002: Submit description, AI generates stages"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                description:
+                  type: string
+                  minLength: 10
+              required: [description]
+      responses:
+        "202":
+          description: Planning started (progress via SSE, stages created on completion)
+
+  # ── Human Review Gate ─────────────────────────────────
+  /api/projects/{projectId}/stages/{stageNumber}/submit:
+    post:
+      tags: [HumanGate]
+      summary: Submit human output for a review gate stage
+      description: "FR-019, FR-020: User submits output, workflow resumes"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+        - $ref: "#/components/parameters/stageNumber"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      content:
+                        type: string
+                    required: [name, content]
+              required: [files]
+      responses:
+        "200":
+          description: Output saved, workflow resumed
+
+  /api/projects/{projectId}/stages/{stageNumber}/draft:
+    get:
+      tags: [HumanGate]
+      summary: Get auto-saved draft
+      description: "FR-099"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+        - $ref: "#/components/parameters/stageNumber"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content:
+                    type: string
+                  savedAt:
+                    type: string
+                    format: date-time
+        "404":
+          description: No draft exists
+    put:
+      tags: [HumanGate]
+      summary: Save draft
+      description: "FR-099: Auto-save every 30s"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+        - $ref: "#/components/parameters/stageNumber"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+              required: [content]
+      responses:
+        "200":
+          description: Draft saved
+
+  # ── Conversation ──────────────────────────────────────
+  /api/projects/{projectId}/stages/{stageNumber}/conversation:
+    get:
+      tags: [Conversation]
+      summary: Get conversation history for a stage
+      description: "FR-060, FR-062"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+        - $ref: "#/components/parameters/stageNumber"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ConversationMessage"
+    post:
+      tags: [Conversation]
+      summary: Send a message in stage conversation
+      description: "FR-061, FR-065: AI responds with context, streamed via SSE"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+        - $ref: "#/components/parameters/stageNumber"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+              required: [message]
+      responses:
+        "202":
+          description: Message accepted, AI response streamed via SSE
+
+  /api/projects/{projectId}/stages/{stageNumber}/conversation/regenerate:
+    post:
+      tags: [Conversation]
+      summary: Regenerate stage output with feedback
+      description: "FR-063: AI regenerates, user previews and accepts/discards"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+        - $ref: "#/components/parameters/stageNumber"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                feedback:
+                  type: string
+              required: [feedback]
+      responses:
+        "202":
+          description: Regeneration started (output streamed via SSE for preview)
+
+  # ── Run History ───────────────────────────────────────
+  /api/projects/{projectId}/runs:
+    get:
+      tags: [RunHistory]
+      summary: List all run snapshots
+      description: "FR-055"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RunSnapshot"
+
+  /api/projects/{projectId}/runs/rerun:
+    post:
+      tags: [RunHistory]
+      summary: Trigger re-run from a specific stage
+      description: "FR-053, FR-054: Archive outputs, clear, re-execute"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fromStage:
+                  type: integer
+                  description: Stage number to re-run from (0 = entire workflow)
+              required: [fromStage]
+      responses:
+        "202":
+          description: Re-run started
+
+  /api/projects/{projectId}/runs/{runId}/diff:
+    get:
+      tags: [RunHistory]
+      summary: Diff two runs
+      description: "FR-056"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: compareWith
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Run ID to compare against
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stages:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        stageName:
+                          type: string
+                        leftContent:
+                          type: string
+                        rightContent:
+                          type: string
+
+  /api/projects/{projectId}/runs/{runId}/restore:
+    post:
+      tags: [RunHistory]
+      summary: Restore a previous run's outputs
+      description: "FR-057, FR-103: Replace current outputs with archived ones"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Outputs restored
+
+  /api/projects/{projectId}/runs/prune:
+    post:
+      tags: [RunHistory]
+      summary: Prune old run snapshots
+      description: "FR-106"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                keepLastN:
+                  type: integer
+                olderThan:
+                  type: string
+                  format: date-time
+      responses:
+        "200":
+          description: Pruned
+
+  # ── Export ────────────────────────────────────────────
+  /api/projects/{projectId}/export:
+    post:
+      tags: [Export]
+      summary: Export project outputs as consolidated document
+      description: "FR-092, FR-093, FR-095"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                format:
+                  type: string
+                  enum: [markdown, html, txt]
+                includeCoverPage:
+                  type: boolean
+                  default: true
+              required: [format]
+      responses:
+        "200":
+          description: Exported document
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+
+  /api/projects/{projectId}/stages/{stageNumber}/export:
+    post:
+      tags: [Export]
+      summary: Export individual stage output
+      description: "FR-094"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+        - $ref: "#/components/parameters/stageNumber"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                format:
+                  type: string
+                  enum: [markdown, zip]
+              required: [format]
+      responses:
+        "200":
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+
+  # ── Templates ─────────────────────────────────────────
+  /api/templates:
+    get:
+      tags: [Templates]
+      summary: List available templates
+      description: "FR-066"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Template"
+
+  /api/templates/import:
+    post:
+      tags: [Templates]
+      summary: Import a template from zip
+      description: "FR-069"
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Template"
+
+  /api/projects/{projectId}/save-as-template:
+    post:
+      tags: [Templates]
+      summary: Save project as custom template
+      description: "FR-068"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+              required: [name]
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Template"
+
+  /api/templates/{templateId}/export:
+    get:
+      tags: [Templates]
+      summary: Export template as zip
+      description: "FR-069"
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+
+  # ── Settings ──────────────────────────────────────────
+  /api/settings:
+    get:
+      tags: [Settings]
+      summary: Get platform settings
+      description: "FR-080: Settings page data (API keys masked)"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformSettings"
+    put:
+      tags: [Settings]
+      summary: Update platform settings
+      description: "FR-089"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSettingsRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformSettings"
+
+  /api/settings/test-connection:
+    post:
+      tags: [Settings]
+      summary: Test LLM provider connection
+      description: "FR-084"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                providerId:
+                  type: string
+              required: [providerId]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  model:
+                    type: string
+                  responseTimeMs:
+                    type: integer
+                  error:
+                    type: string
+
+  /api/settings/providers/{providerId}/models:
+    get:
+      tags: [Settings]
+      summary: Fetch available models for a provider
+      description: "FR-083"
+      parameters:
+        - name: providerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    name:
+                      type: string
+
+  # ── Search ────────────────────────────────────────────
+  /api/projects/{projectId}/search:
+    get:
+      tags: [Search]
+      summary: Project-wide search
+      description: "FR-101"
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    file:
+                      type: string
+                    stageName:
+                      type: string
+                    lineNumber:
+                      type: integer
+                    context:
+                      type: string
+
+  # ── SSE Events ────────────────────────────────────────
+  /api/projects/{projectId}/events:
+    get:
+      tags: [Events]
+      summary: SSE event stream for a project
+      description: |
+        FR-034, FR-065, FR-077: Real-time events for workflow status,
+        AI streaming output, stage status changes, notifications.
+        
+        Event types:
+        - `stage:status` — Stage status changed
+        - `stage:output:chunk` — AI output streaming chunk
+        - `stage:output:complete` — AI stage finished
+        - `workflow:status` — Workflow status changed
+        - `conversation:chunk` — AI conversation response chunk
+        - `conversation:complete` — AI conversation response finished
+        - `notification` — Human gate reached, error, reminder
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+      responses:
+        "200":
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  # ── Dashboard ─────────────────────────────────────────
+  /api/dashboard:
+    get:
+      tags: [Projects]
+      summary: Cross-project dashboard summary
+      description: "FR-023, FR-024: Actionable items across all projects"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  awaitingHuman:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        projectId:
+                          type: string
+                        projectName:
+                          type: string
+                        stageName:
+                          type: string
+                        stageNumber:
+                          type: integer
+                        waitingSince:
+                          type: string
+                          format: date-time
+                  recentActivity:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ActivityEvent"
+                  stats:
+                    type: object
+                    properties:
+                      running:
+                        type: integer
+                      paused:
+                        type: integer
+                      completed:
+                        type: integer
+                      failed:
+                        type: integer
+
+components:
+  parameters:
+    projectId:
+      name: projectId
+      in: path
+      required: true
+      schema:
+        type: string
+    stageNumber:
+      name: stageNumber
+      in: path
+      required: true
+      schema:
+        type: integer
+
+  schemas:
+    ProjectEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        path:
+          type: string
+        status:
+          type: string
+          enum: [Draft, Running, Paused, Completed, Failed]
+        tags:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        lastModifiedAt:
+          type: string
+          format: date-time
+        archived:
+          type: boolean
+        description:
+          type: string
+        stageCount:
+          type: integer
+        completedStages:
+          type: integer
+
+    CreateProjectRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        path:
+          type: string
+        description:
+          type: string
+        templateId:
+          type: string
+      required: [name]
+
+    UpdateProjectRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        archived:
+          type: boolean
+
+    ProjectDetail:
+      allOf:
+        - $ref: "#/components/schemas/ProjectEntry"
+        - type: object
+          properties:
+            workspace:
+              $ref: "#/components/schemas/WorkspaceState"
+
+    WorkspaceState:
+      type: object
+      properties:
+        meta:
+          type: object
+          properties:
+            projectName:
+              type: string
+            description:
+              type: string
+            createdAt:
+              type: string
+              format: date-time
+            lastModifiedAt:
+              type: string
+              format: date-time
+            workflowStatus:
+              type: string
+              enum: [Draft, Running, Paused, Completed, Failed]
+        routingTable:
+          type: array
+          items:
+            type: object
+            properties:
+              number:
+                type: integer
+              name:
+                type: string
+              assignee:
+                type: string
+                enum: [AI, Human]
+              dependsOn:
+                type: array
+                items:
+                  type: integer
+              parallel:
+                type: boolean
+        stages:
+          type: array
+          items:
+            $ref: "#/components/schemas/StageSummary"
+
+    StageSummary:
+      type: object
+      properties:
+        number:
+          type: integer
+        name:
+          type: string
+        title:
+          type: string
+        assignee:
+          type: string
+          enum: [AI, Human]
+        status:
+          type: string
+          enum: [Pending, InProgress, AwaitingHuman, Completed, Failed]
+        outputPreview:
+          type: string
+          description: Truncated output for node display (FR-032)
+        hasConversation:
+          type: boolean
+
+    StageDetail:
+      allOf:
+        - $ref: "#/components/schemas/StageSummary"
+        - type: object
+          properties:
+            contract:
+              $ref: "#/components/schemas/StageContract"
+            outputFiles:
+              type: array
+              items:
+                $ref: "#/components/schemas/OutputFile"
+            executionLog:
+              type: array
+              items:
+                type: object
+                properties:
+                  timestamp:
+                    type: string
+                    format: date-time
+                  event:
+                    type: string
+                  details:
+                    type: string
+
+    StageContract:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        assignee:
+          type: string
+          enum: [AI, Human]
+        model:
+          type: string
+        inputs:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                enum: [reference, upstream_output, config]
+              path:
+                type: string
+        process:
+          type: string
+        outputs:
+          type: array
+          items:
+            type: string
+
+    CreateStageRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        assignee:
+          type: string
+          enum: [AI, Human]
+        insertAfter:
+          type: integer
+          description: Stage number to insert after (null = append at end)
+        process:
+          type: string
+        inputs:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              path:
+                type: string
+        outputs:
+          type: array
+          items:
+            type: string
+      required: [title, assignee, process]
+
+    UpdateStageRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        assignee:
+          type: string
+          enum: [AI, Human]
+        model:
+          type: string
+        process:
+          type: string
+        inputs:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              path:
+                type: string
+        outputs:
+          type: array
+          items:
+            type: string
+
+    OutputFile:
+      type: object
+      properties:
+        name:
+          type: string
+        content:
+          type: string
+        sizeBytes:
+          type: integer
+
+    WorkflowStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [Draft, Running, Paused, Completed, Failed]
+        currentStage:
+          type: integer
+        totalStages:
+          type: integer
+        completedStages:
+          type: integer
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+
+    ConversationMessage:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        runSeparator:
+          type: boolean
+
+    RunSnapshot:
+      type: object
+      properties:
+        id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        fromStage:
+          type: integer
+        stages:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [completed, partial]
+
+    Template:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        stageCount:
+          type: integer
+        builtIn:
+          type: boolean
+
+    PlatformSettings:
+      type: object
+      properties:
+        defaultProvider:
+          type: string
+        providers:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              type:
+                type: string
+                enum: [openai, anthropic, google, ollama, openai-compatible]
+              baseUrl:
+                type: string
+              defaultModel:
+                type: string
+              hasApiKey:
+                type: boolean
+                description: "True if API key is stored (never returns actual key)"
+              parameters:
+                type: object
+                properties:
+                  temperature:
+                    type: number
+                  maxTokens:
+                    type: integer
+                  systemPromptPrefix:
+                    type: string
+        workspaceDefaults:
+          type: object
+          properties:
+            rootDir:
+              type: string
+            namingConvention:
+              type: string
+              enum: ["01_name", "001_name"]
+            autoCreateConversation:
+              type: boolean
+        ui:
+          type: object
+          properties:
+            theme:
+              type: string
+              enum: [light, dark, system]
+            editorFontSize:
+              type: integer
+            activityFeedVisible:
+              type: boolean
+            notificationSound:
+              type: boolean
+
+    UpdateSettingsRequest:
+      type: object
+      properties:
+        defaultProvider:
+          type: string
+        providers:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              type:
+                type: string
+              baseUrl:
+                type: string
+              defaultModel:
+                type: string
+              apiKey:
+                type: string
+                description: "Sent only when updating; stored in OS keychain, never returned"
+              parameters:
+                type: object
+        workspaceDefaults:
+          type: object
+        ui:
+          type: object
+
+    ActivityEvent:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        message:
+          type: string
+        stageRef:
+          type: string
+        actor:
+          type: string
+          enum: [AI, Human, System]
+        type:
+          type: string

@@ -1,0 +1,56 @@
+# Dockerfile.backend
+# Python 3.11 slim — FastAPI served by Uvicorn/Gunicorn
+# Build:  docker build -t kb-backend -f Dockerfile.backend .
+# Run:    docker run --env-file backend/.env -p 8000:8000 kb-backend
+
+ARG PYTHON_VERSION=3.11
+FROM python:${PYTHON_VERSION}-slim AS base
+
+# Prevent .pyc files and enable unbuffered stdout/stderr
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# ── System dependencies ────────────────────────────────────────────────────
+# gcc/g++ required by some transitive Python packages (e.g. chromadb C ext)
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+        build-essential \
+        libpq-dev \
+        curl \
+ && rm -rf /var/lib/apt/lists/*
+
+# ── Python dependencies ────────────────────────────────────────────────────
+COPY backend/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir --upgrade pip \
+ && pip install --no-cache-dir gunicorn \
+ && pip install --no-cache-dir -r requirements.txt
+
+# ── Application source ─────────────────────────────────────────────────────
+COPY backend/ ./
+
+# ── Create non-root user ───────────────────────────────────────────────────
+RUN useradd --no-create-home --shell /bin/false appuser \
+ && chown -R appuser /app
+USER appuser
+
+# ── Runtime ────────────────────────────────────────────────────────────────
+# Default: 1 Gunicorn worker with a Uvicorn worker class.
+# Override HOST/PORT via env vars or docker-compose environment section.
+ENV HOST=0.0.0.0 \
+    PORT=8000 \
+    WEB_CONCURRENCY=1
+
+EXPOSE 8000
+
+# Run Alembic migrations then start the server.
+# In production, migrations should be run as a separate init container to
+# avoid race conditions with multiple replicas.
+CMD alembic upgrade head \
+ && gunicorn app.main:app \
+        --bind "${HOST}:${PORT}" \
+        --worker-class uvicorn.workers.UvicornWorker \
+        --workers "${WEB_CONCURRENCY}" \
+        --access-logfile - \
+        --error-logfile -

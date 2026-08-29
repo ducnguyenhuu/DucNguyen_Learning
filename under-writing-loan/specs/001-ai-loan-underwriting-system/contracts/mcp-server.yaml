@@ -1,0 +1,646 @@
+openapi: 3.0.3
+info:
+  title: MCP Server - Mock Credit Bureau & File Access
+  description: |
+    Model Context Protocol (MCP) server providing abstracted access to:
+    - Uploaded loan application documents
+    - Mock credit bureau database (SQLite)
+    - Application metadata storage
+    
+    This server decouples agents from direct file system and database access,
+    demonstrating the MCP pattern for educational purposes.
+    
+    **Educational Focus**: Shows how to abstract data access behind a clean API
+    for multi-agent systems without exposing internal storage details.
+  version: 1.0.0
+  contact:
+    name: Loan Underwriting System
+    email: support@example.com
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+
+tags:
+  - name: Files
+    description: Access to uploaded application documents
+  - name: Credit
+    description: Mock credit bureau data retrieval
+  - name: Applications
+    description: Application metadata and status tracking
+  - name: Admin
+    description: Administrative endpoints for seeding test data
+  - name: Health
+    description: Server health and status checks
+
+paths:
+  /files/{filename}:
+    get:
+      tags:
+        - Files
+      summary: Retrieve an uploaded document
+      description: |
+        Returns the binary content of an uploaded loan application document.
+        Files are stored in `data/uploaded/{application_id}/` directory.
+        
+        **Usage**: Document Agent calls this to retrieve PDFs for OCR processing.
+      operationId: getFile
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          description: Relative file path (e.g., "app-001/paystub.pdf")
+          schema:
+            type: string
+            example: "app-001/paystub.pdf"
+      responses:
+        '200':
+          description: File content returned successfully
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Type:
+              schema:
+                type: string
+                example: application/pdf
+            Content-Length:
+              schema:
+                type: integer
+                example: 245678
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "File not found"
+                detail: "No file exists at data/uploaded/app-001/paystub.pdf"
+        '403':
+          description: Access denied (file outside allowed directory)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Access denied"
+                detail: "Cannot access files outside data/uploaded/ directory"
+
+  /credit/{ssn}:
+    get:
+      tags:
+        - Credit
+      summary: Retrieve credit report for applicant
+      description: |
+        Returns mock credit bureau data for given SSN.
+        Data is retrieved from SQLite database (`data/mock_credit_bureau.db`).
+        
+        **Educational Note**: In production, this would call a real credit bureau API
+        (Experian, Equifax, TransUnion) with proper authentication and compliance.
+        
+        **Usage**: Risk Agent calls this after document extraction to assess creditworthiness.
+      operationId: getCreditReport
+      parameters:
+        - name: ssn
+          in: path
+          required: true
+          description: Social Security Number (XXX-XX-XXXX format)
+          schema:
+            type: string
+            pattern: '^\d{3}-\d{2}-\d{4}$'
+            example: "123-45-6789"
+      responses:
+        '200':
+          description: Credit report retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreditReport'
+        '404':
+          description: No credit record found for SSN
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Credit record not found"
+                detail: "No credit report exists for SSN 123-45-6789"
+        '400':
+          description: Invalid SSN format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Invalid SSN format"
+                detail: "SSN must match pattern XXX-XX-XXXX"
+
+  /application/{application_id}:
+    get:
+      tags:
+        - Applications
+      summary: Retrieve application metadata
+      description: |
+        Returns stored metadata for a loan application including status, timestamps,
+        and references to processed results.
+        
+        **Usage**: Tracking workflow progress, retrieving historical results for comparison.
+      operationId: getApplication
+      parameters:
+        - name: application_id
+          in: path
+          required: true
+          description: Unique application identifier (e.g., APP-2025-001)
+          schema:
+            type: string
+            pattern: '^APP-\d{4}-\d{3}$'
+            example: "APP-2025-001"
+      responses:
+        '200':
+          description: Application metadata retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationMetadata'
+        '404':
+          description: Application not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Application not found"
+                detail: "No application exists with ID APP-2025-001"
+    
+    put:
+      tags:
+        - Applications
+      summary: Update application status and results
+      description: |
+        Updates application metadata with processing results.
+        
+        **Usage**: Agents call this after completing their work to persist results
+        and update workflow status.
+      operationId: updateApplication
+      parameters:
+        - name: application_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^APP-\d{4}-\d{3}$'
+            example: "APP-2025-001"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplicationUpdate'
+      responses:
+        '200':
+          description: Application updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationMetadata'
+        '404':
+          description: Application not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Invalid update payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/seed_credit_db:
+    post:
+      tags:
+        - Admin
+      summary: Seed mock credit bureau database
+      description: |
+        Populates `data/mock_credit_bureau.db` with 4 test credit profiles
+        for educational use.
+        
+        **Test Profiles**:
+        - Excellent Credit (750+ score, no late payments)
+        - Good Credit (700-749, minimal issues)
+        - Fair Credit (650-699, some concerns)
+        - Poor Credit (<650, derogatory marks)
+        
+        **Usage**: Run once during initial setup to create test data.
+      operationId: seedCreditDatabase
+      requestBody:
+        description: Optional configuration for seeding
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reset:
+                  type: boolean
+                  default: false
+                  description: If true, drops existing data before seeding
+            example:
+              reset: true
+      responses:
+        '201':
+          description: Database seeded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Successfully seeded 4 credit profiles"
+                  profiles:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        ssn:
+                          type: string
+                        name:
+                          type: string
+                        credit_score:
+                          type: integer
+                    example:
+                      - ssn: "111-11-1111"
+                        name: "Test Excellent"
+                        credit_score: 780
+                      - ssn: "222-22-2222"
+                        name: "Test Good"
+                        credit_score: 720
+                      - ssn: "333-33-3333"
+                        name: "Test Fair"
+                        credit_score: 670
+                      - ssn: "444-44-4444"
+                        name: "Test Poor"
+                        credit_score: 590
+        '500':
+          description: Database seeding failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check endpoint
+      description: |
+        Returns server health status and database connectivity.
+        
+        **Usage**: Startup validation in notebooks, monitoring.
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, degraded]
+                    example: "healthy"
+                  version:
+                    type: string
+                    example: "1.0.0"
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2025-11-19T10:30:00Z"
+                  database:
+                    type: object
+                    properties:
+                      credit_bureau:
+                        type: boolean
+                        description: SQLite connection successful
+                        example: true
+                      application_db:
+                        type: boolean
+                        description: SQLite connection successful
+                        example: true
+        '503':
+          description: Server is unhealthy (database connection failed)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "unhealthy"
+                  errors:
+                    type: array
+                    items:
+                      type: string
+                    example:
+                      - "Cannot connect to credit bureau database"
+
+components:
+  schemas:
+    CreditReport:
+      type: object
+      description: Mock credit bureau report data (matches Pydantic model from data-model.md)
+      required:
+        - ssn
+        - report_date
+        - credit_score
+        - credit_utilization
+        - accounts_open
+        - derogatory_marks
+        - credit_age_months
+        - payment_history
+      properties:
+        ssn:
+          type: string
+          pattern: '^\d{3}-\d{2}-\d{4}$'
+          example: "123-45-6789"
+        report_date:
+          type: string
+          format: date-time
+          example: "2025-11-19T10:40:00Z"
+        credit_score:
+          type: integer
+          minimum: 300
+          maximum: 850
+          example: 720
+          description: FICO score
+        credit_utilization:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 100.0
+          example: 28.5
+          description: Percentage of available credit used
+        accounts_open:
+          type: integer
+          minimum: 0
+          example: 8
+          description: Number of active credit accounts
+        derogatory_marks:
+          type: integer
+          minimum: 0
+          example: 0
+          description: Collections, bankruptcies, foreclosures
+        credit_age_months:
+          type: integer
+          minimum: 0
+          example: 84
+          description: Age of oldest account in months
+        payment_history:
+          type: string
+          enum: [excellent, good, fair, poor]
+          example: "good"
+          description: Qualitative assessment of on-time payments
+        late_payments_12mo:
+          type: integer
+          minimum: 0
+          default: 0
+          example: 1
+          description: Number of late payments in last 12 months
+        hard_inquiries_12mo:
+          type: integer
+          minimum: 0
+          default: 0
+          example: 2
+          description: Hard credit pulls in last year
+        bureau_source:
+          type: string
+          default: "mock_credit_bureau"
+          example: "mock_credit_bureau"
+          description: Data source identifier
+    
+    ApplicationMetadata:
+      type: object
+      description: Stored metadata for loan application workflow tracking
+      required:
+        - application_id
+        - status
+        - created_at
+      properties:
+        application_id:
+          type: string
+          pattern: '^APP-\d{4}-\d{3}$'
+          example: "APP-2025-001"
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+          example: "completed"
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-11-19T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2025-11-19T10:55:00Z"
+        document_extraction_complete:
+          type: boolean
+          example: true
+        risk_assessment_complete:
+          type: boolean
+          example: true
+        compliance_check_complete:
+          type: boolean
+          example: true
+        decision_complete:
+          type: boolean
+          example: true
+        final_decision:
+          type: string
+          enum: [approved, conditional_approval, denied, refer_to_manual]
+          example: "conditional_approval"
+          nullable: true
+        mlflow_run_id:
+          type: string
+          example: "a1b2c3d4e5f6"
+          nullable: true
+          description: MLflow tracking run ID for this application
+        total_processing_time_seconds:
+          type: number
+          format: float
+          example: 42.1
+          nullable: true
+        total_cost_usd:
+          type: number
+          format: float
+          example: 0.25
+          nullable: true
+        error_messages:
+          type: array
+          items:
+            type: string
+          example: []
+          description: Any errors encountered during processing
+    
+    ApplicationUpdate:
+      type: object
+      description: Payload for updating application status
+      properties:
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+          example: "processing"
+        document_extraction_complete:
+          type: boolean
+          example: true
+        risk_assessment_complete:
+          type: boolean
+          example: false
+        compliance_check_complete:
+          type: boolean
+          example: false
+        decision_complete:
+          type: boolean
+          example: false
+        final_decision:
+          type: string
+          enum: [approved, conditional_approval, denied, refer_to_manual]
+          nullable: true
+        mlflow_run_id:
+          type: string
+          nullable: true
+        error_messages:
+          type: array
+          items:
+            type: string
+      example:
+        status: "processing"
+        document_extraction_complete: true
+        risk_assessment_complete: false
+        mlflow_run_id: "a1b2c3d4e5f6"
+    
+    Error:
+      type: object
+      description: Standard error response
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          example: "File not found"
+          description: Short error message
+        detail:
+          type: string
+          example: "No file exists at data/uploaded/app-001/paystub.pdf"
+          description: Detailed error explanation
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-11-19T10:45:00Z"
+
+security: []  # No authentication for educational use
+
+externalDocs:
+  description: Full project documentation
+  url: https://github.com/example/loan-underwriting-system
+
+# Implementation Notes:
+# 
+# 1. FastAPI Server Setup:
+#    ```python
+#    from fastapi import FastAPI, HTTPException
+#    from fastapi.responses import FileResponse
+#    import sqlite3
+#    from pathlib import Path
+#    
+#    app = FastAPI(
+#        title="MCP Server - Mock Credit Bureau & File Access",
+#        version="1.0.0"
+#    )
+#    
+#    UPLOAD_DIR = Path("data/uploaded")
+#    CREDIT_DB = Path("data/mock_credit_bureau.db")
+#    APP_DB = Path("data/database.sqlite")
+#    ```
+#
+# 2. Database Schema (mock_credit_bureau.db):
+#    ```sql
+#    CREATE TABLE credit_reports (
+#        ssn TEXT PRIMARY KEY,
+#        name TEXT NOT NULL,
+#        credit_score INTEGER NOT NULL,
+#        credit_utilization REAL NOT NULL,
+#        accounts_open INTEGER NOT NULL,
+#        derogatory_marks INTEGER NOT NULL,
+#        credit_age_months INTEGER NOT NULL,
+#        payment_history TEXT NOT NULL,
+#        late_payments_12mo INTEGER DEFAULT 0,
+#        hard_inquiries_12mo INTEGER DEFAULT 0,
+#        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+#    );
+#    ```
+#
+# 3. Database Schema (database.sqlite):
+#    ```sql
+#    CREATE TABLE applications (
+#        application_id TEXT PRIMARY KEY,
+#        status TEXT NOT NULL,
+#        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+#        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+#        document_extraction_complete BOOLEAN DEFAULT FALSE,
+#        risk_assessment_complete BOOLEAN DEFAULT FALSE,
+#        compliance_check_complete BOOLEAN DEFAULT FALSE,
+#        decision_complete BOOLEAN DEFAULT FALSE,
+#        final_decision TEXT,
+#        mlflow_run_id TEXT,
+#        total_processing_time_seconds REAL,
+#        total_cost_usd REAL,
+#        error_messages TEXT  -- JSON array
+#    );
+#    ```
+#
+# 4. Security Considerations (Production):
+#    - Add API key authentication
+#    - Implement rate limiting
+#    - Add request validation middleware
+#    - Log all credit report accesses (audit trail)
+#    - Use HTTPS only
+#    - Sanitize file paths to prevent directory traversal
+#
+# 5. Testing:
+#    - Unit tests: `tests/test_mcp_server.py` using FastAPI TestClient
+#    - Integration tests: End-to-end workflow calling all endpoints
+#    - Mock SQLite in-memory database for fast tests
+#
+# 6. Usage in Notebooks:
+#    ```python
+#    import requests
+#    
+#    # Start server: uvicorn src.mcp.server:app --reload --port 8000
+#    
+#    # Health check
+#    response = requests.get("http://localhost:8000/health")
+#    print(response.json())
+#    
+#    # Retrieve credit report
+#    ssn = "123-45-6789"
+#    response = requests.get(f"http://localhost:8000/credit/{ssn}")
+#    credit_report = response.json()
+#    
+#    # Download document
+#    response = requests.get("http://localhost:8000/files/app-001/paystub.pdf")
+#    with open("paystub.pdf", "wb") as f:
+#        f.write(response.content)
+#    ```

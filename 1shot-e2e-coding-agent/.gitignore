@@ -1,0 +1,104 @@
+# ─── Node.js ───────────────────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ─── TypeScript build output ────────────────────────────────────────────────────
+dist/
+build/
+out/
+*.js.map
+*.d.ts.map
+# keep hand-written .d.ts if any; compiled ones land in dist/ so this is fine
+
+# ─── Test & coverage ────────────────────────────────────────────────────────────
+coverage/
+.nyc_output/
+*.lcov
+test-results/
+vitest.config.js.timestamp-*
+
+# ─── Environment & secrets ──────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+
+# ─── Logs ───────────────────────────────────────────────────────────────────────
+logs/
+*.log
+*.log.*
+
+# ─── Agent runtime artifacts ────────────────────────────────────────────────────
+# Run outputs, transcripts, and reports produced during agent execution
+runs/
+.runs/
+transcripts/
+reports/
+*.run.json
+*.transcript.json
+*.report.json
+
+# ─── Vector store index (vectra) ────────────────────────────────────────────────
+.vectra/
+vectra-index/
+*.vectra
+
+# ─── ML model cache (@xenova/transformers) ──────────────────────────────────────
+.cache/
+models/
+*.onnx
+*.bin
+# Hugging Face local model snapshots
+hub/
+
+# ─── Docker ─────────────────────────────────────────────────────────────────────
+# tinyproxy container temp state
+.tinyproxy/
+
+# ─── OS artefacts ───────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ─── Editor / IDE (personal settings, not shared tooling) ───────────────────────
+.idea/
+*.iml
+*.iws
+*.ipr
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+# VS Code personal files (keep shared .vscode/settings.json, extensions.json, launch.json)
+.vscode/*.code-snippets
+.vscode/launch.json
+# Un-comment the line below if you prefer not to share .vscode/ at all:
+# .vscode/
+
+# ─── Temporary files ────────────────────────────────────────────────────────────
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.orig
+
+# ─── Miscellaneous ──────────────────────────────────────────────────────────────
+.speckit-cache/
+dependencies/

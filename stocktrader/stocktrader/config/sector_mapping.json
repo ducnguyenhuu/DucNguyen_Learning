@@ -1,0 +1,36 @@
+{
+  "sector_mapping": {
+    "technology": {
+      "sector_name": "Technology",
+      "symbols": ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "NVDA", "META", "NFLX", "CRM", "ADBE"]
+    },
+    "tech": {
+      "sector_name": "Technology",
+      "symbols": ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "NVDA", "META", "NFLX", "CRM", "ADBE"]
+    },
+    "finance": {
+      "sector_name": "Finance",
+      "symbols": ["JPM", "BAC", "WFC", "GS", "MS", "C", "COF", "BLK", "SCHW", "USB"]
+    },
+    "financial": {
+      "sector_name": "Finance",
+      "symbols": ["JPM", "BAC", "WFC", "GS", "MS", "C", "COF", "BLK", "SCHW", "USB"]
+    },
+    "healthcare": {
+      "sector_name": "Healthcare",
+      "symbols": ["JNJ", "PFE", "UNH", "ABBV", "MRK", "TMO", "ABT", "DHR", "BMY", "AMGN"]
+    },
+    "health": {
+      "sector_name": "Healthcare",
+      "symbols": ["JNJ", "PFE", "UNH", "ABBV", "MRK", "TMO", "ABT", "DHR", "BMY", "AMGN"]
+    },
+    "consumer": {
+      "sector_name": "Consumer",
+      "symbols": ["PG", "KO", "PEP", "WMT", "HD", "MCD", "NKE", "SBUX", "TGT", "COST"]
+    },
+    "energy": {
+      "sector_name": "Energy",
+      "symbols": ["XOM", "CVX", "COP", "EOG", "SLB", "KMI", "WMB", "NEE", "PSX"]
+    }
+  }
+}

@@ -1,0 +1,153 @@
+# Dockerfile.devbox — Isolated devbox for the 1shot coding agent (T056, FR-011)
+#
+# Provides a fully isolated, reproducible environment for running the agent:
+#   - node:20-slim base (matches the agent's TypeScript runtime)
+#   - Pi SDK installed globally
+#   - tinyproxy enforcing domain allowlist (FR-020, Architecture Decision D4)
+#   - Target repo cloned and pre-warmed (repo map + embedding index built)
+#
+# Build once per target repo; run disposably per task.
+#
+# Build args:
+#   REPO_URL           (required) Git URL of the target repository to clone
+#   REPO_BRANCH        (optional, default: main) Branch to clone
+#   ALLOWED_DOMAINS    (optional) Space-separated list of domains tinyproxy
+#                      will allow. Defaults to minimum required for LLM APIs
+#                      and package registries.
+#
+# Usage:
+#   docker build -t pi-agent-devbox \
+#     --build-arg REPO_URL=https://github.com/org/repo.git \
+#     --build-arg REPO_BRANCH=main \
+#     -f Dockerfile.devbox .
+#
+#   docker run --rm \
+#     -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+#     pi-agent-devbox \
+#     run "Add input validation to POST /users"
+
+# ─── Base image ───────────────────────────────────────────────────────────────
+FROM node:20-slim
+
+# ─── System tools ─────────────────────────────────────────────────────────────
+# Required at runtime:
+#   git          — branch creation, staging, committing, pushing
+#   ripgrep      — Pi's built-in grep tool runs rg under the hood
+#   universal-ctags — symbol navigation (go-to-definition, find-references)
+#   curl         — health checks and ad-hoc downloads in bash steps
+#   jq           — JSON manipulation in shell scripts
+#   python3/pip  — target repos that use Python, pre-warm embeddings (ONNX)
+#   tinyproxy    — HTTP/S proxy that enforces the domain allowlist (D4)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    ripgrep \
+    universal-ctags \
+    curl \
+    jq \
+    python3 \
+    python3-pip \
+    python3-venv \
+    tinyproxy \
+    && rm -rf /var/lib/apt/lists/*
+
+# ─── Pi SDK (global install) ──────────────────────────────────────────────────
+# Version-pinned to match the version used in the agent codebase (package.json).
+# Global install makes `pi` available as a CLI inside the container for ad-hoc use.
+RUN npm install -g @mariozechner/pi-coding-agent@0.57.1
+
+# ─── Agent orchestrator installation ─────────────────────────────────────────
+# Step 1: Install dependencies (separate layer so npm install is cached).
+COPY package.json package-lock.json /agent/
+WORKDIR /agent
+RUN npm ci
+
+# Step 2: Copy all agent source files.
+COPY tsconfig.json /agent/
+COPY src/ /agent/src/
+COPY extensions/ /agent/extensions/
+COPY skills/ /agent/skills/
+COPY scripts/ /agent/scripts/
+
+# Step 3: Compile TypeScript → JavaScript (output goes to /agent/dist/).
+RUN npm run build
+
+# Step 4: Remove devDependencies to reduce image size.
+RUN npm prune --production
+
+# ─── tinyproxy domain allowlist (Architecture Decision D4) ───────────────────
+# Default allowlist covers the minimum domains needed by the agent:
+#   LLM providers:    api.anthropic.com, api.openai.com
+#   GitHub (git/API): github.com, api.github.com, raw.githubusercontent.com
+#   npm registry:     registry.npmjs.org
+#   Python packages:  pypi.org, files.pythonhosted.org
+#
+# Pass --build-arg ALLOWED_DOMAINS="domain1 domain2 ..." to override.
+ARG ALLOWED_DOMAINS="\
+api.anthropic.com \
+api.openai.com \
+github.com \
+api.github.com \
+raw.githubusercontent.com \
+registry.npmjs.org \
+pypi.org \
+files.pythonhosted.org"
+
+# Generate tinyproxy.conf.
+# FilterDefaultDeny = deny all traffic not matching the filter (allowlist mode).
+# FilterExtended = treat filter patterns as extended regex.
+RUN printf '%s\n' \
+    "Port 8888" \
+    "Listen 127.0.0.1" \
+    "Timeout 600" \
+    "LogLevel Error" \
+    "MaxClients 100" \
+    "MinSpareServers 2" \
+    "MaxSpareServers 10" \
+    "StartServers 5" \
+    "MaxRequestsPerChild 0" \
+    "Filter /etc/tinyproxy/filter" \
+    "FilterExtended on" \
+    "FilterDefaultDeny on" \
+    > /etc/tinyproxy/tinyproxy.conf
+
+# Generate the filter file — one regex-escaped domain per line.
+# sed escapes dots so "api.anthropic.com" matches only that domain (not "api-anthropic-com").
+RUN printf '%s\n' $ALLOWED_DOMAINS \
+    | sed 's/\./\\./g' \
+    > /etc/tinyproxy/filter
+
+# ─── Target repository clone ─────────────────────────────────────────────────
+# The target repo is baked into the image at build time for fast startup.
+# Use --depth=50 to limit history (saves disk space; enough for git blame).
+ARG REPO_URL
+ARG REPO_BRANCH=main
+
+RUN test -n "${REPO_URL}" || (echo "ERROR: REPO_URL build arg is required" && exit 1) \
+    && git clone --depth=50 --branch "${REPO_BRANCH}" "${REPO_URL}" /workspace
+
+# ─── Target repo dependency installation ────────────────────────────────────
+WORKDIR /workspace
+
+# Try Python dependencies first, then Node.js. Errors from inapplicable
+# ecosystems are silenced — at least one install must succeed.
+RUN pip install --break-system-packages -e ".[dev]" 2>/dev/null \
+    || pip install --break-system-packages -r requirements.txt 2>/dev/null \
+    || true
+RUN npm install 2>/dev/null || true
+
+# ─── Pre-warm: build repo map + embeddings index ─────────────────────────────
+# Runs warm-cache.sh to generate the vectra embedding index so that the
+# semantic_search and repo_map context tools have pre-cached data available
+# as soon as the agent starts its first session.
+RUN bash /agent/scripts/warm-cache.sh /workspace /workspace/.index
+
+# ─── Docker entrypoint ────────────────────────────────────────────────────────
+# The entrypoint script:
+#   1. Starts tinyproxy in the background (domain allowlist enforcement)
+#   2. Exports HTTP_PROXY / HTTPS_PROXY so all tools route through the proxy
+#   3. Delegates to the agent CLI with all arguments forwarded
+COPY scripts/docker-entrypoint.sh /agent/scripts/docker-entrypoint.sh
+RUN chmod +x /agent/scripts/docker-entrypoint.sh
+
+WORKDIR /agent
+ENTRYPOINT ["/agent/scripts/docker-entrypoint.sh"]
