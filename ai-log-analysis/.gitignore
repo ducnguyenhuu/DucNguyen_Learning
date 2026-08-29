@@ -1,0 +1,45 @@
+# New Relic configuration files (contain API keys)
+*.json
+
+# Data files (may contain sensitive APM data)
+data/
+
+# Log files (may contain API keys in debug logs)
+logs/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project management artifacts
+_bmad/
+_bmad-output/

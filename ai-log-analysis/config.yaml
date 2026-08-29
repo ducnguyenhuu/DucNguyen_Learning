@@ -1,0 +1,19 @@
+# New Relic APM Health Assessment Tool - Default Configuration
+# Profile-specific settings override these defaults
+
+api:
+  timeout: 30                # API request timeout in seconds
+  max_retries: 2            # Number of retry attempts for failed requests
+  retry_delay: 5            # Delay between retries in seconds
+  
+cache:
+  staleness: 3600           # Cache validity in seconds (1 hour)
+  retention_days: 30        # Keep old data files for 30 days
+  
+logging:
+  level: INFO               # Console log level (DEBUG, INFO, WARNING, ERROR)
+  file_level: DEBUG         # Log file level (capture everything)
+  
+defaults:
+  days: 1                  # Default time period for data collection
+  profile: dev              # Default profile if not specified
