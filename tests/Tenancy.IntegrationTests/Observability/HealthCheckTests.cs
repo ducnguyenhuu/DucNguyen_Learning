@@ -1,5 +1,7 @@
 using System.Net;
 using AwesomeAssertions;
+using Microsoft.Extensions.DependencyInjection;
+using Tenancy.Api.HealthChecks;
 using Tenancy.IntegrationTests.Infrastructure;
 using Xunit;
 
@@ -119,5 +121,56 @@ public sealed class HealthCheckTests : TenancyIntegrationTestBase
             // would cascade-fail every other integration test in the assembly.
             await _sqlServerFixture.StartAsync();
         }
+    }
+
+    /// <summary>
+    /// The draining state (data-model.md §1): once <see cref="StartupState.MarkStopping"/> has
+    /// run, <c>/health/ready</c> must report 503 with wording distinct from both "healthy" and
+    /// "startup not yet complete", while <c>/health/live</c> stays 200 — a draining container
+    /// must not look dead, or an orchestrator restarts it mid-drain.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="StartupState"/>'s transition to draining is one-way and terminal by design
+    /// (see its remarks), so this test builds its own throwaway <see cref="ApiFactory"/> rather
+    /// than mutating <see cref="TenancyIntegrationTestBase.Factory"/> — that instance is shared
+    /// across every <c>[Fact]</c> in this class via <c>IClassFixture&lt;ApiFactory&gt;</c>, and
+    /// xUnit v3 does not guarantee method execution order (see
+    /// <see cref="TenancyIntegrationTestBase"/>'s remarks), so permanently draining the shared
+    /// instance would make <see cref="GetHealthReady_ReflectsSqlServerReachability"/> fail
+    /// whenever it happens to run afterward. This also means a real SIGTERM/
+    /// <c>ApplicationStopping</c> sequence is not exercised here, for the same reason the
+    /// "not-yet-ready" state above is unit-tested rather than driven end-to-end — see
+    /// <c>tests/Tenancy.UnitTests/Observability/StartupHealthCheckTests.cs</c>, which covers
+    /// that <c>Program.cs</c> wires <c>MarkStopping()</c> to the real
+    /// <c>ApplicationStopping</c> callback is a one-line fact, not logic this test needs to
+    /// re-prove; what this integration test adds is that the HTTP pipeline actually surfaces
+    /// draining with the right status code and body.
+    /// </remarks>
+    [Fact]
+    public async Task GetHealthReady_WhileDraining_ReportsUnhealthyShuttingDown_WhileLiveStaysHealthy()
+    {
+        using var drainingFactory = new ApiFactory();
+        drainingFactory.UseConnectionString(_sqlServerFixture.ConnectionString);
+        using var client = drainingFactory.CreateClient();
+
+        drainingFactory.Services.GetRequiredService<StartupState>().MarkStopping();
+
+        using var readyResponse = await client.GetAsync(
+            "/health/ready",
+            TestContext.Current.CancellationToken);
+
+        readyResponse.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        var readyBody = await readyResponse.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken);
+        readyBody.Should().Contain("Shutting down");
+
+        using var liveResponse = await client.GetAsync(
+            "/health/live",
+            TestContext.Current.CancellationToken);
+
+        liveResponse.StatusCode.Should().Be(
+            HttpStatusCode.OK,
+            "a draining container is not dead — liveness must stay healthy so an " +
+            "orchestrator does not restart it mid-drain");
     }
 }

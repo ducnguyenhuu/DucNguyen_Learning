@@ -159,6 +159,27 @@ OTLP backend switch that is configuration-only (`Observability:OtlpEndpoint` /
 `Observability:NewRelicApiKey`, read in `OpenTelemetryExtensions.cs`) — no vendor SDK/agent
 is referenced anywhere in the solution (ADR-011/ADR-018).
 
+**Slice 4** — Containerization — is complete:
+[spec](specs/004-containerization/spec.md) ·
+[plan](specs/004-containerization/plan.md) ·
+[research](specs/004-containerization/research.md) ·
+[data model](specs/004-containerization/data-model.md) ·
+[quickstart](specs/004-containerization/quickstart.md). It shipped a multi-stage `Dockerfile`
+on `aspnet:10.0-noble-chiseled-extra` (non-root uid 1654, read-only root filesystem, exec-form
+`ENTRYPOINT`/`HEALTHCHECK`), a root `compose.yaml` starting exactly the API, SQL Server, and
+the existing OTel Collector with every credential interpolated from an untracked `.env`, a
+third `Draining` readiness state so a terminating container stops advertising itself before
+it stops accepting work, and two repeatable scripts — `scan-image-secrets.sh` (proven able to
+fail against a deliberately baited image) and `scan-image-vulnerabilities.sh` — plus a
+recorded image-size/cold-start baseline
+([docs/operations/container-image-baseline.md](docs/operations/container-image-baseline.md)).
+`aspnet:10.0-noble-chiseled` (without `-extra`) was the initial choice and was corrected after
+container testing showed `Microsoft.Data.SqlClient` cannot open a connection under the
+Invariant Globalization plain chiseled forces — see research.md R1. A second correction from
+the same testing: `PosixSignalRegistration.Create`'s `PosixSignalContext.Cancel` must be set
+`true` explicitly, or the default terminate-on-SIGTERM action still runs after a registered
+handler returns — see Program.cs's `earlyShutdown` registration and research.md R4.
+
 ---
 
 *The two sections below are maintained by `.specify/scripts/bash/update-agent-context.sh`
@@ -170,5 +191,6 @@ is the single agent instruction file — there is no `CLAUDE.md`, deliberately.*
 - SQL Server 2022 (container) (001-auth-tenant-management)
 - No new dependencies — architecture gates use .csproj parsing, source scanning, and reflection; NetArchTest rejected on evidence, see specs/002-architecture-tests/research.md R1 (002-architecture-tests)
 - OpenTelemetry SDK + OTLP exporter (never a vendor SDK/agent, per ADR-011/ADR-018); ASP.NET Core health checks; a DB-trigger-enforced append-only AuditEntries table (003-observability)
+- Multi-stage container image on `aspnet:10.0-noble-chiseled-extra` (non-root uid 1654, no shell; `-extra` required because `Microsoft.Data.SqlClient` needs ICU/tzdata, see research.md R1); local `compose.yaml` of api + SQL Server 2022 + the existing OTel Collector; Trivy for image secret and vulnerability scanning; a tiny `Tenancy.HealthProbe` executable because chiseled images have no `curl` (004-containerization)
 
 ## Recent Changes

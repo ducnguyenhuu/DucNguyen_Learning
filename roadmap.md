@@ -17,8 +17,8 @@ Full reasoning in [idea.md §46](idea.md) · rules in the
 | **S1** | Constitution + ADRs + foundation | ✅ **done** | — |
 | **S2** | Auth + tenant + persistence (local) | ✅ **done** — [spec](specs/001-auth-tenant-management/spec.md) | 2–3 w |
 | **S3** | Architecture tests | ✅ **done** — [spec](specs/002-architecture-tests/spec.md) | 1 w |
-| S4 | Observability | ⬜ | 1.5–2 w |
-| S5 | Containerization | ⬜ | 1 w |
+| **S4** | Observability | ✅ **done** — [spec](specs/003-observability/spec.md) | 1.5–2 w |
+| **S5** | Containerization | ✅ **done** — [spec](specs/004-containerization/spec.md) | 1 w |
 | S6 | Terraform → Azure | ⬜ | **3–4 w** |
 | S7 | CI/CD | ⬜ | 1.5–2 w |
 | S8 | Service Bus | ⬜ | 2 w |
@@ -50,6 +50,8 @@ Full reasoning in [idea.md §46](idea.md) · rules in the
 5. Optional: merge this branch to `main` — constitution and ADRs are project-level, not
    feature-level
 6. ✅ Implement S3, checking off its *Done when* list — done 2026-08-17
+7. ✅ Implement S4, checking off its *Done when* list — done 2026-08-25
+8. ✅ Implement S5, checking off its *Done when* list — done 2026-09-25
 
 Open decisions in [docs/traceability.md](docs/traceability.md#open-decisions). None blocks
 S2. **U12 must be done in S3.** U6's performance gap was closed into S7 during S2 planning.
@@ -120,7 +122,7 @@ infrastructure · no cross-service data access · no provider SDK outside AI Pla
 
 ---
 
-## S4 — Observability · 1.5–2 w
+## S4 — Observability ✅ · 1.5–2 w
 
 Backend is **New Relic** over OTLP ([ADR-018](docs/adr/ADR-018-new-relic-telemetry-backend.md)).
 Its free tier means this slice runs against a **real** backend with no Azure subscription —
@@ -135,22 +137,22 @@ local collector for offline work
 New Relic APM agent — **ever** (ADR-011, ADR-018: OTLP only, no vendor SDK)
 
 **Done when**
-- [ ] One operation = one correlated trace, entry → database, **visible in New Relic**
-- [ ] **An induced failure is diagnosed from telemetry alone in under 10 min, no local repro**
-- [ ] Health reports a stopped database as unhealthy
-- [ ] Audit entries exist for auth, tenant mutation, and authorization refusal
-- [ ] No secret and no unnecessary personal data anywhere in telemetry
-- [ ] **`tenant.id` appears on spans and logs but on no metric dimension** — New Relic's
+- [x] One operation = one correlated trace, entry → database, **visible in New Relic**
+- [x] **An induced failure is diagnosed from telemetry alone in under 10 min, no local repro**
+- [x] Health reports a stopped database as unhealthy
+- [x] Audit entries exist for auth, tenant mutation, and authorization refusal
+- [x] No secret and no unnecessary personal data anywhere in telemetry
+- [x] **`tenant.id` appears on spans and logs but on no metric dimension** — New Relic's
       cardinality limit is per metric, per day, and this is cheap now and costly to unpick later
-- [ ] **`NrIntegrationError` is empty** — OTLP validation is asynchronous, so a 2xx does not
+- [x] **`NrIntegrationError` is empty** — OTLP validation is asynchronous, so a 2xx does not
       mean the data was accepted. A backend that silently discards part of your telemetry is
       worse than one that rejects it
-- [ ] Sampling or drop rules in place — the free tier **stops ingest** at 100 GB/month rather
+- [x] Sampling or drop rules in place — the free tier **stops ingest** at 100 GB/month rather
       than billing over, so a log flood costs days of observability
 
 ---
 
-## S5 — Containerization · 1 w
+## S5 — Containerization ✅ · 1 w
 
 **Build:** multi-stage Dockerfile, non-root, minimal base · `docker compose` with app +
 SQL + collector · health check · graceful shutdown · image size and startup baseline
@@ -158,10 +160,10 @@ SQL + collector · health check · graceful shutdown · image size and startup b
 **Not:** AKS · Helm · Kubernetes manifests (all S6)
 
 **Done when**
-- [ ] `docker compose up` on a clean checkout gives a working, signed-in-able app
-- [ ] **Scanning the built image finds no secret** (scan the image, not the Dockerfile)
-- [ ] Runs as non-root; handles SIGTERM correctly
-- [ ] Image size and cold start recorded as a baseline
+- [x] `docker compose up` on a clean checkout gives a working, signed-in-able app
+- [x] **Scanning the built image finds no secret** (scan the image, not the Dockerfile)
+- [x] Runs as non-root; handles SIGTERM correctly
+- [x] Image size and cold start recorded as a baseline
 
 ---
 
