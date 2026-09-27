@@ -192,5 +192,7 @@ is the single agent instruction file — there is no `CLAUDE.md`, deliberately.*
 - No new dependencies — architecture gates use .csproj parsing, source scanning, and reflection; NetArchTest rejected on evidence, see specs/002-architecture-tests/research.md R1 (002-architecture-tests)
 - OpenTelemetry SDK + OTLP exporter (never a vendor SDK/agent, per ADR-011/ADR-018); ASP.NET Core health checks; a DB-trigger-enforced append-only AuditEntries table (003-observability)
 - Multi-stage container image on `aspnet:10.0-noble-chiseled-extra` (non-root uid 1654, no shell; `-extra` required because `Microsoft.Data.SqlClient` needs ICU/tzdata, see research.md R1); local `compose.yaml` of api + SQL Server 2022 + the existing OTel Collector; Trivy for image secret and vulnerability scanning; a tiny `Tenancy.HealthProbe` executable because chiseled images have no `curl` (004-containerization)
+- HCL (Terraform ≥ 1.9) for infrastructure; Helm 3 for Kubernetes packaging; Bash for orchestration scripts + azurerm provider (~> 4.0), azuread provider (~> 3.0), kubernetes provider, helm provider (005-terraform-azure)
+- Azure Storage Account (Terraform remote state); Azure SQL (application data) (005-terraform-azure)
 
 ## Recent Changes

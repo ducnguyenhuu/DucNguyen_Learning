@@ -1,0 +1,57 @@
+{{- if .Values.otelCollector.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tenancy.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:{{ .Values.otelCollector.ports.grpc }}
+          http:
+            endpoint: 0.0.0.0:{{ .Values.otelCollector.ports.http }}
+
+    processors:
+      # Tail-based sampling (FR-007 of specs/003-observability, unchanged from S4):
+      # the sampling decision is made after each trace completes.
+      tail_sampling:
+        decision_wait: 10s
+        num_traces: 50000
+        expected_new_traces_per_sec: 10
+        policies:
+          - name: errors-policy
+            type: status_code
+            status_code:
+              status_codes: [ERROR]
+          - name: default-rate-policy
+            type: probabilistic
+            probabilistic:
+              sampling_percentage: {{ .Values.otelCollector.sampleRate }}
+
+    exporters:
+      # New Relic OTLP endpoint (ADR-018 — telemetry backend). The licence key is read
+      # from the Key Vault CSI mount, never an env var literal or a value baked into
+      # this ConfigMap (spec.md US3 Acceptance Scenario 2 / SC-004).
+      otlphttp/newrelic:
+        endpoint: https://otlp.nr-data.net
+        headers:
+          api-key: ${file:/mnt/secrets/NEW_RELIC_LICENCE_KEY}
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [tail_sampling]
+          exporters: [otlphttp/newrelic]
+        metrics:
+          receivers: [otlp]
+          exporters: [otlphttp/newrelic]
+        logs:
+          receivers: [otlp]
+          exporters: [otlphttp/newrelic]
+{{- end }}

@@ -1,0 +1,30 @@
+api:
+  image:
+    repository: "acrdipdev.azurecr.io/tenancy-api" # Replace with real `terraform output -raw acr_login_server`
+  serviceAccount:
+    annotations:
+      azure.workload.identity/client-id: "<tenancy-api-managed-identity-client-id>" # terraform output
+  env:
+    - name: ASPNETCORE_URLS
+      value: "http://+:8080"
+    - name: Https__RedirectionEnabled
+      value: "false"
+    - name: ConnectionStrings__DefaultConnection
+      value: "Server=sql-dip-dev.database.windows.net;Database=sqldb-dip-dev;Authentication=Active Directory Default;"
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: "http://otel-collector:4317"
+
+otelCollector:
+  serviceAccount:
+    annotations:
+      azure.workload.identity/client-id: "<otel-collector-managed-identity-client-id>" # terraform output
+
+keyVault:
+  vaultName: "kv-dip-dev"
+  tenantId: "<azure-ad-tenant-id>"
+
+ingress:
+  # Empty host: Front Door -> APIM sends requests with the AKS ingress's own
+  # public IP/FQDN as the Host header (no custom domain in dev per spec.md
+  # Assumptions), so the ingress matches on path, not host.
+  host: ""

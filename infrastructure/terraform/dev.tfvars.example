@@ -1,0 +1,32 @@
+# Copy to dev.tfvars and fill in real values. dev.tfvars is git-ignored — never commit it.
+# new_relic_licence_key is sensitive: prefer `export TF_VAR_new_relic_licence_key=...`
+# over writing it into this file at all.
+
+environment          = "dev"
+location              = "eastus2"
+subscription_id       = "<your-subscription-id>"
+tenant_id             = "<your-entra-id-tenant-id>"
+resource_group_name   = "rg-dip-dev"
+sql_admin_object_id   = "<azure-ad-object-id-for-sql-admin>"
+new_relic_licence_key = "<set-via-TF_VAR_new_relic_licence_key>"
+acr_name              = "acrdipdev"
+
+# Optional — shown here at their defaults for visibility; omit to inherit defaults.
+aks_node_vm_size    = "Standard_B2s"
+aks_node_count_min  = 1
+aks_node_count_max  = 2
+sql_sku             = "Basic"
+apim_sku            = "Developer_1"
+frontdoor_sku       = "Standard_AzureFrontDoor"
+vnet_address_space  = ["10.0.0.0/16"]
+otel_sample_rate    = 10
+tags = {
+  project     = "dip"
+  environment = "dev"
+}
+
+# Two-phase overrides — leave unset on the first apply. Set explicitly on a second
+# apply once AKS/APIM exist (analyze finding F1; see main.tf's module blocks and
+# tasks.md T032a).
+# apim_nsg_source_override    = "<apim-outbound-ip>/32"
+# aks_oidc_issuer_url_override = "<aks-oidc-issuer-url>"
