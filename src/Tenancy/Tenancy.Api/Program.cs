@@ -183,7 +183,22 @@ builder.Services.AddHealthChecks()
         tags: ["ready"])
     .AddCheck<StartupHealthCheck>("startup", tags: ["ready"]);
 
+// Graceful shutdown budget (FR-007, research.md R4): a documented value in code rather than
+// the framework's inherited 30s default nobody chose. This is the drain window only — up to
+// ~5s per OpenTelemetry provider (traces/metrics/logs) can run *after* this expires if the
+// Collector is unreachable, which is why the container's stop_grace_period in compose.yaml is
+// set well above the sum of the two, not just this number.
+builder.Services.Configure<HostOptions>(options =>
+    options.ShutdownTimeout = TimeSpan.FromSeconds(15));
+
 var app = builder.Build();
+
+// The draining half of the readiness lifecycle: ApplicationStopping fires as soon as
+// SIGTERM is received, before Kestrel finishes draining in-flight requests, so
+// /health/ready flips to "shutting down" immediately rather than only once the process is
+// already exiting.
+app.Lifetime.ApplicationStopping.Register(() =>
+    app.Services.GetRequiredService<StartupState>().MarkStopping());
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -200,9 +215,46 @@ if (app.Environment.IsDevelopment())
 // database fails (EF Core has no baseline to reconcile against). Always use MigrateAsync().
 if (app.Environment.IsDevelopment())
 {
+    // Edge case 3 (a termination signal arriving before readiness): this whole block runs
+    // before app.Run(), i.e. before ConsoleLifetime installs its own SIGTERM handling —
+    // empirically confirmed (docker stop against a container stuck retrying a stopped
+    // database mid-migration) to hard-kill the process with exit 143 and no graceful path at
+    // all, because app.Lifetime.ApplicationStopping is never signalled this early: nothing
+    // is listening for the signal yet at the OS level. PosixSignalRegistration is a
+    // process-wide registration independent of the host's own lifecycle, so it is active
+    // immediately and suppresses the OS's default kill-on-SIGTERM disposition for as long as
+    // it is held — exactly the window this migration call needs covered.
+    using var earlyShutdown = new CancellationTokenSource();
+    using var earlyShutdownSignal = System.Runtime.InteropServices.PosixSignalRegistration.Create(
+        System.Runtime.InteropServices.PosixSignal.SIGTERM,
+        context =>
+        {
+            // PosixSignalContext.Cancel defaults to false — the runtime's default
+            // terminate-the-process action still runs after this handler returns unless this
+            // is set explicitly. Without it, this whole registration is a no-op that races
+            // its own cancellation against an unconditional kill (confirmed empirically: the
+            // token was cancelled, but the process still died with exit 143 every time).
+            context.Cancel = true;
+            earlyShutdown.Cancel();
+        });
+
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
-    await db.Database.MigrateAsync();
+
+    try
+    {
+        await db.Database.MigrateAsync(earlyShutdown.Token);
+    }
+    catch (OperationCanceledException) when (earlyShutdown.IsCancellationRequested)
+    {
+        // A signal arrived before startup finished. Exit now, without ever calling
+        // MarkReady() or app.Run() — the container must never advertise readiness or accept
+        // a connection in this path. DisposeAsync (rather than just returning) still runs
+        // registered services' shutdown/dispose logic, including OpenTelemetry's provider
+        // flush, so this remains a clean exit rather than an abandoned one.
+        await app.DisposeAsync();
+        return;
+    }
 }
 
 // The "not-yet-ready" state ends here: all startup work above (dev-time migration
@@ -218,7 +270,17 @@ app.UseTraceCorrelationLogging();
 // unhandled exceptions thrown anywhere downstream in the pipeline, including auth/authz.
 app.UseExceptionHandler();
 
-app.UseHttpsRedirection();
+// Gated, not deleted (research.md R5): a container listens on plain HTTP only, with TLS
+// terminated upstream from S6 onward, and no HTTPS port ever discoverable. Calling this
+// unconditionally is a silent no-op today, but a booby trap if an HTTPS port ever *becomes*
+// discoverable (an inherited ASPNETCORE_HTTPS_PORT) — every request, including
+// /health/ready, would start receiving a 307 instead of being served. compose.yaml sets
+// Https__RedirectionEnabled=false explicitly; the dotnet run / User Secrets workflow keeps
+// the default of true, where a real HTTPS port exists.
+if (app.Configuration.GetValue("Https:RedirectionEnabled", true))
+{
+    app.UseHttpsRedirection();
+}
 
 // IdempotencyFilter (an IEndpointFilter) needs to re-read the raw request body after
 // model binding has already consumed it, to compute its request-hash. Model binding for minimal

@@ -3,12 +3,13 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 namespace Tenancy.Api.HealthChecks;
 
 /// <summary>
-/// FR-008's third health state: "not-yet-ready" (startup/initialization incomplete), distinct
-/// from both healthy and unhealthy-dependency. Reports <see cref="HealthStatus.Unhealthy"/> with
-/// a description that a human (reading <c>/health/ready</c>'s body, not an automated router —
-/// see <c>contracts/health-endpoints.md</c>) can distinguish from a genuine dependency failure,
-/// until <see cref="StartupState.IsReady"/> flips true; <see cref="HealthStatus.Healthy"/>
-/// afterward.
+/// Reports <see cref="StartupState"/>'s three phases on <c>/health/ready</c> with wording a
+/// human reading the response body (not an automated router — see
+/// <c>contracts/health-endpoints.md</c>) can tell apart: not-yet-started, ready, and
+/// draining. <see cref="HealthStatus"/> has only three values and none of them means
+/// "shutting down", so draining is reported as <see cref="HealthStatus.Unhealthy"/> with
+/// distinct wording from the startup-incomplete case — both leave the container correctly
+/// refusing new traffic, but only one of them is a normal, expected shutdown.
 /// </summary>
 public sealed class StartupHealthCheck : IHealthCheck
 {
@@ -23,9 +24,12 @@ public sealed class StartupHealthCheck : IHealthCheck
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
-        var result = _startupState.IsReady
-            ? HealthCheckResult.Healthy()
-            : HealthCheckResult.Unhealthy("Startup not yet complete");
+        var result = _startupState switch
+        {
+            { IsDraining: true } => HealthCheckResult.Unhealthy("Shutting down"),
+            { IsReady: true } => HealthCheckResult.Healthy(),
+            _ => HealthCheckResult.Unhealthy("Startup not yet complete"),
+        };
 
         return Task.FromResult(result);
     }
