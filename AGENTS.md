@@ -193,5 +193,7 @@ is the single agent instruction file — there is no `CLAUDE.md`, deliberately.*
 - Multi-stage container image on `aspnet:10.0-noble-chiseled-extra` (non-root uid 1654, no shell; `-extra` required because `Microsoft.Data.SqlClient` needs ICU/tzdata, see research.md R1); local `compose.yaml` of api + SQL Server 2022 + the existing OTel Collector; Trivy for image secret and vulnerability scanning; a tiny `Tenancy.HealthProbe` executable because chiseled images have no `curl` (004-containerization)
 - HCL (Terraform ≥ 1.9) for infrastructure; Bash for orchestration scripts + azurerm provider (~> 4.0), azuread provider (~> 3.0) (005-terraform-azure)
 - Azure Storage Account (Terraform remote state); Azure SQL (application data) (005-terraform-azure)
+- GitHub Actions workflow YAML; Bash for gate scripts; JavaScript (k6) for the load test; HCL (Terraform ≥ 1.9) for identities and repository configuration; C# 14 / .NET 10 for the authorization-policy change + GitHub Actions (`actions/checkout`, `actions/setup-dotnet`, `azure/login`, `azure/setup-kubelogin`, `azure/setup-helm`, `grafana/setup-k6-action`), gitleaks, Trivy (existing S5 scripts), NuGet Audit (built into the .NET SDK), Terraform providers `azurerm` ~> 4.0, `azuread` ~> 3.0, `integrations/github` ~> 6.0 (006-ci-cd)
+- No new application storage. Pipeline evidence lives in GitHub (run history, job summaries, deployment records, artifacts); the SC-003 measurement is copied into `docs/operations/load-test-baseline.md` as the permanent record (006-ci-cd)
 
 ## Recent Changes
