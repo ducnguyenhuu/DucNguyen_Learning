@@ -17,11 +17,15 @@ GOOD_TAG="$1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TERRAFORM_DIR="${SCRIPT_DIR}/../terraform"
 
-echo "Redeploying known-good tag ${GOOD_TAG}..."
-terraform -chdir="${TERRAFORM_DIR}" apply -var-file=dev.tfvars -var "api_image_tag=${GOOD_TAG}"
-
 APP="$(terraform -chdir="${TERRAFORM_DIR}" output -raw container_app_name)"
 RG="$(terraform -chdir="${TERRAFORM_DIR}" output -raw resource_group_name)"
+ACR="$(terraform -chdir="${TERRAFORM_DIR}" output -raw acr_login_server)"
+
+# Terraform ignores the image tag (see modules/containerapp/app.tf), so recovery is an
+# image update on the app, the same mechanism as a normal deploy.
+echo "Redeploying known-good tag ${GOOD_TAG}..."
+az containerapp update --name "${APP}" --resource-group "${RG}" --image "${ACR}/tenancy-api:${GOOD_TAG}"
+
 echo "Revisions now:"
 az containerapp revision list --name "${APP}" --resource-group "${RG}" \
     --query "[].{name:name,active:properties.active,health:properties.healthState,traffic:properties.trafficWeight}" -o table

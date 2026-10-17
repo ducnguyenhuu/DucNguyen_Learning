@@ -1,0 +1,15 @@
+name: pipeline
+
+# Triggers per specs/006-ci-cd/contracts/pipeline.md. Jobs are added by later tasks;
+# this skeleton only fixes when the pipeline runs and what it may do by default.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs: {}

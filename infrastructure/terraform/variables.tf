@@ -104,3 +104,9 @@ variable "tags" {
     environment = "dev"
   }
 }
+
+variable "persistent_resource_group_name" {
+  description = "Resource group of the pipeline identities created by terraform/persistent. Apply that root first."
+  type        = string
+  default     = "rg-dip-persistent"
+}

@@ -59,7 +59,7 @@ This first, targeted apply creates only the registry (and its dependencies). The
 
 ## Step 4 — Build, Scan, Push and Deploy
 
-`deploy.sh` builds the S5 image, runs the Trivy vulnerability and secret scans (a finding fails the script before anything is pushed), pushes to ACR, then runs the full `terraform apply` with `api_image_tag` set. That apply provisions everything else: Container Apps environment and app, APIM, Front Door.
+`deploy.sh` builds the S5 image, runs the Trivy vulnerability and secret scans (a finding fails the script before anything is pushed), pushes to ACR, then — because the app does not exist yet — runs the full `terraform apply` with `api_image_tag` set. That apply provisions everything else: Container Apps environment and app, APIM, Front Door.
 
 ```bash
 cd infrastructure/scripts
@@ -83,13 +83,13 @@ az containerapp logs show --name "$APP" --resource-group "$RG" --container tenan
 
 ## Step 6 — Re-deploying
 
-Every later deploy is the same command with a new tag:
+Every later deploy is the same command with a new tag. Once the app exists, `deploy.sh` runs `az containerapp update --image` instead of Terraform:
 
 ```bash
 ./deploy.sh "$ACR" v2
 ```
 
-Terraform is the only owner of the app, so there is no drift between it and the running revision.
+Terraform owns the app's shape but ignores its image tag (`ignore_changes`), so a later `terraform apply` never reverts a deploy. The image is owned by `deploy.sh` and, from S7, the CI/CD pipeline.
 
 ## Step 7 — End-to-End Verification
 
@@ -130,15 +130,15 @@ FR-014 requires ≥2 replicas in single revision mode (see [contracts/container-
 while true; do curl -s -o /dev/null -w "%{http_code} " "$FRONTDOOR_URL/health/live"; sleep 1; done &
 POLL_PID=$!
 
-# Deploy a known-bad image tag. The apply is expected to fail or time out.
-cd infrastructure/terraform
-terraform apply -var-file=dev.tfvars -var "api_image_tag=nonexistent-tag" || true
+# Deploy a known-bad image tag. The update is expected to fail or time out.
+az containerapp update --name "$APP" --resource-group "$RG" \
+  --image "$ACR/tenancy-api:nonexistent-tag" || true
 
 # Observe: the new revision fails provisioning, the old revision stays active and serving
 az containerapp revision list --name "$APP" --resource-group "$RG" -o table
 
 # Recover by redeploying the known-good tag
-cd ../scripts
+cd infrastructure/scripts
 ./rollback.sh v1
 
 # Stop the poll and confirm every response was 200 — no dropped requests

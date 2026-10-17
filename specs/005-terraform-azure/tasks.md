@@ -153,7 +153,7 @@ Per plan.md's Project Structure:
 ### Implementation for User Story 4
 
 - [X] T057 [P] [US4] Update `infrastructure/scripts/rollback.sh`: takes a known-good image tag, redeploys it with `terraform apply`, then lists revisions with `az containerapp revision list`, per quickstart.md Step 8
-- [ ] T058 [US4] Execute the broken-revision scenario from quickstart.md Step 8: start a background poll of `$FRONTDOOR_URL/health/live`, deploy `api_image_tag=nonexistent-tag`, and confirm via `az containerapp revision list` that the old revision stays active and healthy while the new one fails provisioning (depends on T046, T057)
+- [ ] T058 [US4] Execute the broken-revision scenario from quickstart.md Step 8: start a background poll of `$FRONTDOOR_URL/health/live`, deploy a nonexistent image tag with `az containerapp update`, and confirm via `az containerapp revision list` that the old revision stays active and healthy while the new one fails provisioning (depends on T046, T057)
 - [ ] T059 [US4] Confirm the background poll from T058 recorded zero non-200 responses throughout the failed rollout (spec.md US4 Acceptance Scenario 1 — validates FR-014's zero-dropped-traffic guarantee in single revision mode)
 - [ ] T060 [US4] Run `infrastructure/scripts/rollback.sh <known-good-tag>` and verify the new revision is healthy and `$FRONTDOOR_URL/health/live` returns 200 within 2 minutes (spec.md US4 Acceptance Scenario 2 / SC-006)
 

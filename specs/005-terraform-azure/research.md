@@ -76,7 +76,7 @@
 
 **Decision**: The container app is an `azurerm_container_app` resource in the `containerapp` Terraform module. A deploy is a `terraform apply` that changes `api_image_tag`; there is no Helm chart or manifest set. (Replaces the Helm decision, per ADR-023.)
 
-**Rationale**: One tool owns the revision, so there is no drift between Terraform and a second deploy tool. ADR-012's "Terraform provisions, Helm deploys" split disappears with Kubernetes. Revisions give release history, and recovery is redeploying a known-good tag.
+**Rationale**: Terraform owns the app's shape and ignores its image tag (amended for S7), so a deploy is an `az containerapp update` and a later apply never reverts it. ADR-012's "Terraform provisions, Helm deploys" split disappears with Kubernetes. Revisions give release history, and recovery is redeploying a known-good tag.
 
 **Alternatives considered**:
 - *`az containerapp update` with `ignore_changes` on the image*: Avoids a full apply per deploy, but creates exactly the drift this decision avoids.

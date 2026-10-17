@@ -7,9 +7,11 @@
 # already-scanned image. Reuses the existing S5 Trivy scripts rather than
 # reimplementing scanning.
 #
-# The container app is a Terraform resource (ADR-023), so a deploy is an apply that changes
-# api_image_tag; Terraform stays the single owner of the revision, with no drift. Requires
-# `terraform init` to have been run in infrastructure/terraform and a dev.tfvars there.
+# The container app is a Terraform resource (ADR-023), but Terraform ignores its image tag
+# (lifecycle ignore_changes), so the image is owned by whoever deploys it. The first deploy
+# creates the app with `terraform apply`; every later deploy runs `az containerapp update`,
+# the same command the CI/CD pipeline uses. Requires `terraform init` to have been run in
+# infrastructure/terraform and a dev.tfvars there.
 #
 # Usage: ./deploy.sh <acr-login-server> <image-tag>
 # Example: ./deploy.sh acrdipdev.azurecr.io v1
@@ -47,9 +49,17 @@ docker tag "${LOCAL_TAG}" "${REMOTE_TAG}"
 echo "5/6 — Pushing ${REMOTE_TAG}..."
 docker push "${REMOTE_TAG}"
 
-echo "6/6 — Applying Terraform with api_image_tag=${IMAGE_TAG}..."
+APP="$(terraform -chdir="${TERRAFORM_DIR}" output -raw container_app_name 2>/dev/null || true)"
+RG="$(terraform -chdir="${TERRAFORM_DIR}" output -raw resource_group_name 2>/dev/null || true)"
+
 # A new revision only takes traffic once its probes pass; if it never does, the previous
-# revision keeps serving and this apply fails (US4).
-terraform -chdir="${TERRAFORM_DIR}" apply -var-file=dev.tfvars -var "api_image_tag=${IMAGE_TAG}"
+# revision keeps serving and this step fails (US4).
+if [ -n "${APP}" ] && az containerapp show --name "${APP}" --resource-group "${RG}" >/dev/null 2>&1; then
+    echo "6/6 — Updating ${APP} to ${REMOTE_TAG}..."
+    az containerapp update --name "${APP}" --resource-group "${RG}" --image "${REMOTE_TAG}"
+else
+    echo "6/6 — First deploy: applying Terraform with api_image_tag=${IMAGE_TAG}..."
+    terraform -chdir="${TERRAFORM_DIR}" apply -var-file=dev.tfvars -var "api_image_tag=${IMAGE_TAG}"
+fi
 
 echo "Deploy complete: ${REMOTE_TAG}"

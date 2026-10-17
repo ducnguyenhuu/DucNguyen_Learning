@@ -27,10 +27,10 @@ Like S6, every file-authoring task can be completed **without Azure or GitHub sp
 
 **Purpose**: Directory skeletons and provider pins for the two new Terraform roots and the workflows.
 
-- [ ] T001 Create `.github/workflows/` with a placeholder `pipeline.yml` containing only the trigger table from contracts/pipeline.md (`pull_request` → `main`, `push` → `main`, `workflow_dispatch`) and `permissions: contents: read`
-- [ ] T002 [P] Create `infrastructure/github/versions.tf` pinning Terraform ≥ 1.9 and `integrations/github` ~> 6.0, plus an `azurerm` backend block with the partial-config pattern used by S6 and state key `github.tfstate` (contracts/github-config.md → State)
-- [ ] T003 [P] Create `infrastructure/terraform/persistent/versions.tf` pinning `azurerm` ~> 4.0 and `azuread` ~> 3.0, with its own state key `persistent.tfstate` in the S6 bootstrap storage account (research R2)
-- [ ] T004 [P] Add `.gitignore` entries for `infrastructure/github/.terraform/`, `infrastructure/terraform/persistent/.terraform/` and the `*.tfvars` files of both roots (their `*.tfvars.example` files stay committed)
+- [x] T001 Create `.github/workflows/` with a placeholder `pipeline.yml` containing only the trigger table from contracts/pipeline.md (`pull_request` → `main`, `push` → `main`, `workflow_dispatch`) and `permissions: contents: read`
+- [x] T002 [P] Create `infrastructure/github/versions.tf` pinning Terraform ≥ 1.9 and `integrations/github` ~> 6.0, plus an `azurerm` backend block with the partial-config pattern used by S6 and state key `github.tfstate` (contracts/github-config.md → State)
+- [x] T003 [P] Create `infrastructure/terraform/persistent/versions.tf` pinning `azurerm` ~> 4.0 and `azuread` ~> 3.0, with its own state key `persistent.tfstate` in the S6 bootstrap storage account (research R2)
+- [x] T004 [P] Add `.gitignore` entries for `infrastructure/github/.terraform/`, `infrastructure/terraform/persistent/.terraform/` and the `*.tfvars` files of both roots (their `*.tfvars.example` files stay committed) — already covered by the existing root `.gitignore` rules; verified with `git check-ignore`
 
 **Checkpoint**: `terraform init -backend=false && terraform validate` succeed in both new roots against empty configurations.
 
@@ -42,13 +42,13 @@ Like S6, every file-authoring task can be completed **without Azure or GitHub sp
 
 **⚠️ CRITICAL**: US1's `container-publish` and `deploy-dev` cannot run before these exist.
 
-- [ ] T005 Create `infrastructure/terraform/persistent/main.tf`: two user-assigned managed identities, `id-github-deployer` and `id-loadtest-client`, each with a federated identity credential for subject `repo:ducnguyenhuu/delivery-intelligent-platform:environment:dev` and audience `api://AzureADTokenExchange` (research R2)
-- [ ] T006 [P] Create `infrastructure/terraform/persistent/variables.tf` and `outputs.tf`: the repository slug, resource group and location as variables; both identities' client IDs and principal IDs as outputs (they become GitHub variables in T017)
-- [ ] T007 Amend `infrastructure/terraform/modules/containerapp/app.tf`: add `lifecycle { ignore_changes = [template[0].container[0].image] }` so Terraform owns the app's shape and the pipeline owns the image tag (research R2, R10). Keep the existing empty-tag precondition for first creation
-- [ ] T008 [P] Amend `infrastructure/scripts/deploy.sh` and `infrastructure/scripts/rollback.sh` so that once the container app exists they run `az containerapp update --image <acr>/tenancy-api:<tag>` instead of `terraform apply -var api_image_tag=...`; keep `terraform apply` only for the first creation path (depends on T007, which would otherwise make the apply a no-op)
-- [ ] T009 [P] Amend `infrastructure/terraform/modules/apim/api.tf`: replace the single `GET /*` operation with operations for GET, POST, PUT, PATCH and DELETE (`/*`), so load-test seeding can `POST /tenants` (research context, gap 1)
-- [ ] T010 Amend the S6 root `infrastructure/terraform/main.tf`: role assignments for the deployer — `AcrPush` on the ACR and `Container Apps Contributor` scoped to the one container app — against `id-github-deployer`'s principal ID, looked up with `data "azurerm_user_assigned_identity"` by name and resource group (not `terraform_remote_state`, so `validate` and `plan` need no access to the other root's state; `persistent/` must be applied first) (research R2). No resource-group, subscription or Terraform-state role
-- [ ] T011 Run `terraform fmt -recursive` and `terraform validate` in `infrastructure/terraform/`, `infrastructure/terraform/persistent/` and `infrastructure/github/`; fix any error
+- [x] T005 Create `infrastructure/terraform/persistent/main.tf`: two user-assigned managed identities, `id-github-deployer` and `id-loadtest-client`, each with a federated identity credential for subject `repo:ducnguyenhuu/delivery-intelligent-platform:environment:dev` and audience `api://AzureADTokenExchange` (research R2)
+- [x] T006 [P] Create `infrastructure/terraform/persistent/variables.tf` and `outputs.tf`: the repository slug, resource group and location as variables; both identities' client IDs and principal IDs as outputs (they become GitHub variables in T017)
+- [x] T007 Amend `infrastructure/terraform/modules/containerapp/app.tf`: add `lifecycle { ignore_changes = [template[0].container[0].image] }` so Terraform owns the app's shape and the pipeline owns the image tag (research R2, R10). Keep the existing empty-tag precondition for first creation
+- [x] T008 [P] Amend `infrastructure/scripts/deploy.sh` and `infrastructure/scripts/rollback.sh` so that once the container app exists they run `az containerapp update --image <acr>/tenancy-api:<tag>` instead of `terraform apply -var api_image_tag=...`; keep `terraform apply` only for the first creation path (depends on T007, which would otherwise make the apply a no-op)
+- [x] T009 [P] Amend `infrastructure/terraform/modules/apim/api.tf`: replace the single `GET /*` operation with operations for GET, POST, PUT, PATCH and DELETE (`/*`), so load-test seeding can `POST /tenants` (research context, gap 1)
+- [x] T010 Amend the S6 root `infrastructure/terraform/main.tf`: role assignments for the deployer — `AcrPush` on the ACR and `Container Apps Contributor` scoped to the one container app — against `id-github-deployer`'s principal ID, looked up with `data "azurerm_user_assigned_identity"` by name and resource group (not `terraform_remote_state`, so `validate` and `plan` need no access to the other root's state; `persistent/` must be applied first) (research R2). No resource-group, subscription or Terraform-state role
+- [x] T011 Run `terraform fmt -recursive` and `terraform validate` in `infrastructure/terraform/`, `infrastructure/terraform/persistent/` and `infrastructure/github/`; fix any error
 
 **Checkpoint**: All three Terraform roots validate. `grep -r "Container Apps Contributor" infrastructure/` shows exactly one, app-scoped assignment.
 

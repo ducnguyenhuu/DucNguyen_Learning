@@ -117,6 +117,27 @@ module "containerapp" {
   tags                  = var.tags
 }
 
+# The CI/CD pipeline's deployer (identity created in terraform/persistent) may push images
+# and update this one container app, nothing else: no resource-group, subscription or
+# Terraform-state role (S7 research R2). Looked up by name so this root needs no access to
+# the other root's state; the persistent root must be applied first.
+data "azurerm_user_assigned_identity" "github_deployer" {
+  name                = "id-github-deployer"
+  resource_group_name = var.persistent_resource_group_name
+}
+
+resource "azurerm_role_assignment" "deployer_acr_push" {
+  scope                = module.acr.id
+  role_definition_name = "AcrPush"
+  principal_id         = data.azurerm_user_assigned_identity.github_deployer.principal_id
+}
+
+resource "azurerm_role_assignment" "deployer_app_contributor" {
+  scope                = module.containerapp.app_id
+  role_definition_name = "Container Apps Contributor"
+  principal_id         = data.azurerm_user_assigned_identity.github_deployer.principal_id
+}
+
 module "apim" {
   source = "./modules/apim"
 

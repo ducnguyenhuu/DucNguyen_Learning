@@ -136,6 +136,11 @@ resource "azurerm_container_app" "api" {
   }
 
   lifecycle {
+    # Terraform owns the app's shape; the CI/CD pipeline and deploy.sh own which image tag
+    # runs (`az containerapp update --image`). Without this, the next apply would revert
+    # the pipeline's deploy to whatever api_image_tag was last passed.
+    ignore_changes = [template[0].container[0].image]
+
     precondition {
       condition     = var.api_image_tag != ""
       error_message = "api_image_tag is empty. Build and push the image first (infrastructure/scripts/deploy.sh); the container app cannot be created without a real image."
