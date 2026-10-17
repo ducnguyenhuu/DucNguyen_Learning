@@ -200,7 +200,7 @@ second collector exporter, and only if something needs it
 - [ ] Traces from Azure appear in **New Relic**, correlated, with the licence key read from
       Key Vault by managed identity — never from a manifest
 - [ ] **A revision is deliberately broken and recovered** — a bad revision fails its probes, takes no
-      traffic, and traffic is shifted back. Container Apps is not learned until this
+      traffic while the previous revision keeps serving, then is replaced by redeploying the good tag. Container Apps is not learned until this
 - [ ] `terraform destroy` removes everything cleanly
 
 *Expect friction: APIM takes 30–45 min per apply; private endpoint + DNS wiring is where

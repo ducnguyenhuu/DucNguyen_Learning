@@ -59,7 +59,7 @@ Mapping of the AKS concepts S6 was going to exercise:
 | Deployment rollout | Revision |
 | Readiness / liveness probes | Same probes, configured on the revision |
 | Failed rollout keeps old pods serving | Failed revision never receives traffic; previous revision keeps serving |
-| `kubectl rollout undo` | Shift traffic to the previous revision |
+| `kubectl rollout undo` | Redeploy the previous known-good image tag (single revision mode; a failed revision never took traffic) |
 | NGINX ingress | Built-in ingress (internal to the VNet; APIM is the only front) |
 | Key Vault CSI + workload identity | Key Vault secret reference via managed identity |
 | Helm chart | Terraform (`azurerm_container_app`) — no separate deploy tool |
@@ -78,7 +78,7 @@ Terraform; the CI/CD pipeline (S7) updates the image tag on it.
   scale-to-zero available), instead of always-on node VMs.
 - The S6 "rollout deliberately broken and recovered" proof survives intact in revision
   form: a bad revision is deployed, fails its probes, never takes traffic, and traffic
-  is shifted back.
+  is replaced by redeploying the known-good tag.
 - The container image, Dockerfile, compose stack, and telemetry design from S3–S5 are
   untouched.
 - Container Apps is built on Kubernetes (and KEDA/Dapr), so the container-deployment

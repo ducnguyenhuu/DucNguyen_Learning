@@ -1,0 +1,46 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # Tail-based sampling (specs/003-observability, unchanged from S4): the sampling
+  # decision is made after each trace completes.
+  tail_sampling:
+    decision_wait: 10s
+    num_traces: 50000
+    expected_new_traces_per_sec: 10
+    policies:
+      - name: errors-policy
+        type: status_code
+        status_code:
+          status_codes: [ERROR]
+      - name: default-rate-policy
+        type: probabilistic
+        probabilistic:
+          sampling_percentage: ${sample_rate}
+
+exporters:
+  # New Relic OTLP endpoint (ADR-018). The licence key is read from the mounted Key Vault
+  # secret file, never an env var or a value in this config (spec.md US3 / SC-004).
+  # $$ escapes the collector's own file provider from Terraform's template syntax.
+  otlphttp/newrelic:
+    endpoint: https://otlp.nr-data.net
+    headers:
+      api-key: $${file:/mnt/secrets/new-relic-licence-key}
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [tail_sampling]
+      exporters: [otlphttp/newrelic]
+    metrics:
+      receivers: [otlp]
+      exporters: [otlphttp/newrelic]
+    logs:
+      receivers: [otlp]
+      exporters: [otlphttp/newrelic]
