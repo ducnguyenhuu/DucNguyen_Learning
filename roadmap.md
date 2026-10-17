@@ -52,6 +52,9 @@ Full reasoning in [idea.md §46](idea.md) · rules in the
 6. ✅ Implement S3, checking off its *Done when* list — done 2026-08-17
 7. ✅ Implement S4, checking off its *Done when* list — done 2026-08-25
 8. ✅ Implement S5, checking off its *Done when* list — done 2026-09-25
+9. ⏳ S6 code written on Azure Container Apps ([ADR-023](docs/adr/ADR-023-azure-container-apps-for-compute.md),
+   2026-10-16) and merged, but **not validated or applied**. Next: `terraform validate`, pick a funded
+   subscription, then apply and tick the *Done when* list
 
 Open decisions in [docs/traceability.md](docs/traceability.md#open-decisions). None blocks
 S2. **U12 must be done in S3.** U6's performance gap was closed into S7 during S2 planning.
