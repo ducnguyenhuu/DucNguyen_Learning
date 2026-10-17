@@ -50,7 +50,7 @@ Product B builds Product A, and what is learned building A improves B.
 
 ## Technology
 
-.NET · Azure · AKS · Terraform · Azure SQL · Service Bus · Entra ID · OpenTelemetry
+.NET · Azure · Container Apps · Terraform · Azure SQL · Service Bus · Entra ID · OpenTelemetry
 
 Each choice is recorded with its alternatives and its costs in [docs/adr/](docs/adr/).
 

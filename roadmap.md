@@ -157,7 +157,7 @@ New Relic APM agent — **ever** (ADR-011, ADR-018: OTLP only, no vendor SDK)
 **Build:** multi-stage Dockerfile, non-root, minimal base · `docker compose` with app +
 SQL + collector · health check · graceful shutdown · image size and startup baseline
 
-**Not:** AKS · Helm · Kubernetes manifests (all S6)
+**Not:** Azure Container Apps · Terraform · registry push (all S6)
 
 **Done when**
 - [x] `docker compose up` on a clean checkout gives a working, signed-in-able app
@@ -170,7 +170,9 @@ SQL + collector · health check · graceful shutdown · image size and startup b
 ## S6 — Terraform → Azure · 3–4 w ⚠️ the expensive one
 
 The main cost of going research-first ([ADR-007](docs/adr/ADR-007-aks-in-horizon-1.md)).
-**~$700–1,500/month.** Use dev/test SKUs and `terraform destroy` between sessions.
+Compute is **Azure Container Apps, not AKS** ([ADR-023](docs/adr/ADR-023-azure-container-apps-for-compute.md),
+2026-10-16). The old **~$700–1,500/month** estimate assumed AKS; re-estimate when the S6 plan is revised —
+APIM, Front Door, and private endpoints now dominate. Use dev/test SKUs and `terraform destroy` between sessions.
 
 **Open, deliberately deferred to this slice (2026-08-09): which subscription funds it.**
 Candidates are the existing sandbox and Azure for Students (~$100 credit, no card). Note that
@@ -179,10 +181,10 @@ rather than now avoids burning credit four slices before it is needed. The Entra
 for authentication is a **separate** choice and is already settled: a subscription in one
 tenant can serve an app registered in another.
 
-**Build:** Terraform + remote state · one `dev` environment · ACR · AKS · APIM · Front
-Door · Azure SQL · Key Vault (**holds the New Relic ingest licence key**) · OTel Collector on
-AKS · managed + workload identity · private endpoints · Helm chart · first deploy done by hand,
-to learn the path
+**Build:** Terraform + remote state · one `dev` environment · ACR · Container Apps · APIM · Front
+Door · Azure SQL · Key Vault (**holds the New Relic ingest licence key**) · OTel Collector as a
+Container Apps sidecar · user-assigned managed identity · private endpoints · first deploy done by
+hand, to learn the path
 
 **Not:** pipeline automation (S7) · Service Bus (S8) · QA or production ·
 **Azure AI Search** — no consumer until after Gate 2
@@ -193,11 +195,12 @@ second collector exporter, and only if something needs it
 
 **Done when**
 - [ ] `terraform apply` into an **empty** subscription works — zero portal clicks
-- [ ] App reachable through Front Door → APIM → AKS, health passing
+- [ ] App reachable through Front Door → APIM → Container Apps, health passing
 - [ ] SQL and Key Vault reached by managed identity — **no connection-string secret**
 - [ ] Traces from Azure appear in **New Relic**, correlated, with the licence key read from
-      Key Vault by workload identity — never from a manifest
-- [ ] **A rollout is deliberately broken and recovered** — AKS is not learned until this
+      Key Vault by managed identity — never from a manifest
+- [ ] **A revision is deliberately broken and recovered** — a bad revision fails its probes, takes no
+      traffic, and traffic is shifted back. Container Apps is not learned until this
 - [ ] `terraform destroy` removes everything cleanly
 
 *Expect friction: APIM takes 30–45 min per apply; private endpoint + DNS wiring is where
@@ -260,7 +263,7 @@ multiplies problems rather than adding them.
 - [ ] A dead-lettered message was replayed
 - [ ] An architectural boundary violation fails the build
 - [ ] The environment provisions into an empty subscription from code alone
-- [ ] An AKS rollout has failed and been recovered
+- [ ] A Container Apps revision has failed and been recovered
 - [ ] No secret in source, images, logs, or telemetry
 
 ---

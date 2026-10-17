@@ -138,7 +138,7 @@ cheap to get right now and expensive to unpick after dashboards depend on it.
   A new account uses **Pipeline Control**. Anything written about drop rules from older
   material is already obsolete.
 - **Azure platform diagnostics are a separate question from application telemetry, and this
-  ADR does not settle it.** AKS control-plane logs, APIM diagnostics, and Azure SQL audit logs
+  ADR does not settle it.** AKS control-plane logs (now Container Apps environment logs, per ADR-023), APIM diagnostics, and Azure SQL audit logs
   are emitted by Azure resources, not by our code, and they do not travel over OTLP. A minimal
   Log Analytics workspace may still be warranted in S6 for those alone — which is what ADR-007
   and ADR-012 describe when they list Log Analytics in the AKS footprint. **Decide this in S6

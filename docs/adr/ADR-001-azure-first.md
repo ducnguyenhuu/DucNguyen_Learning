@@ -28,7 +28,7 @@ rather than a ratification of the status quo.
 We use **Microsoft Azure** as the primary and default cloud provider. All
 infrastructure is provisioned in Azure unless a specific ADR grants an exception.
 
-Concretely this settles: AKS for orchestration, Azure SQL for relational data,
+Concretely this settles: ~~AKS~~ Azure Container Apps (ADR-023) for orchestration, Azure SQL for relational data,
 Azure Service Bus for messaging, Microsoft Entra ID for identity, Azure Key Vault
 for secrets, and ~~Azure Monitor / Application Insights as the telemetry backend~~.
 

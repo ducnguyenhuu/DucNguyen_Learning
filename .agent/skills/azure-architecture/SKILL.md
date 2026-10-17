@@ -1,12 +1,13 @@
 ---
 name: azure-architecture
-description: Use when touching infrastructure, provisioning Azure resources, writing Terraform, or working on AKS deployment, identity, or networking.
+description: Use when touching infrastructure, provisioning Azure resources, writing Terraform, or working on Container Apps deployment, identity, or networking.
 ---
 
 # Azure Architecture
 
 Decisions: [ADR-001](../../../docs/adr/ADR-001-azure-first.md) (Azure),
-[ADR-007](../../../docs/adr/ADR-007-aks-in-horizon-1.md) (AKS in Horizon 1),
+[ADR-007](../../../docs/adr/ADR-007-aks-in-horizon-1.md) (full topology in Horizon 1),
+[ADR-023](../../../docs/adr/ADR-023-azure-container-apps-for-compute.md) (Container Apps, not AKS),
 [ADR-012](../../../docs/adr/ADR-012-terraform.md) (Terraform).
 
 ## The absolute rule
@@ -21,7 +22,7 @@ environment, and `terraform destroy` cleanly removes it.
 ## Target topology (slice 6)
 
 ```
-Front Door → API Management → AKS → Azure SQL / Service Bus
+Front Door → API Management → Container Apps → Azure SQL / Service Bus
                                      Key Vault
                                OTel Collector → New Relic (OTLP)
                               Managed identity + private endpoints throughout
@@ -46,7 +47,7 @@ Do not provision a resource because §17 lists it. Provision it when something u
 
 ## Identity — get this right and most security follows
 
-- **Workload identity federation** for AKS pods to reach Azure resources.
+- **User-assigned managed identity** on the container app to reach ACR, Key Vault, and SQL.
 - **Managed identity** to SQL and Key Vault. **No connection strings with credentials, no
   access keys, no service principal secrets.**
 - Microsoft Entra ID for user authentication.
@@ -67,13 +68,15 @@ infrastructure/terraform/
 - The state backend itself is created by a small committed bootstrap script. This is the
   one accepted exception to "no manual setup."
 - Terraform provisions Key Vault; it does **not** manage Key Vault contents.
-- Terraform provisions the cluster; it does **not** deploy the application. Helm and
-  manifests under `deployment/` do that.
+- The container app is itself a Terraform resource (ADR-023); there is no Helm or manifest
+  step. The S7 pipeline only updates the image tag.
 - Adding QA or production must **reuse** the modules, never copy them.
 
 ## Cost — this is real money
 
-ADR-007's footprint is roughly **$700–1,500/month** at standard SKUs.
+The old ADR-007 figure (**$700–1,500/month**) assumed AKS and no longer applies. Compute is
+near-free idle; APIM, Front Door, and private endpoints dominate. Re-check with the Azure
+pricing calculator.
 
 - Use dev/test SKUs.
 - **`terraform destroy` between working sessions.** This is expected practice, not a
@@ -88,13 +91,13 @@ Budgeted at 3–4 weeks for good reason:
 - **APIM takes 30–45 minutes per apply.** Plan the iteration loop around this.
 - Private endpoint plus DNS zone wiring is where most unknown-unknowns live.
 - The AzureRM provider lags Azure features; occasionally `azapi` is needed.
-- Workload identity federation setup is fiddly and poorly documented.
+- Container Apps environment VNet integration and internal ingress behind APIM need care.
 
 ## The research-first bar
 
-`idea.md` §59.2: **AKS is not learned until a rollout has failed and been recovered.**
-Slice 6's proof requires deliberately breaking one. Standing the cluster up and seeing
-green pods teaches you the least useful thing about it.
+`idea.md` §59.2: **a platform is not learned until a rollout has failed and been recovered.**
+Slice 6's proof requires deliberately breaking a revision. Standing it up and seeing a
+healthy revision teaches you the least useful thing about it.
 
 ## Rationalizations that mean you're about to click instead of code
 
@@ -103,8 +106,8 @@ green pods teaches you the least useful thing about it.
 | "I'll just click this one setting to unblock myself, then codify it" | The codify-it-later step almost never happens once the environment works. Now the environment is irreproducible and `terraform destroy`/`apply` silently diverges from reality. |
 | "§17 lists this resource, so we should provision it now" | Nothing consumes it yet. Provisioning ahead of a consumer is exactly what Principle X rejects — it's cost and drift risk with no offsetting value. |
 | "A connection string is simpler than setting up managed identity" | Simpler now, and it's a credential in config that can leak — the design ADR-013/Principle V exist specifically to close is reopened the moment a password appears in a connection string. |
-| "I'll leave the environment up between sessions, tearing down is risky" | Standing the cluster up and down safely is exactly what slice 6's proof establishes. Leaving it up is the untested path, not the safe one. |
-| "The rollout looks healthy, we don't need to test a failure" | Green pods on first stand-up teaches the least useful thing about AKS. The bar is a rollout deliberately broken and recovered. |
+| "I'll leave the environment up between sessions, tearing down is risky" | Standing the environment up and down safely is exactly what slice 6's proof establishes. Leaving it up is the untested path, not the safe one. |
+| "The rollout looks healthy, we don't need to test a failure" | A healthy first revision teaches the least useful thing about Container Apps. The bar is a revision deliberately broken and recovered. |
 
 ## Red flags — stop and re-check
 

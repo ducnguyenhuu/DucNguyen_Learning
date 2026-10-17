@@ -52,7 +52,7 @@ what was decided and why it changed is the point of the record.
 | 004 | Service boundaries | *Not yet written* — needs the domain model (roadmap S1) |  |
 | 005 | Azure Service Bus | *Not yet written* — decision belongs to roadmap S8 |  |
 | 006 | Data ownership | Folded into ADR-003 and Principle III; see note below |  |
-| [007](ADR-007-aks-in-horizon-1.md) | AKS in Horizon 1, not deferred | Accepted | Constraints |
+| [007](ADR-007-aks-in-horizon-1.md) | Full target architecture in Horizon 1, not deferred | Accepted — compute clause refined by 023 | Constraints |
 | [008](ADR-008-ai-gateway-staged.md) | AI Gateway built in stages, seam first | Accepted | Principle IX |
 | [009](ADR-009-capability-based-model-abstraction.md) | Capability-based model abstraction | Accepted | Principle IX |
 | 010 | RAG | *Not yet written* — Horizon 3, Track B |  |
@@ -67,6 +67,8 @@ what was decided and why it changed is the point of the record.
 | [019](ADR-019-single-entra-tenant-in-horizon-1.md) | One Entra tenant in Horizon 1; multi-directory sign-in deferred | Accepted | Principle IV, X |
 | [020](ADR-020-ef-core-rowversion-pinning-requires-explicit-modified-state.md) | Pinning a RowVersion for optimistic concurrency requires explicit EntityState.Modified | Accepted | FR-021 |
 | [021](ADR-021-application-layer-patterns-at-first-consumer.md) | Application-layer pattern machinery adopted at its first real consumer | Accepted | Principle IX, X |
+| 022 | Application identities as tenant members | Accepted — on branch `006-ci-cd`, not yet merged | Principle IV |
+| [023](ADR-023-azure-container-apps-for-compute.md) | Azure Container Apps as the compute platform, in place of AKS | Accepted | Constraints |
 
 ### Deliberately unwritten
 

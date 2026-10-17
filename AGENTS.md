@@ -119,7 +119,7 @@ Commit only when asked. If on the default branch, branch first.
 | `src/` | Services. Created by the slice that needs them, not up front. |
 | `tests/` | Unit, Integration, Contract, Architecture, EndToEnd |
 | `infrastructure/terraform/` | All infrastructure. No manual portal changes. |
-| `deployment/` | Helm charts and Kubernetes manifests |
+| `deployment/` | Reserved; Container Apps are Terraform resources (ADR-023), so Helm/Kubernetes manifests are no longer planned |
 
 ## Current state
 

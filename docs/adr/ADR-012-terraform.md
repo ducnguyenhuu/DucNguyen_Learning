@@ -4,6 +4,9 @@
 **Date**: 2026-08-08
 **Deciders**: Project owner
 **Relates to**: Constitution → Technology Constraints, Principle X · `idea.md` §13, §17, §44 item 7 · roadmap S6
+**Refined by**: [ADR-023](ADR-023-azure-container-apps-for-compute.md) (2026-10-16) — compute is Container
+Apps, so the container app is a Terraform resource and the "Terraform provisions, Helm deploys" split below
+no longer applies. Read AKS as Container Apps and ignore the ADR-007 cost figure.
 
 ## Context
 

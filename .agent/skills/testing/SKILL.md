@@ -100,7 +100,7 @@ has been driven under failure conditions.**
 
 - Service Bus: a duplicate handled idempotently, a dead letter replayed
 - Sync engine: a rate limit survived, a mid-sync kill resumed
-- AKS: a rollout broken and recovered
+- Container Apps: a revision broken and recovered
 - Multi-tenancy: a test that actually caught a cross-tenant read
 
 Demonstrating the happy path proves nothing worth knowing.

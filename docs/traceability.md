@@ -37,7 +37,7 @@ U6 is partially resolved and U13 was added on 2026-08-09; both are dated in plac
 | §22 architecture governance, §23 pipeline gates | **Principle VII** |
 | §24 §27 §35 §39 §42 §56 human authority, authority hierarchy | **Principles I, II** |
 | §8 §9 §9a §10 §11 AI platform and model strategy | **Principles VIII, IX**, **ADR-008**, **ADR-009** |
-| §13 §17 technology stack and Azure topology | **Constraints**, **ADR-001**, **ADR-002**, **ADR-007**, **ADR-012** |
+| §13 §17 technology stack and Azure topology | **Constraints**, **ADR-001**, **ADR-002**, **ADR-007**, **ADR-023**, **ADR-012** |
 | §29 §30 §47 §51 vertical slices | **Principle X**, `roadmap.md` |
 | §25 §36 §37 §40 §41 skills and workflow | **ADR-016**, installed `superpowers` plugin |
 | §26 §31 §32 §33 §34 §50 Spec Kit lifecycle | `.specify/`, spec 001 as the worked example |

@@ -1,9 +1,13 @@
 # ADR-007: AKS and the full target architecture in Horizon 1, not deferred
 
-**Status**: Accepted
+**Status**: Accepted — compute clause refined by 023
 **Date**: 2026-08-08
 **Deciders**: Project owner
 **Relates to**: `idea.md` §17, §57.6, §59.2 · roadmap S6 · Constitution Principle X
+**Refined by**: [ADR-023](ADR-023-azure-container-apps-for-compute.md) (2026-10-16) — the **compute
+platform** is now Azure Container Apps, not AKS. The decision to build the full §17 edge topology in
+Horizon 1 is unchanged. Where this ADR says AKS, read Container Apps; the "Container Apps first"
+rejection below is reversed by ADR-023, and the cost figure no longer applies.
 
 ## Context
 
