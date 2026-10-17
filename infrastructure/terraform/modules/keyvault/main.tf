@@ -8,7 +8,7 @@ resource "azurerm_key_vault" "main" {
   sku_name            = "standard"
 
   # RBAC-only access mode (research.md), not the legacy access-policy model.
-  enable_rbac_authorization = true
+  rbac_authorization_enabled = true
 
   public_network_access_enabled = false
 
@@ -26,7 +26,7 @@ resource "azurerm_private_endpoint" "keyvault" {
     name                           = "psc-kv-${var.environment}"
     private_connection_resource_id = azurerm_key_vault.main.id
     subresource_names              = ["vault"]
-    is_manual_connection            = false
+    is_manual_connection           = false
   }
 
   private_dns_zone_group {

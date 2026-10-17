@@ -30,8 +30,8 @@ resource "azurerm_cdn_frontdoor_route" "main" {
   cdn_frontdoor_origin_ids      = [azurerm_cdn_frontdoor_origin.apim.id]
 
   supported_protocols    = ["Http", "Https"]
-  patterns_to_match       = ["/*"]
-  forwarding_protocol     = "HttpsOnly"
-  https_redirect_enabled  = true # FR-007: TLS termination at Front Door
-  link_to_default_domain  = true # Uses the *.azurefd.net managed domain/certificate
+  patterns_to_match      = ["/*"]
+  forwarding_protocol    = "HttpsOnly"
+  https_redirect_enabled = true # FR-007: TLS termination at Front Door
+  link_to_default_domain = true # Uses the *.azurefd.net managed domain/certificate
 }

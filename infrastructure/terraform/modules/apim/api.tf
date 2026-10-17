@@ -16,12 +16,12 @@ resource "azurerm_api_management_api" "tenancy_api" {
 # spec directly instead of hand-rolling operations.
 resource "azurerm_api_management_api_operation" "catch_all" {
   operation_id        = "catch-all"
-  api_name             = azurerm_api_management_api.tenancy_api.name
+  api_name            = azurerm_api_management_api.tenancy_api.name
   api_management_name = azurerm_api_management.main.name
   resource_group_name = var.resource_group_name
-  display_name         = "Catch-all passthrough"
-  method                = "GET"
-  url_template          = "/*"
+  display_name        = "Catch-all passthrough"
+  method              = "GET"
+  url_template        = "/*"
 
   response {
     status_code = 200

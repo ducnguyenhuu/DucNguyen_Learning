@@ -30,7 +30,7 @@ resource "azurerm_private_endpoint" "sql" {
     name                           = "psc-sql-${var.environment}"
     private_connection_resource_id = azurerm_mssql_server.main.id
     subresource_names              = ["sqlServer"]
-    is_manual_connection            = false
+    is_manual_connection           = false
   }
 
   private_dns_zone_group {
