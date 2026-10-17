@@ -116,7 +116,7 @@ because it is a test, even though only the pipeline runs it.
 
 ## Phase 0 — Prerequisites and branch base
 
-**This branch must be based on `005-terraform-azure`.** **S6 is now on `main`** (merged 2026-10-16, Container Apps per ADR-023), so this branch is rebased onto `main`. The pipeline updates S6's container app, pushes to S6's ACR, and three amendments land in S6's Terraform.
+**S6 is on `main`** (merged 2026-10-16, Container Apps per ADR-023), so this branch is rebased onto `main`. The pipeline updates S6's container app, pushes to S6's ACR, and three amendments land in S6's Terraform.
 
 Execution also depends on decisions outside this plan:
 1. ~~ADR-022 accepted~~ — **done 2026-09-29**.
@@ -164,7 +164,7 @@ Execution also depends on decisions outside this plan:
 
 ### Phase 5 — Verification and closure
 
-1. Ten consecutive real runs on `main` timed against the 20-minute budget (SC-001).
+1. Twenty consecutive real runs on `main` timed against the 20-minute budget (SC-001).
 2. All four negative proofs observed failing in the pipeline itself, not only in the self-test (SC-002).
 3. An approval granted, an approval denied, and an admin-bypass attempt refused (SC-003).
 4. Roadmap S7 *Done when* updated from evidence; `CLAUDE.md`'s CI claim now true.

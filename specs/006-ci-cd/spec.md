@@ -88,7 +88,7 @@ The pipeline runs a load test against the deployed dev environment as one of its
 
 - What happens when the pipeline is triggered by two commits arriving in quick succession? The older commit's pipeline is cancelled at the next safe checkpoint (never mid-deploy) and only the latest wins (FR-014, preempt-latest — clarified 2026-09-27). Developers can observe this in the pipeline UI as an explicit "cancelled — superseded by <newer commit>" outcome, not silent disappearance.
 - What happens when a pipeline run is manually cancelled mid-deploy? The dev environment must not be left in a broken half-deployed state — either the previous version continues serving (rollback semantics from spec 005 FR-013/FR-014) or the failed deploy is rolled back automatically.
-- What happens when the load-test stage is flaky (e.g., a transient Azure networking blip causes a spurious slow request)? The stage must have a documented, bounded retry policy — never a silent retry that hides real regressions.
+- What happens when the load-test stage is flaky (e.g., a transient Azure networking blip causes a spurious slow request)? The documented policy (contracts/load-test.md) is zero automatic retries: a breach fails the run and a re-run is a deliberate manual action — never a silent retry that hides real regressions.
 - What happens when a secret is committed and merged before the scan catches it (retroactively discovered)? The pipeline can't undo the leak, but must at least catch it on the *next* run and fail loudly enough that the operator knows to rotate the leaked secret.
 - What happens when the pipeline succeeds but an approval-gated post-dev deploy is left pending indefinitely? The pending approval expires after 7 days (clarified 2026-09-27), matching the natural expiry window of the underlying scan artifacts (secret/dep/image) — a deploy still pending after a week must restart the pipeline to get fresh scans, rather than being auto-approved against stale evidence.
 - What happens when a pipeline-triggered `az containerapp update` runs against a dev environment that is temporarily unreachable (e.g., someone ran `terraform destroy` per the S6 cost-control discipline)? The pipeline must fail cleanly with a message identifying the missing environment, not hang or leave the pipeline in an ambiguous state.
@@ -97,7 +97,7 @@ The pipeline runs a load test against the deployed dev environment as one of its
 
 ### Functional Requirements
 
-- **FR-001**: The pipeline MUST execute the full stage sequence (build → unit → integration → architecture → secret scan → dependency scan → container build → image scan → push ACR → deploy dev → load test) on every push to the main branch and every pull request targeting main.
+- **FR-001**: The pipeline MUST execute the full stage sequence (build → unit → integration → architecture → secret scan → dependency scan → container build → image scan → push ACR → deploy dev → load test) on every push to the main branch. Every pull request targeting main runs the gate stages (commit validation through image scan) only; publish, deploy, load test and the post-dev stub run only after merge.
 - **FR-002**: The full pipeline run from push to dev deployment MUST complete in under 20 minutes for a typical change.
 - **FR-003**: The pipeline MUST execute every stage without manual intervention between stages — a green pipeline reaches dev automatically.
 - **FR-004**: The architecture-test stage MUST fail the pipeline when any of the S3 architecture-test suites report a rule violation, naming the rule and offending file(s).
@@ -125,7 +125,7 @@ The pipeline runs a load test against the deployed dev environment as one of its
 
 ### Measurable Outcomes
 
-- **SC-001**: A valid commit to main reaches the dev environment in under 20 minutes of wall-clock time on 95% of runs, measured across at least 10 consecutive real runs.
+- **SC-001**: A valid commit to main reaches the dev environment in under 20 minutes of wall-clock time on at least 19 of 20 consecutive real runs (95%).
 - **SC-002**: Every one of the four "negative proof" scenarios (architecture violation, planted secret, vulnerable dependency, non-conforming commit message) is caught by the pipeline and rejected before dev deployment — verified once per category, then re-verified whenever the corresponding gate changes.
 - **SC-003**: Zero deployments to any environment beyond dev occur without a recorded human approval — verified by inspecting the deployment records over the slice's lifetime.
 - **SC-004**: Spec 001 SC-003 is verified: 95% of tenant-read requests at 50 concurrent users across 20 tenants complete in under 1 second, measured against the deployed dev environment.
@@ -159,6 +159,7 @@ The pipeline runs a load test against the deployed dev environment as one of its
 - **S5 (Containerization)**: The Trivy scan scripts FR-005/FR-008 invoke; the Dockerfile the container-build stage builds
 - **S6 (Terraform → Azure)**: The dev environment the deploy stage deploys into; the ACR the push stage pushes into; the container app whose image the deploy stage updates
 - **Spec 001 (Auth + Tenant)**: The SC-003 criterion FR-013 verifies
+- **ADR-022**: application identities as tenant members — the load test's credential-free authentication
 - **ADR-007** and **ADR-023**: full architecture in Horizon 1, on Azure Container Apps (ADR-023, 2026-10-16) — the topology the load test measures against
 - **Constitution Principle I** (Human Authority) — FR-009's foundation
 - **Constitution Principle VII** (Automated Gates) — the whole slice's philosophical foundation
