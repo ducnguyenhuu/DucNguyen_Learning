@@ -9,17 +9,17 @@
 
 ### Session 2026-09-27
 
-- Q: US3 says production is gated by human approval, but production doesn't exist in Horizon 1 — what concretely is the "placeholder post-dev environment" that FR-009/FR-010's acceptance tests trigger against? → A: A no-op "would-deploy-to-production" stage — no real environment, no `helm upgrade`; just prints the change, requires approval, records the approver. The gate mechanism is fully tested; the "deploy" itself is a stub.
+- Q: US3 says production is gated by human approval, but production doesn't exist in Horizon 1 — what concretely is the "placeholder post-dev environment" that FR-009/FR-010's acceptance tests trigger against? → A: A no-op "would-deploy-to-production" stage — no real environment, no real deploy; just prints the change, requires approval, records the approver. The gate mechanism is fully tested; the "deploy" itself is a stub.
 - Q: FR-014 says concurrent pipeline runs must "serialize" — does that mean strict queueing in commit order, or preempt-latest (cancel earlier in-flight for the newer commit)? → A: Preempt-latest — when a newer commit arrives, in-flight pipelines for older commits are cancelled at the next safe checkpoint, and only the latest wins.
 - Q: FR-013 says the load-test stage fails when the error rate exceeds "a documented threshold" — what is that threshold? → A: 1% — tolerates ~1 error per 100 requests, matching a standard SLO "three nines" bar; catches real regressions (usually 5%+) while tolerating transient cloud blips.
 - Q: Edge case #5 says pending approvals expire with a documented timeout — what is that timeout? → A: 7 days — covers weekends + reasonable PTO; the underlying scan artifacts (secret/dep/image) approximately expire in this window anyway, so a deploy still pending after a week should restart with fresh scans regardless.
-- Q: Where does load-test load come from — GitHub-hosted runner, self-hosted-in-AKS, or Azure Load Testing service? → A: GitHub-hosted runner (`ubuntu-latest`), which runs in an Azure region matching dev's default — no extra infra to provision, near-representative latency for a research project.
+- Q: Where does load-test load come from — GitHub-hosted runner, self-hosted in the compute platform, or Azure Load Testing service? → A: GitHub-hosted runner (`ubuntu-latest`), which runs in an Azure region matching dev's default — no extra infra to provision, near-representative latency for a research project.
 
 ## User Scenarios & Testing
 
 ### User Story 1 — Commit-to-Dev Automation (Priority: P1)
 
-A developer pushes a commit to the main branch (or opens a pull request), and the pipeline runs the full sequence — build, unit tests, integration tests, architecture tests, secret scan, dependency vulnerability scan, container build, container image scan, ACR push, and Helm deploy to dev — with no manual step, completing in under 20 minutes. The developer can watch the pipeline progress in real time and, when it finishes green, exercise their change on the dev environment immediately.
+A developer pushes a commit to the main branch (or opens a pull request), and the pipeline runs the full sequence — build, unit tests, integration tests, architecture tests, secret scan, dependency vulnerability scan, container build, container image scan, ACR push, and container app update in dev — with no manual step, completing in under 20 minutes. The developer can watch the pipeline progress in real time and, when it finishes green, exercise their change on the dev environment immediately.
 
 **Why this priority**: This is the core value proposition of the slice. Without a working unattended path from commit to dev, none of the other stories (safety gates, load testing) matter — they're checks on a pipeline that has to exist first. This story delivers the roadmap's headline "Done when" ("Commit → dev in under 20 minutes, fully unattended").
 
@@ -57,7 +57,7 @@ Deploying to any environment beyond dev requires an explicit human approval step
 
 **Why this priority**: Constitution Principle I ("Human Authority Over Intent, Architecture, and Risk") makes this non-negotiable, and Constitution Quality Gates row 11 lists "Human approval required for production deployment." Even though production doesn't yet exist in this slice (Horizon 1 is dev-only), the *gate mechanism* has to exist and be provably tested before it can protect a real production environment.
 
-**Independent Test**: Attempt to trigger the no-op "would-deploy-to-production" stage (a stub that prints the change and requires approval but performs no real `helm upgrade` — clarified 2026-09-27) and confirm the pipeline pauses, waits for approval, records the approver's identity when granted, and refuses to proceed when denied.
+**Independent Test**: Attempt to trigger the no-op "would-deploy-to-production" stage (a stub that prints the change and requires approval but performs no real deploy — clarified 2026-09-27) and confirm the pipeline pauses, waits for approval, records the approver's identity when granted, and refuses to proceed when denied.
 
 **Acceptance Scenarios**:
 
@@ -91,7 +91,7 @@ The pipeline runs a load test against the deployed dev environment as one of its
 - What happens when the load-test stage is flaky (e.g., a transient Azure networking blip causes a spurious slow request)? The stage must have a documented, bounded retry policy — never a silent retry that hides real regressions.
 - What happens when a secret is committed and merged before the scan catches it (retroactively discovered)? The pipeline can't undo the leak, but must at least catch it on the *next* run and fail loudly enough that the operator knows to rotate the leaked secret.
 - What happens when the pipeline succeeds but an approval-gated post-dev deploy is left pending indefinitely? The pending approval expires after 7 days (clarified 2026-09-27), matching the natural expiry window of the underlying scan artifacts (secret/dep/image) — a deploy still pending after a week must restart the pipeline to get fresh scans, rather than being auto-approved against stale evidence.
-- What happens when a pipeline-triggered `helm upgrade --install` runs against a dev environment that is temporarily unreachable (e.g., someone ran `terraform destroy` per the S6 cost-control discipline)? The pipeline must fail cleanly with a message identifying the missing environment, not hang or leave the pipeline in an ambiguous state.
+- What happens when a pipeline-triggered `az containerapp update` runs against a dev environment that is temporarily unreachable (e.g., someone ran `terraform destroy` per the S6 cost-control discipline)? The pipeline must fail cleanly with a message identifying the missing environment, not hang or leave the pipeline in an ambiguous state.
 
 ## Requirements
 
@@ -105,13 +105,13 @@ The pipeline runs a load test against the deployed dev environment as one of its
 - **FR-006**: The dependency-scan stage MUST fail the pipeline when any project dependency is at a version with a known high- or critical-severity CVE.
 - **FR-007**: The commit-validation stage MUST fail the pipeline when a commit message on the branch under test does not follow the Conventional Commits format.
 - **FR-008**: The container-image-scan stage MUST fail the pipeline when the built container image contains a high- or critical-severity vulnerability (existing S5 Trivy scans, invoked from the pipeline rather than a developer's laptop).
-- **FR-009**: Deploying to any environment beyond dev MUST require an explicit human approval step within the pipeline — no configuration path may bypass this. In this slice, "post-dev deploy" is a no-op stub stage that prints the change and requires approval but performs no real `helm upgrade` (production infrastructure does not exist in Horizon 1); the gate mechanism itself is fully wired and tested, so a future real production environment can slot in behind the same approval flow.
+- **FR-009**: Deploying to any environment beyond dev MUST require an explicit human approval step within the pipeline — no configuration path may bypass this. In this slice, "post-dev deploy" is a no-op stub stage that prints the change and requires approval but performs no real deploy (production infrastructure does not exist in Horizon 1); the gate mechanism itself is fully wired and tested, so a future real production environment can slot in behind the same approval flow.
 - **FR-010**: The approval step MUST record the approver's identity, the change being approved, and the timestamp on the deployment record.
 - **FR-011**: The main branch MUST be protected such that direct pushes without a passing pipeline are refused by the Git host (branch protection is enforced by the platform, not merely documented).
 - **FR-012**: The load-test stage MUST exercise spec 001's SC-003 scenario (50 concurrent users across 20 tenants performing tenant reads) against the deployed dev environment and report p50/p95/p99 latency plus error rate.
 - **FR-013**: The load-test stage MUST fail the pipeline when p95 latency exceeds 1 second (spec 001 SC-003) OR when the error rate exceeds 1% (clarified 2026-09-27) — standard SLO "three nines" bar, aggressive enough to catch real regressions (which typically show up as 5%+ under load) while tolerating occasional transient cloud blips.
-- **FR-014**: Concurrent pipeline runs for different commits MUST preempt-latest (clarified 2026-09-27): when a newer commit arrives on the main branch, any in-flight pipeline for an older commit is cancelled at the next safe checkpoint (never mid-`helm upgrade`), and only the latest commit's pipeline continues. A slower earlier run can never overwrite a faster later run because the earlier run is cancelled before it reaches its deploy stage.
-- **FR-015**: A cancelled or failed deploy stage MUST NOT leave dev in a partially-deployed state — either the previous version continues serving (relying on spec 005 FR-014's zero-downtime rollout guarantee) or an automatic `helm rollback` is issued.
+- **FR-014**: Concurrent pipeline runs for different commits MUST preempt-latest (clarified 2026-09-27): when a newer commit arrives on the main branch, any in-flight pipeline for an older commit is cancelled at the next safe checkpoint (never mid-deploy), and only the latest commit's pipeline continues. A slower earlier run can never overwrite a faster later run because the earlier run is cancelled before it reaches its deploy stage.
+- **FR-015**: A cancelled or failed deploy stage MUST NOT leave dev in a partially-deployed state — either the previous version continues serving (relying on spec 005 FR-014's single-revision guarantee: a revision that never passes its probes takes no traffic) or the pipeline redeploys the previous image tag.
 - **FR-016**: Pipeline definitions, secrets/variables, and workflow files MUST themselves be code — no pipeline configuration created only by clicking in the CI/CD platform's UI.
 
 ### Key Entities
@@ -139,7 +139,7 @@ The pipeline runs a load test against the deployed dev environment as one of its
 - The load-test tool produces machine-readable output (JSON or similar) so the pipeline can parse pass/fail decisions from measured metrics — the specific tool choice is a plan-phase decision.
 - The Git host (GitHub, per CLAUDE.md's `gh` command references) provides branch protection, environments with approval gates, and workflow-as-code — these are baseline features, not custom-built for this slice.
 - Only the `main` branch is protected in this slice; feature branches remain freely pushable so speckit's branch-per-feature workflow continues to work.
-- Load-test load is generated from the GitHub-hosted runner (`ubuntu-latest`, clarified 2026-09-27), which runs in Azure infrastructure matching the dev environment's region — this gives near-representative latency numbers without provisioning additional load-generation infrastructure. If the SC-004 measurement ever proves untrustworthy due to cross-region variance, upgrading to a self-hosted runner inside the dev AKS cluster is the documented next step, but is deferred until measurement problems surface.
+- Load-test load is generated from the GitHub-hosted runner (`ubuntu-latest`, clarified 2026-09-27), which runs in Azure infrastructure matching the dev environment's region — this gives near-representative latency numbers without provisioning additional load-generation infrastructure. If the SC-004 measurement ever proves untrustworthy due to cross-region variance, upgrading to a self-hosted runner inside the dev Container Apps environment is the documented next step, but is deferred until measurement problems surface.
 
 ## Scope Boundaries
 
@@ -157,9 +157,9 @@ The pipeline runs a load test against the deployed dev environment as one of its
 
 - **S3 (Architecture Tests)**: The gates FR-004 depends on
 - **S5 (Containerization)**: The Trivy scan scripts FR-005/FR-008 invoke; the Dockerfile the container-build stage builds
-- **S6 (Terraform → Azure)**: The dev environment the deploy stage deploys into; the ACR the push stage pushes into; the Helm chart the deploy stage upgrades
+- **S6 (Terraform → Azure)**: The dev environment the deploy stage deploys into; the ACR the push stage pushes into; the container app whose image the deploy stage updates
 - **Spec 001 (Auth + Tenant)**: The SC-003 criterion FR-013 verifies
-- **ADR-007**: AKS + full architecture in Horizon 1 — the topology the load test measures against
+- **ADR-007** and **ADR-023**: full architecture in Horizon 1, on Azure Container Apps (ADR-023, 2026-10-16) — the topology the load test measures against
 - **Constitution Principle I** (Human Authority) — FR-009's foundation
 - **Constitution Principle VII** (Automated Gates) — the whole slice's philosophical foundation
 

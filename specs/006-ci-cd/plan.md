@@ -20,10 +20,10 @@ without a stored credential.
 ## Technical Context
 
 **Language/Version**: GitHub Actions workflow YAML; Bash for gate scripts; JavaScript (k6) for the load test; HCL (Terraform ≥ 1.9) for identities and repository configuration; C# 14 / .NET 10 for the authorization-policy change
-**Primary Dependencies**: GitHub Actions (`actions/checkout`, `actions/setup-dotnet`, `azure/login`, `azure/setup-kubelogin`, `azure/setup-helm`, `grafana/setup-k6-action`), gitleaks, Trivy (existing S5 scripts), NuGet Audit (built into the .NET SDK), Terraform providers `azurerm` ~> 4.0, `azuread` ~> 3.0, `integrations/github` ~> 6.0
+**Primary Dependencies**: GitHub Actions (`actions/checkout`, `actions/setup-dotnet`, `azure/login`, `grafana/setup-k6-action`), gitleaks, Trivy (existing S5 scripts), NuGet Audit (built into the .NET SDK), Terraform providers `azurerm` ~> 4.0, `azuread` ~> 3.0, `integrations/github` ~> 6.0
 **Storage**: No new application storage. Pipeline evidence lives in GitHub (run history, job summaries, deployment records, artifacts); the SC-003 measurement is copied into `docs/operations/load-test-baseline.md` as the permanent record
 **Testing**: Existing xUnit v3 suites run in the pipeline; `gate-selftest.yml` proves each rejection gate fails on a planted violation; new unit + integration tests for the authorization policy, including cross-tenant refusal for the automation identity
-**Target Platform**: GitHub-hosted `ubuntu-latest` runners → Azure (S6 dev environment: ACR, AKS, APIM, Front Door)
+**Target Platform**: GitHub-hosted `ubuntu-latest` runners → Azure (S6 dev environment: ACR, Container Apps, APIM, Front Door)
 **Project Type**: CI/CD configuration + infrastructure-as-code + one small application change
 **Performance Goals**: Commit → dev in < 20 min on 95% of runs (SC-001); spec 001 SC-003 — p95 tenant read < 1 s at 50 concurrent users across 20 tenants, error rate < 1% (SC-004)
 **Constraints**: Zero repository secrets (Principle V); no approval bypass for admins or automation (Principle I); never cancel mid-deploy (FR-014); deployment target may be torn down between sessions (S6 cost discipline)
@@ -34,7 +34,7 @@ without a stored credential.
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
 - [X] **I — Human authority**: `production` environment requires a human reviewer with `can_admins_bypass = false`; the pipeline cannot approve itself. ADR-022 changes the authorization surface; the project owner accepted it on 2026-09-29.
-- [X] **II — ADRs identified, conflicts proposed**: Relies on ADR-001, 007, 012, 013, 017, 018, 019. Raises and records **ADR-022** (application identities as tenant members, accepted). Two S6 defects found (APIM `GET`-only, AKS without Entra RBAC) are proposed as explicit amendments, not worked around.
+- [X] **II — ADRs identified, conflicts proposed**: Relies on ADR-001, 007, 012, 013, 017, 018, 019. Raises and records **ADR-022** (application identities as tenant members, accepted). Two S6 defects found (APIM `GET`-only, and an image tag Terraform would otherwise keep reverting) are proposed as explicit amendments, not worked around.
 - [X] **III — Service/data boundaries**: No new service, no new data store. The automation identity reaches data only through the API, never the database (which is private-endpoint-only anyway).
 - [X] **IV — Tenant isolation**: The automation identity is an ordinary member of the tenants it creates and nothing more. New tests prove it is refused on tenants it does not belong to, identically to a user.
 - [X] **V — No stored credentials**: OIDC federation for every Azure call; the repository holds variables (identifiers), no secrets. The authorization change *narrows* accepted tokens to an explicit allow-list. Secret scanning is added for source (gitleaks) and kept for images (S5).
@@ -80,9 +80,9 @@ infrastructure/
 │   │   ├── app-role.tf          # Tenancy.Automation.Member app role + assignment (ADR-022)
 │   │   ├── variables.tf
 │   │   └── outputs.tf           # Client IDs → copied into GitHub variables by infrastructure/github
-│   ├── main.tf                  # AMENDED: role assignments for the deployer against current ACR/AKS
+│   ├── main.tf                  # AMENDED: role assignments for the deployer against current ACR/container app
 │   └── modules/
-│       ├── aks/main.tf          # AMENDED: Entra ID + Azure RBAC, local accounts disabled (R2)
+│       ├── containerapp/app.tf  # AMENDED: ignore_changes on the container image (R2, R10)
 │       └── apim/api.tf          # AMENDED: operations for all methods, not GET only
 ├── github/                      # NEW root, own state key (R6)
 │   ├── main.tf                  # Ruleset on main, environments dev + production, variables
@@ -116,10 +116,7 @@ because it is a test, even though only the pipeline runs it.
 
 ## Phase 0 — Prerequisites and branch base
 
-**This branch must be based on `005-terraform-azure`.** The pipeline deploys S6's Helm chart,
-pushes to S6's ACR, and three amendments land in S6's Terraform. `006-ci-cd` currently branches from
-`main` and contains no commits of its own, so rebasing onto `005-terraform-azure` is a
-fast-forward. Merge order later: `005` into `main`, then `006`.
+**This branch must be based on `005-terraform-azure`.** **S6 is now on `main`** (merged 2026-10-16, Container Apps per ADR-023), so this branch is rebased onto `main`. The pipeline updates S6's container app, pushes to S6's ACR, and three amendments land in S6's Terraform.
 
 Execution also depends on decisions outside this plan:
 1. ~~ADR-022 accepted~~ — **done 2026-09-29**.
@@ -148,14 +145,14 @@ Execution also depends on decisions outside this plan:
 ### Phase 2 — Protection as code (US3, FR-011)
 
 1. `infrastructure/github/`: ruleset on `main` (required checks = Phase 1 job names, no bypass actors), environments `dev` and `production` (required reviewer, `can_admins_bypass = false`), repository variables.
-2. `production` job in `pipeline.yml`: approval-expiry check (R12), then print the would-deploy record. No `helm upgrade`.
+2. `production` job in `pipeline.yml`: approval-expiry check (R12), then print the would-deploy record. No deploy.
 
 ### Phase 3 — Publish and deploy (US1 end-to-end)
 
 1. `infrastructure/terraform/persistent/`: `id-github-deployer` + federated credential.
-2. S6 amendments: AKS Entra RBAC (R2), APIM all-method operations, deployer role assignments in the S6 root.
+2. S6 amendments: `ignore_changes` on the container image and `deploy.sh`/`rollback.sh` switching to `az containerapp update` after first create (R2, R10), APIM all-method operations, deployer role assignments in the S6 root.
 3. `container-publish` job (main only): supersession guard (R9), push the scanned image by commit SHA.
-4. `deploy-dev` job: guard, preflight (R10), stuck-release recovery, `helm upgrade --install --atomic --wait`, `dev-deploy` concurrency group.
+4. `deploy-dev` job: guard, preflight (R10), `az containerapp update` with a revision health poll, `dev-deploy` concurrency group.
 
 ### Phase 4 — Performance verification (US4)
 

@@ -31,7 +31,7 @@ queued ──► in_progress ──┬──► success
                                   └──► rejected ──► failure
 ```
 
-A run that reaches `deploy-dev` and fails leaves dev on the previous release (`helm --atomic`,
+A run that reaches `deploy-dev` and fails leaves dev on the previous release (single revision mode keeps the previous revision serving,
 plus spec 005 FR-014's zero-downtime rollout). There is no state in which dev is half-deployed.
 
 ## §3 — Approval Record fields
@@ -68,7 +68,7 @@ Extracted from the k6 summary into the job summary and the baseline document.
 
 | Identity | Kind | Lives in | Can do |
 |---|---|---|---|
-| `id-github-deployer` | user-assigned managed identity, GitHub-federated | `infrastructure/terraform/persistent/` | Push to ACR; deploy to AKS namespace `default`. **Not** a tenant member. |
+| `id-github-deployer` | user-assigned managed identity, GitHub-federated | `infrastructure/terraform/persistent/` | Push to ACR; update the container app's image only. **Not** a tenant member. |
 | `id-loadtest-client` | user-assigned managed identity, GitHub-federated | same | Call the Tenancy API with app role `Tenancy.Automation.Member`. **No** Azure RBAC. |
 
 Inside the Tenancy API, `id-loadtest-client` becomes a `User` row via the existing

@@ -7,7 +7,7 @@ S6 environment applied first (`specs/005-terraform-azure/quickstart.md`).
 
 ## Prerequisites
 
-- S6 applied: `terraform -chdir=infrastructure/terraform output` shows ACR, AKS, and Front Door
+- S6 applied: `terraform -chdir=infrastructure/terraform output` shows ACR, the container app, and Front Door
 - `az login`, `gh auth login`, Terraform ≥ 1.9
 - ADR-022 accepted (done 2026-09-29)
 
@@ -33,8 +33,8 @@ cd infrastructure/terraform
 terraform apply -var-file=dev.tfvars
 ```
 
-Adds AKS Entra RBAC, the all-method APIM operations, and the deployer's role assignments against
-the ACR and AKS that currently exist.
+Adds the all-method APIM operations, the container app's image `ignore_changes`, and the deployer's role assignments against
+the ACR and container app that currently exist.
 
 ## Step 3 — Repository configuration
 
@@ -59,7 +59,7 @@ Merge a trivial conforming change (e.g. `docs(ci-cd): note pipeline duration`) t
 
 - Every job in `contracts/pipeline.md` runs without a click until `production` pauses.
 - `curl -s "https://$FRONTDOOR_ENDPOINT/health/ready"` → 200, and the deployed image tag equals the commit SHA:
-  `kubectl get deploy tenancy-api -o jsonpath='{.spec.template.spec.containers[0].image}'`
+  `az containerapp show -n "$CONTAINER_APP_NAME" -g "$RESOURCE_GROUP" --query "properties.template.containers[0].image" -o tsv`
 - Record run duration. Repeat until 10 consecutive runs are timed (SC-001: 95% under 20 min).
 
 ## Step 5 — US2: each gate rejects a planted violation
@@ -92,7 +92,7 @@ In each case: the PR cannot merge (ruleset), no image reaches ACR, dev is untouc
 
 Merge two changes to `main` within a minute. The older run shows **cancelled** with
 `Superseded by <newer sha>` in its summary; the deployed image is the newer SHA; no deploy was
-interrupted mid-upgrade (`helm history tenancy` shows no failed revision from the cancellation).
+interrupted mid-update (`az containerapp revision list` shows no failed revision from the cancellation).
 
 ## Step 8 — US4: spec 001 SC-003
 
@@ -128,7 +128,7 @@ After `terraform destroy` of S6, push to `main`: `deploy-dev` fails at preflight
 | FR-012 load scenario | Step 8 |
 | FR-013 thresholds | Step 8 (+ a deliberately slowed build fails the job) |
 | FR-014 preempt-latest | Step 7 |
-| FR-015 no partial deploy | Step 7 (`helm history`) + `--atomic` |
+| FR-015 no partial deploy | Step 7 (`az containerapp revision list`) + single revision mode |
 | FR-016 config as code | Steps 1–3 — everything is `terraform apply` |
 | SC-001 | Step 4 (10 runs) |
 | SC-002 | Step 5 |

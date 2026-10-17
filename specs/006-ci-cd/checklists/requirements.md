@@ -33,5 +33,5 @@
 
 - "Pipeline," "stage," "branch protection," "approval gate," "load test" are domain vocabulary for CI/CD, not implementation choices — they describe *what* the system must do, not *how* (which specific CI/CD platform, load-test tool, or approval mechanism to use).
 - Conventional Commits is named specifically (FR-007) because it's an existing project convention already enforced on all commits (CLAUDE.md), not a new choice this spec is making.
-- ACR and Helm are named (FR-016 assumptions, FR-015) because they are the specific artifacts spec 005 (S6) established — this slice consumes them, doesn't re-specify them.
+- ACR and the container app are named (FR-016 assumptions, FR-015) because they are the specific artifacts spec 005 (S6) established — this slice consumes them, doesn't re-specify them.
 - Trivy is named in Assumptions as continuity with S5's existing scan scripts, not as a new implementation mandate.

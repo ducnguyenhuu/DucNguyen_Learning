@@ -30,7 +30,7 @@ The job names below are a contract: the `main` ruleset lists them as required st
 | Job | Depends on | Environment | Does |
 |---|---|---|---|
 | `container-publish` | all gate jobs | `dev` | supersession guard; OIDC login as `id-github-deployer`; load the scanned image artifact; push `<acr>/tenancy-api:<sha>` |
-| `deploy-dev` | `container-publish` | `dev` | guard; preflight (`az aks show`); recover stuck `pending-*` release; `helm upgrade --install --atomic --wait --timeout 5m --set api.image.tag=<sha>` |
+| `deploy-dev` | `container-publish` | `dev` | guard; preflight (`az containerapp show`); `az containerapp update --image <acr>/tenancy-api:<sha>`; poll the new revision until healthy (5 min timeout), fail the job if it is not. The previous revision keeps serving throughout |
 | `load-test` | `deploy-dev` | `dev` | guard; OIDC login as `id-loadtest-client`; token for the API audience; `seed.sh`; k6 (`load-test.md`) |
 | `production` | `load-test` | `production` (required reviewer) | approval-expiry check (7 days); write the would-deploy record. **No deployment.** |
 
@@ -52,7 +52,7 @@ Workflow default: `contents: read`. Raised per job only where needed:
 ## Inputs (repository variables — never secrets)
 
 `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_DEPLOYER_CLIENT_ID`, `AZURE_LOADTEST_CLIENT_ID`,
-`TENANCY_API_APP_ID_URI`, `ACR_LOGIN_SERVER`, `AKS_RESOURCE_GROUP`, `AKS_CLUSTER_NAME`,
+`TENANCY_API_APP_ID_URI`, `ACR_LOGIN_SERVER`, `RESOURCE_GROUP`, `CONTAINER_APP_NAME`,
 `FRONTDOOR_ENDPOINT`. All are identifiers or hostnames; none grants access on its own.
 
 ## Failure semantics

@@ -30,9 +30,7 @@ These were verified against the repository, not assumed:
 - **Two S6 gaps block this slice** (both on branch `005-terraform-azure`):
   1. APIM's API definition has a single `GET /*` operation. Load-test seeding needs `POST
      /tenants`, which APIM would reject with 404.
-  2. The AKS cluster has no Entra ID integration (`azure_active_directory_role_based_access_control`
-     absent), so a pipeline identity has no way to authenticate to the Kubernetes API without a
-     static admin kubeconfig — a stored credential.
+  2. S6's container app declares the image tag in Terraform, so any pipeline update to the image would be reverted by the next `terraform apply`. The container app needs `ignore_changes` on the image, with Terraform owning the app's shape and `az containerapp update` owning the tag. (Compute is Container Apps, not AKS: ADR-023.)
 
 ## R1 — CI/CD platform
 
@@ -60,7 +58,7 @@ Two identities, least privilege:
 
 | Identity | Federated subject | Granted |
 |---|---|---|
-| `id-github-deployer` | `repo:ducnguyenhuu/delivery-intelligent-platform:environment:dev` | `AcrPush` on ACR; `Azure Kubernetes Service Cluster User Role` + `Azure Kubernetes Service RBAC Writer` scoped to the `default` namespace |
+| `id-github-deployer` | `repo:ducnguyenhuu/delivery-intelligent-platform:environment:dev` | `AcrPush` on ACR; `Container Apps Contributor` scoped to the one container app (no resource-group, subscription or Terraform-state access) |
 | `id-loadtest-client` | same subject | App role `Tenancy.Automation.Member` on the Tenancy API (R7); **no** Azure RBAC at all |
 
 **Rationale**:
@@ -70,8 +68,8 @@ Two identities, least privilege:
 - **Why persistent, not in the S6 root**: S6's cost discipline runs `terraform destroy` after every
   session. An identity created there would get a new client ID on every rebuild, forcing the
   GitHub variables to be re-edited every session. Managed identities cost nothing while idle. The
-  identities persist; the *role assignments* are created by the S6 root against whatever ACR/AKS
-  currently exists, and disappear with them.
+  identities persist; the *role assignments* are created by the S6 root against whatever ACR and
+  container app currently exist, and disappear with them.
 - **Why two identities**: the deployer must never be a tenant member, and the load tester must never
   be able to deploy. One identity holding both would let a compromised load-test step push images.
 
@@ -82,10 +80,7 @@ Two identities, least privilege:
 - *App registrations instead of managed identities*: Both support federation; managed identities
   have no credential surface at all and need no application object.
 
-**S6 amendment required**: the S6 AKS module must enable Entra ID integration with Azure RBAC
-(`azure_active_directory_role_based_access_control { azure_rbac_enabled = true }`) and
-`local_account_disabled = true`, so the deployer authenticates with its federated token through
-`kubelogin` rather than a static kubeconfig.
+**S6 amendment required**: add `lifecycle { ignore_changes = [template[0].container[0].image] }` to the S6 container app, and change S6's `deploy.sh` and `rollback.sh` to `az containerapp update --image` once the app exists. `terraform apply -var api_image_tag=...` remains only for first creation. Rationale: Terraform-driven deploys would force the pipeline to hold Terraform state access and broad rights, against least privilege; `Container Apps Contributor` on one app is enough for `az containerapp update`.
 
 ## R3 — Secret scanning
 
@@ -216,7 +211,7 @@ subject to MFA.
   90-day credential. Rejected for the same reason.
 - *A test-only authentication scheme enabled in the deployed dev build*: A backdoor in a deployed
   artifact. Rejected outright.
-- *Seed data and load from inside the cluster (a Kubernetes Job)*: Bypasses Front Door and APIM, so
+- *Seed data and load from inside the environment (a job in the Container Apps environment)*: Bypasses Front Door and APIM, so
   it would not measure the path spec 001 SC-003 is about, and still needs an identity.
 
 **Documented limitation**: all 50 virtual users share **one** identity across 20 tenants. SC-003's
@@ -253,7 +248,7 @@ seconds would make p95 meaningless.
 ## R9 — "Preempt-latest" without ever cancelling mid-deploy
 
 **Problem**: FR-014 (clarified) wants older runs cancelled at a *safe checkpoint*, never during
-`helm upgrade`. GitHub's workflow-level `concurrency: cancel-in-progress: true` cancels abruptly,
+`az containerapp update`. GitHub's workflow-level `concurrency: cancel-in-progress: true` cancels abruptly,
 including mid-deploy. Job-level concurrency with `cancel-in-progress: false` keeps a deploy
 running, but a queued *older* run can then deploy after a newer one finished — overwriting it.
 
@@ -274,11 +269,12 @@ clarified edge case.
 **Decision**:
 - The pipeline builds the image **once**, scans it, and pushes it tagged with the commit SHA. The
   deploy stage deploys that exact tag. Nothing is rebuilt after scanning.
-- Deploy runs `helm upgrade --install --atomic --wait --timeout 5m` against the S6 chart. `--atomic`
-  rolls a failed upgrade back automatically (FR-015).
-- A pre-deploy step inspects the release; if it is stuck in `pending-*` (a previously cancelled
-  runner), it issues `helm rollback` first.
-- A **preflight** step checks the dev environment exists (`az aks show`). If S6's environment has
+- Deploy runs `az containerapp update --image <acr>/tenancy-api:<sha>`, then polls the new revision's
+  health for up to 5 minutes. In single revision mode a revision that never passes its probes takes
+  no traffic and the previous one keeps serving, so a failed deploy needs no rollback step (FR-015);
+  the job simply fails.
+- There is no stuck-release state to recover from, so the Helm-era pre-deploy recovery step is dropped.
+- A **preflight** step checks the dev environment exists (`az containerapp show`). If S6's environment has
   been destroyed, the job fails immediately with an actionable message naming
   `specs/005-terraform-azure/quickstart.md`, instead of hanging on a DNS lookup.
 
