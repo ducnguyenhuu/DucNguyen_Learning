@@ -11,7 +11,7 @@ Resource Group (rg-dip-dev)
 ├── Storage Account (bootstrap — state backend, outside main Terraform)
 │
 ├── Virtual Network (vnet-dip-dev)
-│   ├── Subnet: sn-aks          (AKS node pool)
+│   ├── Subnet: sn-cae          (Container Apps environment, /23, no delegation)
 │   ├── Subnet: sn-sql-pe       (SQL private endpoint)
 │   ├── Subnet: sn-kv-pe        (Key Vault private endpoint)
 │   └── Subnet: sn-apim         (APIM, if VNet-integrated)
@@ -21,7 +21,7 @@ Resource Group (rg-dip-dev)
 │   └── privatelink.vaultcore.azure.net   → linked to VNet
 │
 ├── User-Assigned Managed Identities
-│   ├── id-tenancy-api    (SQL access, Key Vault read)
+│   ├── id-tenancy-api    (ACR pull, SQL access, Key Vault read)
 │   └── id-otel-collector (Key Vault read — licence key only)
 │
 ├── Key Vault (kv-dip-dev)
@@ -34,31 +34,22 @@ Resource Group (rg-dip-dev)
 ├── Azure SQL Server (sql-dip-dev)
 │   ├── Azure AD-only auth (no SQL auth)
 │   ├── Private Endpoint → sn-sql-pe
-│   ├── Admin: id-tenancy-api (Azure AD admin)
+│   ├── Admin: Azure AD admin from sql_admin_object_id
 │   └── Database: sqldb-dip-dev
 │
 ├── Container Registry (acrdipdev)
-│   └── RBAC: AKS kubelet identity → AcrPull
+│   └── RBAC: id-tenancy-api → AcrPull
 │
-├── AKS Cluster (aks-dip-dev)
-│   ├── OIDC Issuer enabled
-│   ├── Workload Identity enabled
-│   ├── NGINX Ingress Controller (addon)
-│   ├── Key Vault CSI Driver (addon)
-│   ├── Node Pool: system (Standard_B2s, 1–2 nodes)
-│   └── Kubernetes Resources (via Helm):
-│       ├── ServiceAccount: tenancy-api (federated → id-tenancy-api)
-│       ├── ServiceAccount: otel-collector (federated → id-otel-collector)
-│       ├── Deployment: tenancy-api
-│       ├── Deployment: otel-collector
-│       ├── Service: tenancy-api (ClusterIP)
-│       ├── Service: otel-collector (ClusterIP, ports 4317/4318)
-│       ├── Ingress: tenancy-api (NGINX)
-│       ├── ConfigMap: otel-collector-config
-│       └── SecretProviderClass: kv-secrets (CSI driver)
+├── Container Apps Environment (cae-dip-dev, Consumption-only, in sn-cae)
+│   └── Container App: ca-tenancy-api-dev (single revision mode, 2–3 replicas)
+│       ├── Identities: id-tenancy-api, id-otel-collector
+│       ├── Ingress: external, port 8080, allow-list = APIM public IPs
+│       ├── Secret: new-relic-licence-key (Key Vault reference via id-otel-collector)
+│       ├── Container: tenancy-api  (probes on /health/live, /health/ready)
+│       └── Container: otel-collector (sidecar; secret mounted at /mnt/secrets)
 │
 ├── API Management (apim-dip-dev, Developer tier)
-│   ├── API: tenancy-api (backend → AKS ingress)
+│   ├── API: tenancy-api (backend → container app FQDN)
 │   └── Policy: rate-limit, cors, jwt-validation (optional)
 │
 └── Front Door (fd-dip-dev, Standard tier)
@@ -70,12 +61,12 @@ Resource Group (rg-dip-dev)
 
 ## §2 — Identity Relationships
 
-| Kubernetes Service Account | Azure Managed Identity | Access Grants |
-|---------------------------|----------------------|---------------|
-| `tenancy-api` | `id-tenancy-api` | Azure SQL DB admin (Azure AD); Key Vault Secrets User |
-| `otel-collector` | `id-otel-collector` | Key Vault Secrets User (licence key only) |
+| Managed identity | Used by | Access grants |
+|------------------|---------|---------------|
+| `id-tenancy-api` | Tenancy API container; registry pull | `AcrPull` on ACR; Azure SQL access via Azure AD; Key Vault Secrets User |
+| `id-otel-collector` | Key Vault secret reference for the Collector | Key Vault Secrets User (licence key only) |
 
-Workload Identity Federation binds each Kubernetes service account to its Azure identity via the AKS cluster's OIDC issuer URL + the service account's namespace and name as the subject.
+Both identities are attached to the one container app. There is no federation: the platform issues tokens to the app directly.
 
 ## §3 — Network Flow
 
@@ -83,30 +74,33 @@ Workload Identity Federation binds each Kubernetes service account to its Azure 
 Internet
   → Front Door (TLS termination, *.azurefd.net)
     → APIM (API policies, Developer tier)
-      → AKS Ingress Controller (NGINX, in-cluster)
-        → Tenancy API pod (port 8080)
+      → Container Apps ingress (public, allow-list = APIM IPs)
+        → Tenancy API container (port 8080)
           → Azure SQL (via private endpoint, managed identity token)
-          → Key Vault (via private endpoint, workload identity token)
-        → OTel Collector pod (ports 4317/4318)
-          → New Relic OTLP endpoint (outbound HTTPS)
+          → localhost:4317 → OTel Collector sidecar
+                               → New Relic OTLP endpoint (outbound HTTPS)
+        Key Vault (via private endpoint): the platform resolves the licence-key
+        secret reference with id-otel-collector and mounts it as a file
 ```
 
 ## §4 — Terraform Module Dependencies
 
 ```text
 networking  ←── (VNet, subnets, DNS zones)
-    ↓
-identity    ←── (managed identities — need no VNet, but other modules need them)
+identity    ←── (managed identities)
     ↓
 keyvault    ←── (needs: networking.sn-kv-pe, identity.id-*)
-sql         ←── (needs: networking.sn-sql-pe, identity.id-tenancy-api)
-acr         ←── (standalone, but AKS needs its ID)
+sql         ←── (needs: networking.sn-sql-pe)
+acr         ←── (standalone)
+apim        ←── (instance only: needs nothing but the SKU)
     ↓
-aks         ←── (needs: networking.sn-aks, acr.id, identity.*)
+containerapp ←── (needs: networking.sn-cae, acr, identity.*, sql, keyvault secret ID,
+                  apim.public_ip_addresses for the ingress allow-list)
     ↓
-apim        ←── (needs: aks ingress IP/FQDN for backend)
+apim API definition ←── (needs: containerapp FQDN; lives in the apim module, so the
+                         module-level graph looks cyclic but the resource graph is not)
     ↓
 frontdoor   ←── (needs: apim gateway URL for origin)
 ```
 
-This ordering drives the Terraform dependency graph. Modules lower in the chain implicitly depend on modules above via output references.
+The `apim` instance has no dependency on the container app; only its API definition does. Terraform builds the graph per resource, not per module, so no override variable or second apply is needed. The one manual ordering is that the container app needs an image: `terraform apply -target=module.acr` first, then `deploy.sh`.

@@ -19,9 +19,9 @@
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `aks_node_vm_size` | string | `"Standard_B2s"` | VM size for AKS node pool |
-| `aks_node_count_min` | number | `1` | Minimum node count (autoscaler) |
-| `aks_node_count_max` | number | `2` | Maximum node count (autoscaler) |
+| `api_image_tag` | string | `""` | Image tag in ACR. Empty fails the container app's plan; `deploy.sh` supplies it |
+| `api_min_replicas` | number | `2` | Minimum API replicas (FR-014) |
+| `api_max_replicas` | number | `3` | Maximum API replicas |
 | `sql_sku` | string | `"Basic"` | Azure SQL database SKU |
 | `apim_sku` | string | `"Developer_1"` | APIM SKU name and capacity |
 | `frontdoor_sku` | string | `"Standard_AzureFrontDoor"` | Front Door SKU |
@@ -29,14 +29,9 @@
 | `otel_sample_rate` | number | `10` | OTel Collector sampling percentage |
 | `tags` | map(string) | `{ project = "dip", environment = "dev" }` | Resource tags |
 
-## Two-Phase Apply Overrides (implementation detail, analyze finding F1)
+## First-apply ordering
 
-Wiring `apim`'s outbound IP directly into the `networking` module's NSG rule, or `aks`'s OIDC issuer URL directly into the `identity` module, would create real Terraform dependency cycles (`networking` → `apim` → `aks` → `networking`, and similarly for identity/AKS). These two variables break the cycle: left at their defaults on the first `apply`, then set explicitly on a second, deliberate `apply` once the resource they narrow against exists.
-
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `apim_nsg_source_override` | string | `null` | APIM's actual outbound IP (e.g. `"20.1.2.3/32"`), set after APIM is created. `null` uses the broader `ApiManagement` service tag (T010/T032a). |
-| `aks_oidc_issuer_url_override` | string | `""` | AKS cluster's OIDC issuer URL, set after AKS is created. Empty until then — the identity module's federated credentials only activate once non-empty. |
+There are no override variables. APIM's public IPs feed the container app's ingress allow-list directly, and only the APIM *API definition* depends on the app's FQDN, so the graph has no cycle (ADR-023 removed the AKS OIDC and NSG cycles). The one ordering constraint is that the app needs an image: run `terraform apply -target=module.acr`, then `deploy.sh`.
 
 ## Outputs
 
@@ -44,11 +39,11 @@ Wiring `apim`'s outbound IP directly into the `networking` module's NSG rule, or
 |--------|-------------|
 | `frontdoor_endpoint` | Front Door URL (e.g., `https://dip-dev.azurefd.net`) |
 | `apim_gateway_url` | APIM gateway URL |
-| `aks_cluster_name` | AKS cluster name (for `az aks get-credentials`) |
+| `container_app_name` | Container app name (for `az containerapp` commands) |
+| `resource_group_name` | Resource group holding the environment |
 | `acr_login_server` | ACR login server (e.g., `acrdipdev.azurecr.io`) |
 | `sql_server_fqdn` | Azure SQL Server FQDN |
 | `keyvault_uri` | Key Vault URI |
-| `aks_oidc_issuer_url` | AKS OIDC issuer URL (for workload identity federation) |
 
 ## Bootstrap Variables (one-time state backend)
 

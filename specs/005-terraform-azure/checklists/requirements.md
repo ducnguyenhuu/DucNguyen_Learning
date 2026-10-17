@@ -32,5 +32,5 @@
 ## Notes
 
 - SC-003 mentions "under 2 seconds" which is a reasonable user-facing latency target, not an implementation metric
-- Azure service names (AKS, APIM, Front Door, etc.) are domain vocabulary for this infrastructure feature, not implementation details — they name *what* is provisioned, not *how* the code works
+- Azure service names (Container Apps, APIM, Front Door, etc.) are domain vocabulary for this infrastructure feature, not implementation details — they name *what* is provisioned, not *how* the code works
 - The spec references ADRs for architectural decisions already made — these are constraints, not new implementation choices

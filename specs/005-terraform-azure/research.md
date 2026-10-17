@@ -13,41 +13,43 @@
 - *Local state*: Violates FR-002 (multi-operator collaboration) and is dangerous for shared infrastructure.
 - *ARM template for bootstrap*: Works but introduces a second IaC language for no benefit.
 
-## R2 — AKS Networking Model
+## R2 — Container Apps Environment Networking
 
-**Decision**: Azure CNI Overlay networking. AKS nodes get VNet IPs; pods get overlay IPs from a separate CIDR managed by AKS.
+**Decision**: A VNet-integrated, **Consumption-only** Container Apps environment in a dedicated `/23` subnet (`sn-cae`), with external ingress. (Replaces the AKS CNI Overlay decision, per ADR-023, 2026-10-16.)
 
-**Rationale**: CNI Overlay is the recommended default for new AKS clusters. It avoids the subnet IP exhaustion problem of classic Azure CNI (where every pod consumes a VNet IP), while still supporting Network Policies, private endpoints, and VNet integration. Kubenet is being deprecated. Classic Azure CNI requires careful subnet sizing.
+**Rationale**: VNet integration is what lets the app reach Azure SQL and Key Vault through their private endpoints and the existing private DNS zones. A Consumption-only environment needs a `/23` and no subnet delegation, and carries no fixed node cost, unlike a workload-profiles environment with a dedicated profile. External ingress is required because Developer-tier APIM is not VNet-integrated (R3).
 
 **Alternatives considered**:
-- *Classic Azure CNI*: Requires large subnets (IP per pod). Over-provisions for dev, complicates subnet planning.
-- *Kubenet*: Deprecated path; no Network Policy support without third-party CNI; UDR management overhead.
-- *Azure CNI with dynamic IP allocation*: More complex than Overlay for no dev-environment benefit.
+- *Workload profiles environment*: `/27` minimum and dedicated-profile pricing; no benefit for one small service in dev.
+- *Internal-only environment*: Cleaner, but APIM Developer cannot reach it without Premium VNet integration (R3).
+- *Environment outside the VNet*: Cannot use the SQL and Key Vault private endpoints, failing FR-006.
 
 ## R3 — APIM SKU and VNet Integration
 
-**Decision**: APIM Developer tier, **not** VNet-integrated. APIM connects to AKS via the AKS ingress controller's **public IP**, restricted by a network security group to APIM's published outbound IP ranges (clarified 2026-09-26, spec.md FR-007 — see also §"NGINX ingress" below; superseded the earlier "public or internal LB" open question).
+**Decision**: APIM Developer tier, **not** VNet-integrated. APIM connects to the container app's **public ingress**, restricted by the app's ingress IP restrictions to the APIM instance's public IPs (clarified 2026-09-26, spec.md FR-007; the restriction mechanism moved from an AKS NSG to Container Apps ingress rules per ADR-023).
 
-**Rationale**: APIM VNet integration (internal or external mode) requires the Premium tier (~$2,800/month) or the newer stv2 platform on Developer tier with significant provisioning time (45–60 min). For dev, the simpler approach is APIM Developer tier calling AKS's ingress endpoint directly, with the NSG rule as the compensating control so the "last hop" isn't wide open to the internet. The networking still proves the routing topology (Front Door → APIM → AKS) without the Premium cost.
+**Rationale**: APIM VNet integration (internal or external mode) requires the Premium tier (~$2,800/month) or the newer stv2 platform on Developer tier with significant provisioning time (45–60 min). For dev, the simpler approach is APIM Developer tier calling the container app's ingress directly, with the ingress IP allow-list as the compensating control so the "last hop" isn't wide open to the internet. Unlike the NSG it replaces, the allow-list takes the APIM instance's real IPs directly, because the APIM instance does not depend on the app; only the APIM *API definition* does. No two-phase apply is needed. The networking still proves the routing topology (Front Door → APIM → AKS) without the Premium cost.
 
 **Alternatives considered**:
-- *APIM Premium with full VNet integration*: Proves private networking but costs ~$2,800/month for dev — far exceeds the $700–1,500 budget for the entire environment.
+- *APIM Premium with full VNet integration*: Proves private networking but costs ~$2,800/month for dev — far exceeds the budget for the entire environment.
 - *APIM Basic*: Cheaper but lacks developer portal and some policy features useful for learning.
 - *Skip APIM*: Violates the roadmap's explicit inclusion and the target architecture in idea.md §17.
-- *Public ingress IP, unrestricted*: Simplest, but leaves the AKS ingress open to the entire internet, not just APIM — rejected during clarification in favor of the NSG-restricted option.
+- *Public ingress IP, unrestricted*: Simplest, but leaves the ingress open to the entire internet, not just APIM — rejected during clarification in favor of the IP-restricted option.
 
 **Correction (if needed)**: If Developer tier stv2 supports VNet injection at dev cost, prefer that. Verify during implementation.
 
-## R4 — Workload Identity for Key Vault Access
+## R4 — Managed Identity for ACR, SQL and Key Vault
 
-**Decision**: Azure Workload Identity (federated identity credentials on user-assigned managed identities) with the Azure Key Vault CSI driver for Kubernetes.
+**Decision**: Two **user-assigned managed identities** attached to the one container app: `id-tenancy-api` (ACR pull, Azure SQL) and `id-otel-collector` (Key Vault secret read). The licence key is a Container Apps **Key Vault secret reference** (`key_vault_secret_id` + identity), mounted into the collector sidecar as a **file** via a `Secret` volume. (Replaces AKS workload identity federation + Key Vault CSI, per ADR-023.)
 
-**Rationale**: Workload Identity is the successor to AAD Pod Identity (deprecated). It uses Kubernetes service account token projection + OIDC federation to Azure AD, with no cluster-level infrastructure component. The Key Vault CSI driver mounts secrets as volumes, avoiding the need for application code changes — the OTel Collector reads the New Relic licence key from a mounted file, and the Tenancy API can similarly access Key Vault secrets.
+**Rationale**: No federation, OIDC issuer or service-account wiring exists, and the two-phase apply the AKS design needed disappears. Mounting the secret as a file keeps the SC-004 property that the key is never an environment variable. Separate identities keep least privilege on the Azure side even though both run in one app.
 
 **Alternatives considered**:
-- *AAD Pod Identity (v1)*: Deprecated; requires NMI daemonset; known race conditions.
-- *Direct SDK calls from app to Key Vault*: Works but requires application code changes and doesn't help the OTel Collector (which is configured via files/env vars, not SDK calls).
-- *Kubernetes Secrets synced from Key Vault*: Introduces a sync delay and a second copy of the secret in etcd.
+- *System-assigned identity*: One identity for everything; cannot separate ACR/SQL from Key Vault access and is recreated on every destroy.
+- *Secret as an environment variable (`secretRef`)*: Simpler, but makes the licence key an environment variable in the process, which US3 forbids.
+- *Direct Key Vault SDK calls*: Needs application code changes and does not help the Collector.
+
+**Open risk**: The Key Vault has public access disabled. Whether the Container Apps platform resolves the secret reference through the private endpoint (and whether Terraform can write the secret from outside the VNet) is unverified until the first apply.
 
 ## R5 — Front Door + APIM Integration Pattern
 
@@ -56,7 +58,7 @@
 **Rationale**: This is the documented Microsoft pattern for the enterprise API gateway topology. Front Door provides edge TLS and caching; APIM provides API management. In dev, Front Door's global distribution is unnecessary but proves the wiring and the topology that production would use.
 
 **Alternatives considered**:
-- *Front Door directly to AKS*: Skips APIM, losing the API management layer the roadmap requires.
+- *Front Door directly to Container Apps*: Skips APIM, losing the API management layer the roadmap requires.
 - *APIM as the sole edge*: No CDN/WAF/global distribution. Works for dev but doesn't prove the target topology.
 - *Azure Application Gateway*: Regional only; Front Door is the prescribed component in idea.md §17.
 
@@ -70,24 +72,24 @@
 - *Mixed mode (SQL + Azure AD)*: Allows fallback to SA password, which is a secret that must be managed and can leak.
 - *Azure AD auth with SQL admin fallback*: Common but violates the "no stored credentials" principle for database access.
 
-## R7 — Helm Chart vs Raw Kubernetes Manifests
+## R7 — Terraform-managed Container App vs Helm / Kubernetes manifests
 
-**Decision**: Helm chart under `infrastructure/helm/tenancy/`.
+**Decision**: The container app is an `azurerm_container_app` resource in the `containerapp` Terraform module. A deploy is a `terraform apply` that changes `api_image_tag`; there is no Helm chart or manifest set. (Replaces the Helm decision, per ADR-023.)
 
-**Rationale**: Helm provides templating for environment-specific values (`values-dev.yaml`), atomic rollback via `helm rollback`, release history, and a standard packaging format. The chart bundles the Tenancy API deployment and the OTel Collector as related deployments within one release, which simplifies the deploy/rollback lifecycle for dev.
-
-**Alternatives considered**:
-- *Kustomize*: Good for overlays but lacks release management (rollback, history). The rollback story (US4) is simpler with Helm.
-- *Raw manifests with `kubectl apply`*: No templating, no rollback, no release tracking. Fine for learning but insufficient for FR-013.
-- *ArgoCD / Flux (GitOps)*: Over-engineering for dev with manual deploys; belongs in S7 (CI/CD) if adopted.
-
-## R8 — AKS Node Pool Sizing
-
-**Decision**: Single system node pool, `Standard_B2s` (2 vCPU, 4 GiB), 1–2 nodes with cluster autoscaler.
-
-**Rationale**: The Tenancy API container is ~69 MB, needs minimal CPU/memory. The OTel Collector similarly lightweight. B-series is burstable and cheapest for dev workloads with low sustained CPU. Autoscaler 1–2 ensures availability during node updates while minimising idle cost. With FR-014's 2-replica requirement (clarified 2026-09-26), a pod anti-affinity rule should spread the 2 API replicas across nodes when the autoscaler is at 2 nodes, so a single node failure does not take down both replicas simultaneously — the 2-node ceiling exists partly to make this possible, not just for update headroom.
+**Rationale**: One tool owns the revision, so there is no drift between Terraform and a second deploy tool. ADR-012's "Terraform provisions, Helm deploys" split disappears with Kubernetes. Revisions give release history, and recovery is redeploying a known-good tag.
 
 **Alternatives considered**:
-- *Standard_D2s_v5*: More consistent performance but ~2× the cost of B2s. Not needed for dev.
-- *Spot instances*: Cheapest but can be evicted — inappropriate for the only node pool.
-- *Larger nodes, fewer count*: Single node is a SPOF during updates. 1–2 with autoscaler is the minimum viable setup.
+- *`az containerapp update` with `ignore_changes` on the image*: Avoids a full apply per deploy, but creates exactly the drift this decision avoids.
+- *Bicep/ARM for the app only*: A second IaC language for no benefit.
+
+**Consequence**: The first-ever apply is two-step, because the app cannot be created without an image already in ACR: `terraform apply -target=module.acr`, then `deploy.sh`. A precondition on the app fails the plan with a clear message if `api_image_tag` is empty.
+
+## R8 — Replicas, Probes and Sizing
+
+**Decision**: 2–3 replicas (`api_min_replicas = 2`), single revision mode. API container 0.5 vCPU / 1 GiB; Collector sidecar 0.25 vCPU / 0.5 GiB. Startup, liveness and readiness probes on `/health/live` and `/health/ready`. (Replaces AKS node pool sizing, per ADR-023.)
+
+**Rationale**: With FR-014's two-replica minimum and single revision mode, a failed new revision never receives traffic while the previous one keeps serving, which is what US4 tests. The 0.75 vCPU / 1.5 GiB total is a valid Consumption combination. The probe paths are the endpoints S4 built; the startup probe allows 60 s for the first start.
+
+**Alternatives considered**:
+- *Multiple revision mode with traffic weights*: Gives manual canarying, but a new revision with no ready replicas would receive traffic and drop requests unless weights are managed by hand.
+- *`min_replicas = 0`*: Cheapest, but cold starts break the SC-003 latency bar and leave no serving revision during a rollout.
