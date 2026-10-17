@@ -318,7 +318,7 @@ evidence, which is what the clarification protects.
 | Integration tests (Testcontainers SQL Server) | parallel | ~5–6 min |
 | Container build + vulnerability scan + secret scan (with bait) | parallel | ~4–5 min |
 | Push to ACR | after all gates | ~1 min |
-| Deploy dev (`--atomic --wait`) | after push | ~3 min |
+| Deploy dev (`az containerapp update` + revision health poll) | after push | ~3 min |
 | Load test (seed, 30 s warm-up, 2 min steady) | after deploy | ~3.5 min |
 | **Critical path** | | **~14 min** |
 

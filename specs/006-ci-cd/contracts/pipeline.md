@@ -58,7 +58,7 @@ Workflow default: `contents: read`. Raised per job only where needed:
 ## Failure semantics
 
 - Any failed job stops everything downstream (`needs:`); dev is untouched unless `deploy-dev` itself ran.
-- A failed or interrupted `deploy-dev` leaves the previous release serving (`--atomic`, spec 005 FR-014).
+- A failed or interrupted `deploy-dev` leaves the previous release serving (single revision mode, spec 005 FR-014).
 - A missing dev environment fails `deploy-dev` at preflight with: *"Dev environment not found — it may have been destroyed per S6 cost discipline. Apply it with specs/005-terraform-azure/quickstart.md, then re-run."*
 - Every job writes a one-line outcome to `$GITHUB_STEP_SUMMARY`, and the first error of a failed step is emitted as an `::error::` annotation, so the failure is visible on the run page without opening logs (SC-005).
 
