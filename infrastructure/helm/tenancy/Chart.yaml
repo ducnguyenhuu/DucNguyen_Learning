@@ -1,6 +1,0 @@
-apiVersion: v2
-name: tenancy
-description: Tenancy API + OTel Collector, deployed to AKS (S6 — Terraform → Azure)
-type: application
-version: 0.1.0
-appVersion: "1.0"

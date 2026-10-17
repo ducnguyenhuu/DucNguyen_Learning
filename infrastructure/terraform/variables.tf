@@ -48,22 +48,22 @@ variable "acr_name" {
 
 # Optional variables (with defaults) — see contracts/terraform-variables.md.
 
-variable "aks_node_vm_size" {
-  description = "VM size for the AKS system node pool."
+variable "api_image_tag" {
+  description = "Tag of the tenancy-api image already pushed to ACR. Empty until deploy.sh has pushed one; the container app is not created without it."
   type        = string
-  default     = "Standard_B2s"
+  default     = ""
 }
 
-variable "aks_node_count_min" {
-  description = "Minimum node count for the AKS cluster autoscaler."
-  type        = number
-  default     = 1
-}
-
-variable "aks_node_count_max" {
-  description = "Maximum node count for the AKS cluster autoscaler."
+variable "api_min_replicas" {
+  description = "Minimum Tenancy API replicas. 2 keeps a serving replica during a failed rollout (FR-014)."
   type        = number
   default     = 2
+}
+
+variable "api_max_replicas" {
+  description = "Maximum Tenancy API replicas."
+  type        = number
+  default     = 3
 }
 
 variable "sql_sku" {
@@ -103,20 +103,4 @@ variable "tags" {
     project     = "dip"
     environment = "dev"
   }
-}
-
-# Two-phase apply overrides (analyze finding F1) — both default to "no value yet" and
-# are set explicitly on a second `terraform apply` once the resource they narrow
-# against actually exists. See main.tf's networking/identity module blocks.
-
-variable "apim_nsg_source_override" {
-  description = "APIM instance's actual outbound IP (e.g. \"20.1.2.3/32\"), set after T031/T032 create it. Null uses the broader 'ApiManagement' service tag."
-  type        = string
-  default     = null
-}
-
-variable "aks_oidc_issuer_url_override" {
-  description = "AKS cluster's OIDC issuer URL, set after the aks module has been applied once. Empty string until then — identity module's federated credentials only activate once non-empty."
-  type        = string
-  default     = ""
 }

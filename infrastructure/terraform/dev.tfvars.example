@@ -12,9 +12,8 @@ new_relic_licence_key = "<set-via-TF_VAR_new_relic_licence_key>"
 acr_name              = "acrdipdev"
 
 # Optional — shown here at their defaults for visibility; omit to inherit defaults.
-aks_node_vm_size    = "Standard_B2s"
-aks_node_count_min  = 1
-aks_node_count_max  = 2
+api_min_replicas    = 2
+api_max_replicas    = 3
 sql_sku             = "Basic"
 apim_sku            = "Developer_1"
 frontdoor_sku       = "Standard_AzureFrontDoor"
@@ -25,8 +24,5 @@ tags = {
   environment = "dev"
 }
 
-# Two-phase overrides — leave unset on the first apply. Set explicitly on a second
-# apply once AKS/APIM exist (analyze finding F1; see main.tf's module blocks and
-# tasks.md T032a).
-# apim_nsg_source_override    = "<apim-outbound-ip>/32"
-# aks_oidc_issuer_url_override = "<aks-oidc-issuer-url>"
+# api_image_tag is deliberately not set here: deploy.sh passes it after pushing the image.
+# First-ever apply: `terraform apply -target=module.acr -var-file=dev.tfvars`, then deploy.sh.

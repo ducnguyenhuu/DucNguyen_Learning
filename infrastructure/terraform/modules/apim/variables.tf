@@ -24,8 +24,8 @@ variable "publisher_email" {
   default = "noreply@example.com"
 }
 
-variable "aks_ingress_fqdn" {
-  description = "AKS ingress controller's public IP/FQDN — APIM backend target."
+variable "backend_fqdn" {
+  description = "Container app's ingress FQDN — APIM backend target."
   type        = string
 }
 

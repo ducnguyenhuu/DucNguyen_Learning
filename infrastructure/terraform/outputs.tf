@@ -8,9 +8,9 @@ output "apim_gateway_url" {
   value       = module.apim.gateway_url
 }
 
-output "aks_cluster_name" {
-  description = "AKS cluster name, for `az aks get-credentials`."
-  value       = module.aks.cluster_name
+output "container_app_name" {
+  description = "Container app name, for `az containerapp` commands."
+  value       = module.containerapp.app_name
 }
 
 output "acr_login_server" {
@@ -28,7 +28,7 @@ output "keyvault_uri" {
   value       = module.keyvault.vault_uri
 }
 
-output "aks_oidc_issuer_url" {
-  description = "AKS OIDC issuer URL, used for workload identity federation."
-  value       = module.aks.oidc_issuer_url
+output "resource_group_name" {
+  description = "Resource group holding the environment, for `az containerapp` commands."
+  value       = azurerm_resource_group.main.name
 }

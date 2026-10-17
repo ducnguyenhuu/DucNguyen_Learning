@@ -7,7 +7,7 @@ resource "azurerm_api_management_api" "tenancy_api" {
   path                = ""
   protocols           = ["https"]
 
-  service_url = "https://${var.aks_ingress_fqdn}"
+  service_url = "https://${var.backend_fqdn}"
 }
 
 # Simplification for dev: a single GET catch-all operation, not a full multi-verb

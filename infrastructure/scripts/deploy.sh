@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
-# Manual first deploy (FR-012): build -> scan -> push -> helm upgrade --install.
+# Manual first deploy (FR-012): build -> scan -> push -> terraform apply with the new image tag.
 #
 # The scan step is not optional and not skippable via a flag — Constitution Quality
 # Gates require "No unresolved high or critical finding" on every container image
 # change (analyze finding D1), and this is a new build each time, not a reuse of an
 # already-scanned image. Reuses the existing S5 Trivy scripts rather than
 # reimplementing scanning.
+#
+# The container app is a Terraform resource (ADR-023), so a deploy is an apply that changes
+# api_image_tag; Terraform stays the single owner of the revision, with no drift. Requires
+# `terraform init` to have been run in infrastructure/terraform and a dev.tfvars there.
 #
 # Usage: ./deploy.sh <acr-login-server> <image-tag>
 # Example: ./deploy.sh acrdipdev.azurecr.io v1
@@ -25,7 +29,7 @@ REMOTE_TAG="${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${IMAGE_TAG}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-HELM_CHART_DIR="${SCRIPT_DIR}/../helm/tenancy"
+TERRAFORM_DIR="${SCRIPT_DIR}/../terraform"
 
 echo "1/6 — Building ${LOCAL_TAG}..."
 docker build -t "${LOCAL_TAG}" "${REPO_ROOT}"
@@ -43,12 +47,9 @@ docker tag "${LOCAL_TAG}" "${REMOTE_TAG}"
 echo "5/6 — Pushing ${REMOTE_TAG}..."
 docker push "${REMOTE_TAG}"
 
-echo "6/6 — Deploying via Helm..."
-helm upgrade --install tenancy "${HELM_CHART_DIR}" \
-    -f "${HELM_CHART_DIR}/values-dev.yaml" \
-    --set "api.image.repository=${ACR_LOGIN_SERVER}/${IMAGE_NAME}" \
-    --set "api.image.tag=${IMAGE_TAG}" \
-    --namespace default \
-    --wait --timeout 5m
+echo "6/6 — Applying Terraform with api_image_tag=${IMAGE_TAG}..."
+# A new revision only takes traffic once its probes pass; if it never does, the previous
+# revision keeps serving and this apply fails (US4).
+terraform -chdir="${TERRAFORM_DIR}" apply -var-file=dev.tfvars -var "api_image_tag=${IMAGE_TAG}"
 
 echo "Deploy complete: ${REMOTE_TAG}"
