@@ -78,10 +78,30 @@ public sealed class TestAuthHandler : AuthenticationHandler<AuthenticationScheme
             new("tid", tid),
         };
 
-        if (Request.Headers.TryGetValue("X-Test-Scp", out var scpValues)
-            && !string.IsNullOrWhiteSpace(scpValues.ToString()))
+        // Token kind, mirroring what Entra issues (ADR-022). A signed-in user's token carries the
+        // delegated scope, which is what every test gets unless it says otherwise; an application
+        // identity's token carries app roles and no scope. X-Test-Scp and X-Test-Roles override
+        // that for the tests that exercise the caller policy.
+        var hasScpHeader = Request.Headers.TryGetValue("X-Test-Scp", out var scpValues)
+            && !string.IsNullOrWhiteSpace(scpValues.ToString());
+        var hasRolesHeader = Request.Headers.TryGetValue("X-Test-Roles", out var roleValues)
+            && !string.IsNullOrWhiteSpace(roleValues.ToString());
+
+        if (hasScpHeader)
         {
             claims.Add(new Claim("scp", scpValues.ToString()));
+        }
+        else if (!hasRolesHeader)
+        {
+            claims.Add(new Claim("scp", "access_as_user"));
+        }
+
+        if (hasRolesHeader)
+        {
+            foreach (var role in roleValues.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries))
+            {
+                claims.Add(new Claim("roles", role.Trim()));
+            }
         }
 
         // Claim name is literal "email" to match InvitationEndpoints.AcceptInvitationAsync's

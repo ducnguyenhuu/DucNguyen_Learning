@@ -13,6 +13,14 @@
 # At S6 this becomes the specification for `azuread_application` resources. Until
 # then, running this is reproducible; clicking through the portal is not.
 #
+# APP ROLES ARE NOT THIS SCRIPT'S
+# -------------------------------
+# The app role `Tenancy.Automation.Member` (ADR-022) is owned by
+# infrastructure/terraform/persistent/app-role.tf. This script only PATCHes the
+# `api` property, so it leaves `appRoles` alone — keep it that way: never add an
+# `appRoles` entry to a PATCH body here, because Graph replaces the whole list
+# and would delete the role Terraform manages.
+#
 # WHAT IT CREATES
 # ---------------
 #   1. API registration      — the thing being protected. Single tenant.

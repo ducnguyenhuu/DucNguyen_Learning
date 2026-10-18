@@ -153,6 +153,11 @@ builder.Services.AddScoped<Tenancy.Application.Invitations.RevokeInvitation>();
 // routes (e.g. the role-change/removal endpoints) is deferred until those routes exist.
 builder.Services.AddAuthorization(options =>
 {
+    // Every endpoint that calls RequireAuthorization() without naming a policy gets this one
+    // (ADR-022): scope access_as_user for users, role Tenancy.Automation.Member for the one
+    // named automation identity, nothing else.
+    options.DefaultPolicy = CallerAuthorizationPolicy.Build();
+
     options.AddPolicy(
         "TenantAdministrator",
         policy => policy.Requirements.Add(new AdministratorOnlyRequirement()));
