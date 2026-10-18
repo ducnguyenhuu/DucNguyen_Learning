@@ -70,7 +70,7 @@ depend on these existing before their own work can be verified
   `DOTNET_GENERATE_ASPNET_CERTIFICATE=false`, and an exec-form `HEALTHCHECK` invoking
   `Tenancy.HealthProbe` against `http://localhost:8080/health/ready` (depends on T004; plan.md
   §Project Structure, contracts/container-image.md)
-- [X] T010 [P] Add `tests/Tenancy.UnitTests/HealthChecks/DrainingReadinessTests.cs` proving
+- [X] T010 [P] Add `tests/Tenancy.UnitTests/Observability/StartupHealthCheckTests.cs (the draining cases were added there rather than in a new file)` proving
   `Starting`/`Ready`/`Draining` are three distinguishable results and that `MarkReady()`
   after `MarkStopping()` does not resurrect readiness (depends on T005, T006, T007)
 - [X] T011 [P] Extend `tests/Tenancy.IntegrationTests/Observability/HealthCheckTests.cs` so
