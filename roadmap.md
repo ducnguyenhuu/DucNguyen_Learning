@@ -19,8 +19,8 @@ Full reasoning in [idea.md §46](idea.md) · rules in the
 | **S3** | Architecture tests | [002](specs/002-architecture-tests/spec.md) | ✅ **done** | 1 w |
 | **S4** | Observability | [003](specs/003-observability/spec.md) | ✅ **done** | 1.5–2 w |
 | **S5** | Containerization | [004](specs/004-containerization/spec.md) | ✅ **done** | 1 w |
-| S6 | Terraform → Azure | [005](specs/005-terraform-azure/spec.md) | 🟡 **code written, validated, never applied** — 41 of 67 tasks ticked; the rest need a funded Azure subscription | **3–4 w** |
-| S7 | CI/CD | [006](specs/006-ci-cd/spec.md) | 🟡 **authored, never run** — 37 of 56 tasks ticked (all the free ones); the rest need Azure and GitHub, so S6 first. Branch `006-ci-cd`, not yet merged | 1.5–2 w |
+| S6 | Terraform → Azure | [005](specs/005-terraform-azure/spec.md) | 🟡 **code written, validated, never applied** — 46 of 70 tasks ticked; the rest need a funded Azure subscription | **3–4 w** |
+| S7 | CI/CD | [006](specs/006-ci-cd/spec.md) | 🟡 **authored, never run** — 39 of 57 tasks ticked (the free authoring ones; the rest wait on measured results or need Azure and GitHub); run S6 first. Branch `006-ci-cd`, not yet merged | 1.5–2 w |
 | S8 | Service Bus | — | ⬜ not started | 2 w |
 | | **⛔ GATE 1** | | | |
 | S9 | Integration + one connector | — | ⬜ | 2–3 w |
