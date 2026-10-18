@@ -178,6 +178,9 @@ could ever approve. FR-009's guarantee is that **no automation** can approve —
 not that approver and author differ. Four-eyes review is recorded as a *Revisit When* for the day
 a second human joins.
 
+**Revisit When**: a second human joins the project — enable `prevent_self_review` on the
+`production` environment in `infrastructure/github/main.tf` so approver and author must differ.
+
 ## R7 — Load-test identity → ADR-022 (accepted 2026-09-29)
 
 **Problem**: Spec 001 SC-003 must be measured against the deployed environment, through real

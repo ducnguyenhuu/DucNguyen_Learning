@@ -75,6 +75,8 @@ public sealed class DependencyPinGates
         "Respawn",
         "AwesomeAssertions",
         "AwesomeAssertions.Analyzers",
+        "System.Security.Cryptography.Pkcs",
+        "System.Security.Cryptography.Xml",
         "Microsoft.Extensions.Diagnostics.HealthChecks",
         "AspNetCore.HealthChecks.SqlServer",
         "OpenTelemetry",

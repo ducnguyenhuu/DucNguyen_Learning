@@ -42,7 +42,7 @@ The job names below are a contract: the `main` ruleset lists them as required st
 
 ## Permissions
 
-Workflow default: `contents: read`. Raised per job only where needed:
+Workflow default: `contents: read` and `actions: read` (the job summary looks up the first failed step). Raised per job only where needed:
 
 | Job | Extra permissions |
 |---|---|

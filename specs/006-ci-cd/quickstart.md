@@ -39,11 +39,15 @@ the ACR and container app that currently exist.
 ## Step 3 — Repository configuration
 
 ```bash
+infrastructure/scripts/pipeline-variables.sh        # writes infrastructure/github/pipeline.auto.tfvars.json
 cd infrastructure/github
 export GITHUB_TOKEN=$(gh auth token)
 terraform init -backend-config=... -backend-config="key=github.tfstate"
 terraform apply
 ```
+
+`pipeline-variables.sh` reads the identifiers from `terraform output` of the two Azure roots, so the
+nine repository variables are never copied by hand.
 
 Verify:
 

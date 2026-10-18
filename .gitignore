@@ -16,6 +16,7 @@ secrets.json
 *.tfstate
 *.tfstate.*
 *.tfvars
+*.tfvars.json
 !*.tfvars.example
 .terraform/
 .terraform.lock.hcl

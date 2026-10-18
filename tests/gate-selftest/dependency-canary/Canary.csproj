@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Deliberately vulnerable: Newtonsoft.Json below 13.0.1 carries a known high-severity advisory
+       (GHSA-5crp-9r3c-p9vr). tests/gate-selftest/run.sh restores this project and expects the
+       NuGet Audit gate to reject it. It is not part of the solution and must never be added. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
+  </ItemGroup>
+
+</Project>
