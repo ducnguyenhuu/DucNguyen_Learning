@@ -12,27 +12,31 @@ Full reasoning in [idea.md §46](idea.md) · rules in the
 
 ## Progress
 
-| # | Slice | Status | Est. |
-|---|-------|--------|------|
-| **S1** | Constitution + ADRs + foundation | ✅ **done** | — |
-| **S2** | Auth + tenant + persistence (local) | ✅ **done** — [spec](specs/001-auth-tenant-management/spec.md) | 2–3 w |
-| **S3** | Architecture tests | ✅ **done** — [spec](specs/002-architecture-tests/spec.md) | 1 w |
-| **S4** | Observability | ✅ **done** — [spec](specs/003-observability/spec.md) | 1.5–2 w |
-| **S5** | Containerization | ✅ **done** — [spec](specs/004-containerization/spec.md) | 1 w |
-| S6 | Terraform → Azure | ⬜ | **3–4 w** |
-| S7 | CI/CD | ⬜ | 1.5–2 w |
-| S8 | Service Bus | ⬜ | 2 w |
-| | **⛔ GATE 1** | | |
-| S9 | Integration + one connector | ⬜ | 2–3 w |
-| S10 | Sync engine | ⬜ | 2 w |
-| S11 | Delivery data model | ⬜ | 2 w |
-| S12 | Health score (no AI) | ⬜ | 2 w |
-| S13 | AI seam + cost tracking | ⬜ | 2 w |
-| S14 | AI risk narrative | ⬜ | 2 w |
-| S15 | AI evaluation | ⬜ | 2 w |
-| | **⛔ GATE 2** | | |
+| # | Slice | Spec folder | Status | Est. |
+|---|-------|-------------|--------|------|
+| **S1** | Constitution + ADRs + foundation | — | ✅ **done** | — |
+| **S2** | Auth + tenant + persistence (local) | [001](specs/001-auth-tenant-management/spec.md) | ✅ **done** | 2–3 w |
+| **S3** | Architecture tests | [002](specs/002-architecture-tests/spec.md) | ✅ **done** | 1 w |
+| **S4** | Observability | [003](specs/003-observability/spec.md) | ✅ **done** | 1.5–2 w |
+| **S5** | Containerization | [004](specs/004-containerization/spec.md) | ✅ **done** | 1 w |
+| S6 | Terraform → Azure | [005](specs/005-terraform-azure/spec.md) | 🟡 **code written, validated, never applied** — 41 of 67 tasks ticked; the rest need a funded Azure subscription | **3–4 w** |
+| S7 | CI/CD | [006](specs/006-ci-cd/spec.md) | 🟡 **authored, never run** — 37 of 56 tasks ticked (all the free ones); the rest need Azure and GitHub, so S6 first. Branch `006-ci-cd`, not yet merged | 1.5–2 w |
+| S8 | Service Bus | — | ⬜ not started | 2 w |
+| | **⛔ GATE 1** | | | |
+| S9 | Integration + one connector | — | ⬜ | 2–3 w |
+| S10 | Sync engine | — | ⬜ | 2 w |
+| S11 | Delivery data model | — | ⬜ | 2 w |
+| S12 | Health score (no AI) | — | ⬜ | 2 w |
+| S13 | AI seam + cost tracking | — | ⬜ | 2 w |
+| S14 | AI risk narrative | — | ⬜ | 2 w |
+| S15 | AI evaluation | — | ⬜ | 2 w |
+| | **⛔ GATE 2** | | | |
 
 **~7 months full-time.** Mark a slice ✅ only when every *Done when* box is checked.
+
+**Numbering:** slice numbers (S1…S15) and spec folder numbers (001…) differ because S1 has no
+spec folder: S2 = 001, S3 = 002, … S7 = 006. 🟡 means the work is written but its *Done when*
+list is not yet proven.
 
 ### → Next steps
 
@@ -52,9 +56,14 @@ Full reasoning in [idea.md §46](idea.md) · rules in the
 6. ✅ Implement S3, checking off its *Done when* list — done 2026-08-17
 7. ✅ Implement S4, checking off its *Done when* list — done 2026-08-25
 8. ✅ Implement S5, checking off its *Done when* list — done 2026-09-25
-9. ⏳ S6 code written on Azure Container Apps ([ADR-023](docs/adr/ADR-023-azure-container-apps-for-compute.md),
-   2026-10-16) and merged, but **not validated or applied**. Next: `terraform validate`, pick a funded
-   subscription, then apply and tick the *Done when* list
+9. 🟡 S6 code written on Azure Container Apps ([ADR-023](docs/adr/ADR-023-azure-container-apps-for-compute.md),
+   2026-10-16), `terraform validate` passes, **never planned or applied** (no funded subscription yet)
+10. 🟡 S7 pipeline, scripts, load test, repository Terraform and the API authorization policy written on
+    branch `006-ci-cd`; local checks pass (105 integration tests, gate self-tests, image scans)
+11. ⏭ **Next, one paid session:** pick a funded subscription → S6 apply and verification
+    ([tasks](specs/005-terraform-azure/tasks.md), T026 onward) → S7 [AZURE]/[GITHUB] tasks
+    ([quickstart](specs/006-ci-cd/quickstart.md)) → merge `006-ci-cd` → tick the *Done when* lists
+    → `terraform destroy`
 
 Open decisions in [docs/traceability.md](docs/traceability.md#open-decisions). None blocks
 S2. **U12 must be done in S3.** U6's performance gap was closed into S7 during S2 planning.
