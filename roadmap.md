@@ -184,7 +184,7 @@ SQL + collector · health check · graceful shutdown · image size and startup b
 The main cost of going research-first ([ADR-007](docs/adr/ADR-007-aks-in-horizon-1.md)).
 Compute is **Azure Container Apps, not AKS** ([ADR-023](docs/adr/ADR-023-azure-container-apps-for-compute.md),
 2026-10-16). The old **~$700–1,500/month** estimate assumed AKS; re-estimate when the S6 plan is revised —
-APIM, Front Door, and private endpoints now dominate. Use dev/test SKUs and `terraform destroy` between sessions.
+Front Door and private endpoints now dominate; API Management was removed ([ADR-024](docs/adr/ADR-024-remove-api-management.md), 2026-10-20). Use dev/test SKUs and `terraform destroy` between sessions.
 
 **Open, deliberately deferred to this slice (2026-08-09): which subscription funds it.**
 Candidates are the existing sandbox and Azure for Students (~$100 credit, no card). Note that
@@ -193,7 +193,7 @@ rather than now avoids burning credit four slices before it is needed. The Entra
 for authentication is a **separate** choice and is already settled: a subscription in one
 tenant can serve an app registered in another.
 
-**Build:** Terraform + remote state · one `dev` environment · ACR · Container Apps · APIM · Front
+**Build:** Terraform + remote state · one `dev` environment · ACR · Container Apps · Front
 Door · Azure SQL · Key Vault (**holds the New Relic ingest licence key**) · OTel Collector as a
 Container Apps sidecar · user-assigned managed identity · private endpoints · first deploy done by
 hand, to learn the path
@@ -207,7 +207,7 @@ second collector exporter, and only if something needs it
 
 **Done when**
 - [ ] `terraform apply` into an **empty** subscription works — zero portal clicks
-- [ ] App reachable through Front Door → APIM → Container Apps, health passing
+- [ ] App reachable through Front Door → Container Apps, health passing
 - [ ] SQL and Key Vault reached by managed identity — **no connection-string secret**
 - [ ] Traces from Azure appear in **New Relic**, correlated, with the licence key read from
       Key Vault by managed identity — never from a manifest
@@ -215,7 +215,7 @@ second collector exporter, and only if something needs it
       traffic while the previous revision keeps serving, then is replaced by redeploying the good tag. Container Apps is not learned until this
 - [ ] `terraform destroy` removes everything cleanly
 
-*Expect friction: APIM takes 30–45 min per apply; private endpoint + DNS wiring is where
+*Expect friction: private endpoint + DNS wiring is where
 the unknown-unknowns live.*
 
 ---

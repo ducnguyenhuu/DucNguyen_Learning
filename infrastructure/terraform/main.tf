@@ -110,11 +110,7 @@ module "containerapp" {
   sql_database_name          = module.sql.database_name
   new_relic_secret_id        = module.keyvault.new_relic_licence_key_secret_id
   otel_sample_rate           = var.otel_sample_rate
-  # Only APIM may reach the app's public ingress (FR-007). APIM's IPs exist once the
-  # instance does, and the instance does not depend on the app, so no override or
-  # second apply is needed; only the APIM *API* below depends on the app's FQDN.
-  allowed_ingress_cidrs = [for ip in module.apim.public_ip_addresses : "${ip}/32"]
-  tags                  = var.tags
+  tags                       = var.tags
 }
 
 # The CI/CD pipeline's deployer (identity created in terraform/persistent) may push images
@@ -138,23 +134,12 @@ resource "azurerm_role_assignment" "deployer_app_contributor" {
   principal_id         = data.azurerm_user_assigned_identity.github_deployer.principal_id
 }
 
-module "apim" {
-  source = "./modules/apim"
-
-  environment         = var.environment
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  apim_sku            = var.apim_sku
-  backend_fqdn        = module.containerapp.app_fqdn
-  tags                = var.tags
-}
-
 module "frontdoor" {
   source = "./modules/frontdoor"
 
-  environment           = var.environment
-  resource_group_name   = azurerm_resource_group.main.name
-  frontdoor_sku         = var.frontdoor_sku
-  apim_gateway_hostname = replace(module.apim.gateway_url, "https://", "")
-  tags                  = var.tags
+  environment         = var.environment
+  resource_group_name = azurerm_resource_group.main.name
+  frontdoor_sku       = var.frontdoor_sku
+  origin_hostname     = module.containerapp.app_fqdn
+  tags                = var.tags
 }

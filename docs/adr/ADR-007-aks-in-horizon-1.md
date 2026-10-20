@@ -1,6 +1,6 @@
 # ADR-007: AKS and the full target architecture in Horizon 1, not deferred
 
-**Status**: Accepted — compute clause refined by 023
+**Status**: Accepted — compute clause refined by ADR-023; edge refined by ADR-024 (no API Management)
 **Date**: 2026-08-08
 **Deciders**: Project owner
 **Relates to**: `idea.md` §17, §57.6, §59.2 · roadmap S6 · Constitution Principle X

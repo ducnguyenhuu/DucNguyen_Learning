@@ -55,9 +55,9 @@ variable "api_image_tag" {
 }
 
 variable "api_min_replicas" {
-  description = "Minimum Tenancy API replicas. 2 keeps a serving replica during a failed rollout (FR-014)."
+  description = "Minimum Tenancy API replicas. 1 is enough: in single revision mode the previous revision keeps serving until the new one is healthy (FR-014)."
   type        = number
-  default     = 2
+  default     = 1
 }
 
 variable "api_max_replicas" {
@@ -70,12 +70,6 @@ variable "sql_sku" {
   description = "Azure SQL database SKU."
   type        = string
   default     = "Basic"
-}
-
-variable "apim_sku" {
-  description = "APIM SKU name and capacity, e.g. Developer_1."
-  type        = string
-  default     = "Developer_1"
 }
 
 variable "frontdoor_sku" {

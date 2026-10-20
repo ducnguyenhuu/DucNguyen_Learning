@@ -31,9 +31,9 @@ variable "api_image_tag" {
 }
 
 variable "api_min_replicas" {
-  description = "FR-014: at least 2 replicas, so a failed new revision never leaves the app without a serving replica."
+  description = "FR-014: at least 1 replica; in single revision mode the previous revision keeps serving until the new one is healthy."
   type        = number
-  default     = 2
+  default     = 1
 }
 
 variable "api_max_replicas" {
@@ -75,11 +75,6 @@ variable "new_relic_secret_id" {
 
 variable "otel_sample_rate" {
   type = number
-}
-
-variable "allowed_ingress_cidrs" {
-  description = "Only these CIDRs may reach the app's ingress (FR-007) — the APIM outbound IPs."
-  type        = list(string)
 }
 
 variable "tags" {

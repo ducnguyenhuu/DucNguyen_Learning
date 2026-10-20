@@ -3,7 +3,7 @@ output "app_name" {
 }
 
 output "app_fqdn" {
-  description = "Public FQDN of the app's ingress — the APIM backend."
+  description = "Public FQDN of the app's ingress — the Front Door origin."
   value       = azurerm_container_app.api.ingress[0].fqdn
 }
 

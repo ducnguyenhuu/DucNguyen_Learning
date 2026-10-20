@@ -22,7 +22,7 @@ environment, and `terraform destroy` cleanly removes it.
 ## Target topology (slice 6)
 
 ```
-Front Door → API Management → Container Apps → Azure SQL / Service Bus
+Front Door → Container Apps → Azure SQL / Service Bus
                                      Key Vault
                                OTel Collector → New Relic (OTLP)
                               Managed identity + private endpoints throughout
@@ -75,23 +75,23 @@ infrastructure/terraform/
 ## Cost — this is real money
 
 The old ADR-007 figure (**$700–1,500/month**) assumed AKS and no longer applies. Compute is
-near-free idle; APIM, Front Door, and private endpoints dominate. Re-check with the Azure
+near-free idle; Front Door and private endpoints dominate. Re-check with the Azure
 pricing calculator.
 
 - Use dev/test SKUs.
 - **`terraform destroy` between working sessions.** This is expected practice, not a
   fallback. That it is safe to do is exactly what slice 6's proof establishes.
-- Watch for resources that resist clean destruction: soft-deleted Key Vaults, APIM name
+- Watch for resources that resist clean destruction: soft-deleted Key Vaults, name
   reservations.
 
 ## Practical friction to expect in slice 6
 
 Budgeted at 3–4 weeks for good reason:
 
-- **APIM takes 30–45 minutes per apply.** Plan the iteration loop around this.
+- Front Door, private endpoint and Container Apps applies are minutes, not hours (ADR-024 removed API Management).
 - Private endpoint plus DNS zone wiring is where most unknown-unknowns live.
 - The AzureRM provider lags Azure features; occasionally `azapi` is needed.
-- Container Apps environment VNet integration and internal ingress behind APIM need care.
+- Container Apps environment VNet integration and ingress behind Front Door need care.
 
 ## The research-first bar
 

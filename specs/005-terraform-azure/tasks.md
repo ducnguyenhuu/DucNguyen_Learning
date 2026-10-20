@@ -32,7 +32,7 @@ Per plan.md's Project Structure:
 
 - [X] T001 Create `infrastructure/terraform/versions.tf` pinning `azurerm` (~> 4.0), `azuread` (~> 3.0) providers (the `kubernetes` and `helm` providers were dropped with AKS, ADR-023), and Terraform ≥ 1.9 (research.md decisions)
 - [X] T002 [P] Create `infrastructure/terraform/variables.tf` with all variables from contracts/terraform-variables.md (required + optional, with defaults)
-- [X] T003 [P] Create `infrastructure/terraform/outputs.tf` with all outputs from contracts/terraform-variables.md (frontdoor_endpoint, apim_gateway_url, container_app_name, acr_login_server, sql_server_fqdn, keyvault_uri)
+- [X] T003 [P] Create `infrastructure/terraform/outputs.tf` with all outputs from contracts/terraform-variables.md (frontdoor_endpoint, container_app_name, acr_login_server, sql_server_fqdn, keyvault_uri)
 - [X] T004 [P] Create `infrastructure/terraform/dev.tfvars.example` documenting every required variable with placeholder values (never committing real secrets — `new_relic_licence_key` shows `"<set-via-TF_VAR_new_relic_licence_key>"`)
 - [X] T005 [P] Create `infrastructure/terraform/bootstrap/main.tf` provisioning the one-time state-storage resource group + storage account + blob container (research.md R1)
 - [X] T006 [P] Create `infrastructure/scripts/bootstrap-state.sh` wrapping `az` CLI calls to run the bootstrap config idempotently, printing the storage account name for use in `terraform init -backend-config`
@@ -46,11 +46,11 @@ Per plan.md's Project Structure:
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
-**Purpose**: The networking, identity, and DNS substrate every later resource (SQL, Key Vault, Container Apps, APIM) attaches to. No user story's resources can be provisioned before this phase completes.
+**Purpose**: The networking, identity, and DNS substrate every later resource (SQL, Key Vault, Container Apps) attaches to. No user story's resources can be provisioned before this phase completes.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete — every module below is a dependency of at least one story's resources (data-model.md §4).
 
-- [X] T009 Create `infrastructure/terraform/modules/networking/main.tf`: VNet with `vnet_address_space`, and subnets `sn-cae` (/23, Container Apps environment, no delegation — research.md R2), `sn-sql-pe`, `sn-kv-pe`, `sn-apim` — takes `resource_group_name` from T008a as an input variable
+- [X] T009 Create `infrastructure/terraform/modules/networking/main.tf`: VNet with `vnet_address_space`, and subnets `sn-cae` (/23, Container Apps environment, no delegation — research.md R2), `sn-sql-pe`, `sn-kv-pe` — takes `resource_group_name` from T008a as an input variable
 - [X] T010 *(Superseded by ADR-023, 2026-10-16.)* The AKS-ingress NSG is removed — `nsg.tf` is deleted and the subnet association with it. FR-007's source restriction is enforced by the container app's ingress allow-list instead (T032a)
 - [X] T011 [P] Create `infrastructure/terraform/modules/networking/dns.tf`: private DNS zones `privatelink.database.windows.net` and `privatelink.vaultcore.azure.net`, both linked to the VNet
 - [X] T012 [P] Create `infrastructure/terraform/modules/networking/variables.tf` and `outputs.tf` (subnet IDs, VNet ID, DNS zone IDs)
@@ -77,9 +77,9 @@ Per plan.md's Project Structure:
 - [X] T020 [US1] Create `infrastructure/terraform/modules/sql/database.tf`: the `sqldb-dip-dev` database on `sql_sku` (default `"Basic"`) (depends on T019)
 - [X] T021 [P] [US1] Create `infrastructure/terraform/modules/acr/main.tf`: Container Registry with a globally unique name from `acr_name` variable
 - [X] T022 [P] [US1] Create `infrastructure/terraform/modules/containerapp/main.tf`: VNet-integrated, Consumption-only `azurerm_container_app_environment` in `sn-cae` with external ingress and no `logs_destination` (research.md R2, ADR-018). *(Replaces the AKS cluster; ADR-023.)*
-- [X] T023 [US1] Create `infrastructure/terraform/modules/containerapp/variables.tf` and `outputs.tf`: image tag (default empty, plan fails without it), replica bounds (2–3, FR-014), identity IDs, SQL/Key Vault inputs, ingress allow-list CIDRs; outputs the app name and FQDN. *(Replaces AKS node-pool sizing.)*
+- [X] T023 [US1] Create `infrastructure/terraform/modules/containerapp/variables.tf` and `outputs.tf`: image tag (default empty, plan fails without it), replica bounds (1–3, FR-014), identity IDs, SQL/Key Vault inputs; outputs the app name and FQDN. *(Replaces AKS node-pool sizing.)*
 - [X] T024 [US1] Create `infrastructure/terraform/modules/containerapp/rbac.tf`: `AcrPull` role assignment for `id-tenancy-api` on the ACR (depends on T021, T013). *(Replaces the kubelet-identity grant.)*
-- [X] T025 [US1] Wire `keyvault`, `sql`, `acr` modules into `infrastructure/terraform/main.tf`, passing `azurerm_resource_group.main.name`/networking/identity outputs as inputs (depends on T008a, T009–T021). The `containerapp` module is wired in T038, since it also needs APIM's IPs.
+- [X] T025 [US1] Wire `keyvault`, `sql`, `acr` modules into `infrastructure/terraform/main.tf`, passing `azurerm_resource_group.main.name`/networking/identity outputs as inputs (depends on T008a, T009–T021). The `containerapp` module is wired in T038. *(It originally also waited on APIM's IPs; ADR-024 removed that dependency.)*
 - [ ] T026 [US1] Run `terraform validate` and `terraform plan -var-file=dev.tfvars` against the full module set; fix any validation errors. **`terraform validate` passes (Terraform 1.16.6, azurerm ~> 4.0, 2026-10-16).** `plan` is still open: it needs Azure credentials and the state backend (T027's subscription)
 - [ ] T027 [US1] First apply is two-step because the container app needs an image: `terraform apply -target=module.acr -var-file=dev.tfvars`, then the remainder via T045. Record actual apply duration against SC-001's 90-minute budget (quickstart.md Steps 1–3)
 - [ ] T028 [US1] Verify remote-state collaboration (spec.md US1 Acceptance Scenario 3): run `terraform plan -var-file=dev.tfvars` from a second checkout/machine and confirm zero changes detected
@@ -92,34 +92,34 @@ Per plan.md's Project Structure:
 
 ## Phase 4: User Story 2 - Application Reachable Through the Full Request Path (Priority: P2)
 
-**Goal**: The Tenancy API container is deployed to Container Apps and reachable end-to-end through Front Door → APIM → Container Apps → SQL, authenticating to both SQL and Key Vault without any stored secret.
+**Goal**: The Tenancy API container is deployed to Container Apps and reachable end-to-end through Front Door → Container Apps → SQL, authenticating to both SQL and Key Vault without any stored secret.
 
 **Independent Test**: With US1's infrastructure standing, build and push the container image, deploy via `deploy.sh`, then `curl` the Front Door URL's `/health/live` and `/health/ready` and confirm both return 200 — the latter proving the managed-identity SQL connection works.
 
 ### Implementation for User Story 2
 
-- [X] T031 [P] [US2] Create `infrastructure/terraform/modules/apim/main.tf`: APIM instance on `apim_sku` (default `Developer_1`), **not** VNet-integrated (research.md R3, clarified 2026-09-26)
-- [X] T032 [US2] Create `infrastructure/terraform/modules/apim/api.tf`: API definition with backend pointing at the container app's FQDN (`backend_fqdn`; depends on T022/T023 outputs)
-- [X] T032a [US2] Restrict the container app's ingress to APIM: `allowed_ingress_cidrs` is built from `module.apim.public_ip_addresses` as `/32`s in `main.tf` and rendered as `ip_security_restriction` rules. The APIM instance does not depend on the app (only its API definition does), so no override variable or second apply is needed. *(Replaces NSG narrowing; ADR-023.)*
+- [X] T031 [P] [US2] Create `infrastructure/terraform/modules/apim/main.tf`: APIM instance on `apim_sku` (default `Developer_1`), **not** VNet-integrated (research.md R3, clarified 2026-09-26) *(Superseded by ADR-024, 2026-10-20: API Management removed.)*
+- [X] T032 [US2] Create `infrastructure/terraform/modules/apim/api.tf`: API definition with backend pointing at the container app's FQDN (`backend_fqdn`; depends on T022/T023 outputs) *(Superseded by ADR-024, 2026-10-20: API Management removed.)*
+- [X] T032a [US2] Restrict the container app's ingress to APIM: `allowed_ingress_cidrs` is built from `module.apim.public_ip_addresses` as `/32`s in `main.tf` and rendered as `ip_security_restriction` rules. The APIM instance does not depend on the app (only its API definition does), so no override variable or second apply is needed. *(Replaces NSG narrowing; ADR-023.)* *(Superseded by ADR-024, 2026-10-20: API Management removed.)*
 - [X] T033 [P] [US2] Create `infrastructure/terraform/modules/frontdoor/main.tf`: Front Door Standard profile + endpoint on the `*.azurefd.net` managed domain (research.md R5)
-- [X] T034 [US2] Create `infrastructure/terraform/modules/frontdoor/routing.tf`: origin group pointing at the APIM gateway URL, route for `/*`, managed TLS certificate (depends on T031)
-- [X] T035 [US2] Wire `apim` and `frontdoor` modules into `infrastructure/terraform/main.tf` (depends on T025, T031–T034)
-- [ ] T036 [US2] Run `terraform apply -var-file=dev.tfvars` to provision APIM + Front Door on top of the standing US1 infrastructure; record actual APIM apply duration against the 30–45 min estimate
-- [X] T037 [P] [US2] Add the container app in `infrastructure/terraform/modules/containerapp/app.tf`: `revision_mode = "Single"`, `min_replicas` 2 / `max_replicas` 3 (FR-014), startup + liveness probes on `/health/live`, readiness on `/health/ready`, 0.5 vCPU / 1 GiB API container (contracts/container-app.md). *(Replaces the Helm chart skeleton.)*
+- [X] T034 [US2] Create `infrastructure/terraform/modules/frontdoor/routing.tf`: origin group pointing at the container app's FQDN, route for `/*`, managed TLS certificate (depends on T022/T023 outputs)
+- [X] T035 [US2] Wire the `frontdoor` module into `infrastructure/terraform/main.tf` (depends on T025, T033–T034); the `apim` module is deleted
+- [ ] T036 [US2] Run `terraform apply -var-file=dev.tfvars` to provision Front Door on top of the standing US1 infrastructure; record the actual apply duration
+- [X] T037 [P] [US2] Add the container app in `infrastructure/terraform/modules/containerapp/app.tf`: `revision_mode = "Single"`, `min_replicas` 1 / `max_replicas` 3 (FR-014, amended 2026-10-20), startup + liveness probes on `/health/live`, readiness on `/health/ready`, 0.5 vCPU / 1 GiB API container (contracts/container-app.md). *(Replaces the Helm chart skeleton.)*
 - [X] T038 [P] [US2] Wire the `containerapp` module into `infrastructure/terraform/main.tf` and update `dev.tfvars.example` (replica bounds; `api_image_tag` deliberately unset — `deploy.sh` supplies it)
 - [X] T039 [P] [US2] Remove the AKS leftovers: the `aks` module, the `kubernetes`/`helm` providers in `versions.tf` and `main.tf`, `infrastructure/helm/`, and the empty `deployment/` directory
 - [X] T040 [P] [US2] In `app.tf`, set the API container's environment per contracts/container-app.md: `ASPNETCORE_URLS`, `Https__RedirectionEnabled=false`, the password-less `ConnectionStrings__DefaultConnection`, `AZURE_CLIENT_ID` for the user-assigned identity, and `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`
-- [X] T041 [P] [US2] In `app.tf`, add the ingress block: external, target port 8080, HTTPS only, `ip_security_restriction` from `allowed_ingress_cidrs` (FR-007)
+- [X] T041 [P] [US2] In `app.tf`, add the ingress block: external, target port 8080, HTTPS only, no source restriction (FR-007, ADR-024)
 - [X] T042 [P] [US2] Add the `registry` block (ACR, `id-tenancy-api` identity) and the `identity` block attaching both user-assigned identities to the app, with a `depends_on` for the AcrPull grant
 - [X] T043 [US2] *(Superseded by ADR-023.)* `infrastructure/terraform/modules/identity/federation.tf` is deleted and the module's OIDC input removed — there is no federation. The identity module only declares the two user-assigned identities (T013)
 - [X] T044 [P] [US2] Update `infrastructure/scripts/deploy.sh`: `docker build` → `scan-image-vulnerabilities.sh` + `scan-image-secrets.sh` (existing S5 Trivy scripts — fail on any unresolved high/critical finding, per Constitution Quality Gates) → `az acr login` → `docker tag` → `docker push` → `terraform apply -var "api_image_tag=<tag>"`
 - [ ] T045 [US2] Run `infrastructure/scripts/deploy.sh` to build/scan/push the existing S5 Dockerfile image and apply the container app; confirm the scan step actually ran and passed before push (depends on T037–T044)
-- [ ] T046 [US2] Verify `az containerapp replica list` shows 2 running replicas and `curl "$FRONTDOOR_URL/health/live"` returns 200 (spec.md US2 Acceptance Scenario 1)
+- [ ] T046 [US2] Verify `az containerapp replica list` shows at least 1 running replica and `curl "$FRONTDOOR_URL/health/live"` returns 200 (spec.md US2 Acceptance Scenario 1)
 - [ ] T047 [US2] Verify `curl "$FRONTDOOR_URL/health/ready"` returns 200, proving the managed-identity SQL connection succeeds with no connection-string secret anywhere (spec.md US2 Acceptance Scenario 2) — cross-check that `az containerapp show` lists no env var or secret containing a password (SC-004)
 - [ ] T048 [US2] Verify the New Relic licence key is a Key Vault secret reference (`keyVaultUrl` set, no inline value) mounted as a file in the collector sidecar, with the value absent from every env var, Terraform output and checked-in file (spec.md US2 Acceptance Scenario 3). This proves the *mounting* only; telemetry delivery is US3. Also confirm the Key Vault reference resolves through the private endpoint (research.md R4 open risk)
 - [ ] T048a [US2] Time 10 sequential `curl -o /dev/null -w "%{time_total}\n"` calls to `"$FRONTDOOR_URL/health/ready"` and confirm every sample is under 2 seconds (spec.md SC-003, analyze finding E1 — previously uncovered)
 
-**Checkpoint**: A real HTTP request traverses Front Door → APIM → Container Apps → SQL and returns healthy, using only managed identity for backend authentication. US1 + US2 together prove the infrastructure and the first deployed, reachable, secretless application.
+**Checkpoint**: A real HTTP request traverses Front Door → Container Apps → SQL and returns healthy, using only managed identity for backend authentication. US1 + US2 together prove the infrastructure and the first deployed, reachable, secretless application.
 
 ---
 
@@ -166,9 +166,9 @@ Per plan.md's Project Structure:
 **Purpose**: Final verification sweep, documentation, and requirement-coverage closure across all stories.
 
 - [ ] T061 [P] Run the SC-004 automated secret scan from quickstart.md Step 7c (`az containerapp show` for inline secret values, `grep` across `infrastructure/`) and confirm zero matches
-- [ ] T062 [P] Run the edge-case check for a changed APIM IP (spec.md Edge Cases): re-apply and confirm `terraform plan` updates the container app's `ip_security_restriction` rules without manual intervention
+- [ ] T062 [P] Run the edge-case check for a changed APIM IP. *(Superseded by ADR-024, 2026-10-20: API Management removed.)*
 - [ ] T063 Execute the full teardown/rebuild cycle (quickstart.md Steps 9–10): `terraform destroy`, verify empty resource group, `terraform apply` again, verify `terraform plan -detailed-exitcode` returns 0 (SC-002 final confirmation across the complete module set, not just US1's subset)
-- [ ] T064 [P] Update `docs/operations/` with a `azure-environment.md` (or similar) summarizing the provisioned topology, referencing data-model.md, and recording actual measured durations (apply, APIM provisioning, rollback recovery) against SC-001/SC-006
+- [ ] T064 [P] Update `docs/operations/` with a `azure-environment.md` (or similar) summarizing the provisioned topology, referencing data-model.md, and recording actual measured durations (apply, rollback recovery) against SC-001/SC-006
 - [ ] T065 [P] Update `roadmap.md`: mark S6's "Done when" checklist items against the verified evidence from T027–T063, following the same pattern as S5's closure
 - [ ] T066 [P] Update `AGENTS.md`'s Active Technologies section to reflect the final (not draft) module list and any decisions that changed during implementation (e.g., if R4's Key Vault reference through the private endpoint needed adjustment)
 - [ ] T067 Final `terraform destroy` to leave the subscription empty between sessions, per the manual cost-control discipline (spec.md Assumptions, clarified 2026-09-26)
@@ -224,7 +224,7 @@ Task: "Add the container app in modules/containerapp/app.tf (revision mode, repl
 Task: "Wire the containerapp module into main.tf and update dev.tfvars.example"
 Task: "Remove AKS leftovers (aks module, kubernetes/helm providers, infrastructure/helm/)"
 Task: "Set the API container environment per contracts/container-app.md"
-Task: "Add the ingress block with the APIM IP allow-list"
+Task: "Add the ingress block"
 Task: "Add the registry and identity blocks"
 ```
 

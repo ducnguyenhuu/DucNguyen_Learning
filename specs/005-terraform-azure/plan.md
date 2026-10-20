@@ -5,7 +5,7 @@
 
 ## Summary
 
-Provision the full `idea.md` §17 target architecture into Azure using Terraform: Container Apps, ACR, APIM, Front Door, Azure SQL, Key Vault, private endpoints, managed identity, and the OTel Collector (as a sidecar) — all from code, reproducible into an empty subscription. The Tenancy API container from S5 is deployed as a Terraform-managed container app, observable through New Relic, and proven recoverable from a deliberately broken revision.
+Provision the full `idea.md` §17 target architecture into Azure using Terraform: Container Apps, ACR, Front Door, Azure SQL, Key Vault, private endpoints, managed identity, and the OTel Collector (as a sidecar) — all from code, reproducible into an empty subscription. The Tenancy API container from S5 is deployed as a Terraform-managed container app, observable through New Relic, and proven recoverable from a deliberately broken revision.
 
 ## Technical Context
 
@@ -15,7 +15,7 @@ Provision the full `idea.md` §17 target architecture into Azure using Terraform
 **Testing**: `terraform validate`, `terraform plan` (drift detection), manual end-to-end verification per quickstart.md
 **Target Platform**: Azure (West US 2 or East US 2 — closest regions with all required services)
 **Project Type**: Infrastructure-as-code
-**Performance Goals**: Health-check round-trip through full path < 2s; APIM apply < 45 min
+**Performance Goals**: Health-check round-trip through full path < 2s
 **Constraints**: Dev/test SKUs only; teardown/rebuild must be reliable; cost to be re-estimated for Container Apps (the ~$700–1,500/month figure assumed AKS and is withdrawn)
 **Scale/Scope**: Single `dev` environment; 1 Container Apps environment, 1 container app (2–3 replicas); 1 SQL database
 
@@ -69,7 +69,6 @@ infrastructure/
 │   │   ├── acr/                 # Container registry
 │   │   ├── sql/                 # Azure SQL server + database + private endpoint
 │   │   ├── keyvault/            # Key Vault + private endpoint + secrets
-│   │   ├── apim/                # API Management instance + API definitions
 │   │   ├── frontdoor/           # Front Door profile + endpoint + origin group + route
 │   │   └── identity/            # User-assigned managed identities
 │   └── bootstrap/
@@ -94,7 +93,7 @@ No constitution violations to justify. The module count (8) is driven by Azure r
 
 1. Bootstrap script creates the Azure Storage Account for Terraform remote state (one-time, outside Terraform's own state).
 2. Root Terraform config (`main.tf`) with azurerm backend pointing to that storage.
-3. Networking module: VNet with subnets for the Container Apps environment (`/23`), the SQL private endpoint and the Key Vault private endpoint. There is no NSG: ingress is restricted at the container app (FR-007) because APIM Developer tier is not VNet-integrated (research.md R3).
+3. Networking module: VNet with subnets for the Container Apps environment (`/23`), the SQL private endpoint and the Key Vault private endpoint. There is no NSG, and no source restriction at the container app: Front Door reaches a public ingress (FR-007, ADR-024).
 4. Private DNS zones for `privatelink.database.windows.net` and `privatelink.vaultcore.azure.net`.
 
 ### Phase 2 — Identity & Secrets
@@ -114,12 +113,10 @@ No constitution violations to justify. The module count (8) is driven by Azure r
 
 ### Phase 4 — Edge & Routing
 
-**Goal**: Front Door and APIM route traffic to the container app.
+**Goal**: Front Door routes traffic to the container app.
 
-1. APIM module: Developer-tier instance, API definition passing through to the container app's FQDN.
-2. Front Door module: Standard tier profile, endpoint, origin group pointing to APIM, route for `/`.
-3. TLS: Front Door managed certificate on the `*.azurefd.net` domain.
-4. The container app's ingress allow-list takes the APIM instance's public IPs.
+1. Front Door module: Standard tier profile, endpoint, origin group pointing to the container app's FQDN, route for `/*`.
+2. TLS: Front Door managed certificate on the `*.azurefd.net` domain.
 
 ### Phase 5 — Deploy
 
@@ -128,7 +125,7 @@ No constitution violations to justify. The module count (8) is driven by Azure r
 1. `terraform apply -target=module.acr`, then `deploy.sh` builds, scans, pushes the image and runs the full apply with `api_image_tag` set.
 2. Container app: Tenancy API container with probes (`/health/live` for startup and liveness, `/health/ready` for readiness), single revision mode, 2–3 replicas (FR-014).
 3. OTel Collector sidecar: config adapted from S4's `config.yaml` (env var `OTEL_COLLECTOR_CONFIG`), `otlphttp` exporter for New Relic, licence key mounted as a file from a Key Vault secret reference.
-4. End-to-end verification: request through Front Door → APIM → Container Apps → SQL; trace appears in New Relic.
+4. End-to-end verification: request through Front Door → Container Apps → SQL; trace appears in New Relic.
 
 ### Phase 6 — Resilience & Teardown
 
@@ -142,6 +139,6 @@ No constitution violations to justify. The module count (8) is driven by Azure r
 
 - **No portal clicks**: Every resource is Terraform-managed. Manual changes are drift.
 - **No secrets in code**: All secrets sourced from Key Vault via managed identity. The `.env` pattern from S5 local dev does not apply to Azure.
-- **Dev/test SKUs only**: Consumption-only Container Apps, SQL Basic, APIM Developer, Front Door Standard. Cost control is a first-class concern.
+- **Dev/test SKUs only**: Consumption-only Container Apps, SQL Basic, Front Door Standard. Cost control is a first-class concern.
 - **Idempotent operations**: `terraform apply` (including image-tag changes) must be safe to re-run.
 - **Existing tests must pass**: The 266-test suite from S5 continues to pass. No application code changes are expected; only infrastructure and deployment files are added.

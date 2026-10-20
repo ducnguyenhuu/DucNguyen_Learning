@@ -59,7 +59,7 @@ This first, targeted apply creates only the registry (and its dependencies). The
 
 ## Step 4 — Build, Scan, Push and Deploy
 
-`deploy.sh` builds the S5 image, runs the Trivy vulnerability and secret scans (a finding fails the script before anything is pushed), pushes to ACR, then — because the app does not exist yet — runs the full `terraform apply` with `api_image_tag` set. That apply provisions everything else: Container Apps environment and app, APIM, Front Door.
+`deploy.sh` builds the S5 image, runs the Trivy vulnerability and secret scans (a finding fails the script before anything is pushed), pushes to ACR, then — because the app does not exist yet — runs the full `terraform apply` with `api_image_tag` set. That apply provisions everything else: Container Apps environment and app, Front Door.
 
 ```bash
 cd infrastructure/scripts
@@ -67,7 +67,7 @@ ACR=$(terraform -chdir=../terraform output -raw acr_login_server)
 ./deploy.sh "$ACR" v1
 ```
 
-**Expected duration**: 30–50 minutes (APIM Developer tier takes ~30–45 min).
+**Expected duration**: roughly 10–20 minutes.
 
 **Expected outputs**: Front Door endpoint URL, ACR login server, container app name, Key Vault URI.
 
@@ -77,7 +77,7 @@ ACR=$(terraform -chdir=../terraform output -raw acr_login_server)
 APP=$(terraform -chdir=infrastructure/terraform output -raw container_app_name)
 RG=$(terraform -chdir=infrastructure/terraform output -raw resource_group_name)
 
-az containerapp replica list --name "$APP" --resource-group "$RG" -o table   # 2 replicas Running
+az containerapp replica list --name "$APP" --resource-group "$RG" -o table   # at least 1 replica Running
 az containerapp logs show --name "$APP" --resource-group "$RG" --container tenancy-api --tail 20
 ```
 
@@ -106,7 +106,7 @@ curl -s "$FRONTDOOR_URL/health/ready"  # → 200 Healthy (SQL reachable via mana
 1. Trigger a few requests through Front Door
 2. Open New Relic → Distributed Tracing
 3. Search for service `Tenancy.Api`
-4. Verify traces show the full span: Front Door → APIM → Container Apps → SQL
+4. Verify traces show the full span: Front Door → Container Apps → SQL
 
 ### 7c — No Secrets in Manifests
 
@@ -123,7 +123,7 @@ grep -ri "password\|licence_key\|license_key" infrastructure/ --include='*.tf' -
 
 ## Step 8 — Broken Revision Recovery (US4)
 
-FR-014 requires ≥2 replicas in single revision mode (see [contracts/container-app.md](contracts/container-app.md)) precisely so this scenario never drops traffic — verify that explicitly, not just that recovery eventually happens.
+FR-014 relies on single revision mode (see [contracts/container-app.md](contracts/container-app.md)) so this scenario never drops traffic: the previous revision keeps serving until the new one is healthy — verify that explicitly, not just that recovery eventually happens.
 
 ```bash
 # Optional: start a background poll to prove zero dropped requests throughout
@@ -186,14 +186,14 @@ terraform plan -var-file=dev.tfvars -detailed-exitcode
 | FR-004 (Managed identity for SQL) | Step 7a (ready check proves SQL connection) |
 | FR-005 (Managed identity for KV) | Step 7b (traces prove licence key loaded) |
 | FR-006 (Private endpoints) | Step 3 (Terraform provisions them) |
-| FR-007 (Front Door → APIM → Container Apps) | Step 7a |
+| FR-007 (Front Door → Container Apps) | Step 7a |
 | FR-008 (OTel Collector → New Relic) | Step 7b |
 | FR-009 (Container app with probes) | Steps 4–5 |
 | FR-010 (terraform destroy) | Step 9 |
 | FR-011 (Drift detection) | `terraform plan` after any manual change |
 | FR-012 (Manual first deploy) | Steps 4–7 |
 | FR-013 (Recovery by redeploying a good tag) | Step 8 |
-| FR-014 (≥2 replicas, single revision, zero-downtime rollout) | Step 8 (background poll shows no dropped requests) |
+| FR-014 (single revision, ≥1 replica, zero-downtime rollout) | Step 8 (background poll shows no dropped requests) |
 | SC-001 (< 90 min) | Steps 1–7 total |
 | SC-002 (Rebuild configuration-identical) | Step 10 (`terraform plan -detailed-exitcode` = 0) |
 | SC-004 (Zero secrets in code) | Step 7c |

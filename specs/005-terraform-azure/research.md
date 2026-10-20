@@ -17,26 +17,23 @@
 
 **Decision**: A VNet-integrated, **Consumption-only** Container Apps environment in a dedicated `/23` subnet (`sn-cae`), with external ingress. (Replaces the AKS CNI Overlay decision, per ADR-023, 2026-10-16.)
 
-**Rationale**: VNet integration is what lets the app reach Azure SQL and Key Vault through their private endpoints and the existing private DNS zones. A Consumption-only environment needs a `/23` and no subnet delegation, and carries no fixed node cost, unlike a workload-profiles environment with a dedicated profile. External ingress is required because Developer-tier APIM is not VNet-integrated (R3).
+**Rationale**: VNet integration is what lets the app reach Azure SQL and Key Vault through their private endpoints and the existing private DNS zones. A Consumption-only environment needs a `/23` and no subnet delegation, and carries no fixed node cost, unlike a workload-profiles environment with a dedicated profile. External ingress is required because Front Door Standard reaches its origin over the public network (R3, R5).
 
 **Alternatives considered**:
 - *Workload profiles environment*: `/27` minimum and dedicated-profile pricing; no benefit for one small service in dev.
-- *Internal-only environment*: Cleaner, but APIM Developer cannot reach it without Premium VNet integration (R3).
+- *Internal-only environment*: Cleaner, but Front Door Standard cannot reach it; that needs Front Door Premium with Private Link (see ADR-024, Revisit When).
 - *Environment outside the VNet*: Cannot use the SQL and Key Vault private endpoints, failing FR-006.
 
-## R3 — APIM SKU and VNet Integration
+## R3 — No API Management; public ingress behind Front Door
 
-**Decision**: APIM Developer tier, **not** VNet-integrated. APIM connects to the container app's **public ingress**, restricted by the app's ingress IP restrictions to the APIM instance's public IPs (clarified 2026-09-26, spec.md FR-007; the restriction mechanism moved from an AKS NSG to Container Apps ingress rules per ADR-023).
+**Decision** (ADR-024, 2026-10-20): API Management is not provisioned. The container app's ingress is public with no source restriction, and Front Door is the intended way in. *(Originally: APIM Developer tier, not VNet-integrated, reaching the app's public ingress through an IP allow-list of APIM's outbound addresses.)*
 
-**Rationale**: APIM VNet integration (internal or external mode) requires the Premium tier (~$2,800/month) or the newer stv2 platform on Developer tier with significant provisioning time (45–60 min). For dev, the simpler approach is APIM Developer tier calling the container app's ingress directly, with the ingress IP allow-list as the compensating control so the "last hop" isn't wide open to the internet. Unlike the NSG it replaces, the allow-list takes the APIM instance's real IPs directly, because the APIM instance does not depend on the app; only the APIM *API definition* does. No two-phase apply is needed. The networking still proves the routing topology (Front Door → APIM → AKS) without the Premium cost.
+**Rationale**: APIM Developer was the largest fixed cost (~$50/month) and took 30–45 minutes per apply, for features nothing in Horizon 1 uses: the API validates Entra tokens itself and there are no per-consumer policies. The IP allow-list existed only to admit APIM; Front Door's backend addresses are a service tag, which Container Apps ingress restrictions cannot express. Every endpoint except the health probes still requires a valid token (ADR-022), so the exposure is the health endpoints.
 
 **Alternatives considered**:
-- *APIM Premium with full VNet integration*: Proves private networking but costs ~$2,800/month for dev — far exceeds the budget for the entire environment.
-- *APIM Basic*: Cheaper but lacks developer portal and some policy features useful for learning.
-- *Skip APIM*: Violates the roadmap's explicit inclusion and the target architecture in idea.md §17.
-- *Public ingress IP, unrestricted*: Simplest, but leaves the ingress open to the entire internet, not just APIM — rejected during clarification in favor of the IP-restricted option.
-
-**Correction (if needed)**: If Developer tier stv2 supports VNet injection at dev cost, prefer that. Verify during implementation.
+- *APIM Consumption tier*: ~$0 idle and quick to provision, but no fixed outbound IPs and no consumer for its features.
+- *Keep APIM Developer*: fixed cost and apply time with no consumer (Principle X).
+- *Enforce Front Door as the only path*: the `X-Azure-FDID` header check in the API, or Front Door Premium with Private Link to an internal environment. Deferred (ADR-024, Revisit When).
 
 ## R4 — Managed Identity for ACR, SQL and Key Vault
 
@@ -51,15 +48,14 @@
 
 **Open risk**: The Key Vault has public access disabled. Whether the Container Apps platform resolves the secret reference through the private endpoint (and whether Terraform can write the secret from outside the VNet) is unverified until the first apply.
 
-## R5 — Front Door + APIM Integration Pattern
+## R5 — Front Door directly in front of Container Apps
 
-**Decision**: Front Door Standard tier with APIM as the origin. Front Door handles TLS termination on `*.azurefd.net`, WAF (optional), and global load balancing. APIM handles API policies, rate limiting, and backend routing.
+**Decision**: Front Door Standard with the container app's ingress FQDN as the origin. Front Door handles TLS termination on `*.azurefd.net`, optional WAF, and health-probed routing to the origin. *(Originally APIM was the origin; removed by ADR-024.)*
 
-**Rationale**: This is the documented Microsoft pattern for the enterprise API gateway topology. Front Door provides edge TLS and caching; APIM provides API management. In dev, Front Door's global distribution is unnecessary but proves the wiring and the topology that production would use.
+**Rationale**: Front Door provides edge TLS and routing, which is all this topology needs. In dev its global distribution is unnecessary, but it proves the wiring and the edge that production would use.
 
 **Alternatives considered**:
-- *Front Door directly to Container Apps*: Skips APIM, losing the API management layer the roadmap requires.
-- *APIM as the sole edge*: No CDN/WAF/global distribution. Works for dev but doesn't prove the target topology.
+- *Front Door → APIM → Container Apps*: the original design; see R3 for why APIM was dropped.
 - *Azure Application Gateway*: Regional only; Front Door is the prescribed component in idea.md §17.
 
 ## R6 — Azure SQL Authentication Mode
@@ -86,9 +82,9 @@
 
 ## R8 — Replicas, Probes and Sizing
 
-**Decision**: 2–3 replicas (`api_min_replicas = 2`), single revision mode. API container 0.5 vCPU / 1 GiB; Collector sidecar 0.25 vCPU / 0.5 GiB. Startup, liveness and readiness probes on `/health/live` and `/health/ready`. (Replaces AKS node pool sizing, per ADR-023.)
+**Decision**: 1–3 replicas (`api_min_replicas = 1`), single revision mode. API container 0.5 vCPU / 1 GiB; Collector sidecar 0.25 vCPU / 0.5 GiB. Startup, liveness and readiness probes on `/health/live` and `/health/ready`. (Replaces AKS node pool sizing, per ADR-023.)
 
-**Rationale**: With FR-014's two-replica minimum and single revision mode, a failed new revision never receives traffic while the previous one keeps serving, which is what US4 tests. The 0.75 vCPU / 1.5 GiB total is a valid Consumption combination. The probe paths are the endpoints S4 built; the startup probe allows 60 s for the first start.
+**Rationale**: With single revision mode (FR-014, amended 2026-10-20 from a two-replica minimum), a failed new revision never receives traffic while the previous one keeps serving, which is what US4 tests. The 0.75 vCPU / 1.5 GiB total is a valid Consumption combination. The probe paths are the endpoints S4 built; the startup probe allows 60 s for the first start.
 
 **Alternatives considered**:
 - *Multiple revision mode with traffic weights*: Gives manual canarying, but a new revision with no ready replicas would receive traffic and drop requests unless weights are managed by hand.

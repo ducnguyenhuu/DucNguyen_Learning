@@ -14,9 +14,6 @@ output "kv_pe_subnet_id" {
   value = azurerm_subnet.kv_pe.id
 }
 
-output "apim_subnet_id" {
-  value = azurerm_subnet.apim.id
-}
 
 output "sql_private_dns_zone_id" {
   value = azurerm_private_dns_zone.sql.id

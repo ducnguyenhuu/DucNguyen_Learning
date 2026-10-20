@@ -5,7 +5,7 @@
 
 ## Target
 
-The deployed dev environment through its **public path**: `https://<FRONTDOOR_ENDPOINT>` → APIM →
+The deployed dev environment through its **public path**: `https://<FRONTDOOR_ENDPOINT>` →
 Container Apps → Azure SQL. Never the container app directly — SC-003 is about what a user experiences.
 
 ## Authentication

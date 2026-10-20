@@ -8,7 +8,7 @@ resource "azurerm_virtual_network" "main" {
 
 # Container Apps environment subnet. A Consumption-only environment needs at least a /23
 # and no subnet delegation (ADR-023). /16 + 7 bits = /23, which does not overlap the /24
-# private-endpoint and APIM subnets below.
+# private-endpoint subnets below.
 resource "azurerm_subnet" "cae" {
   name                 = "sn-cae"
   resource_group_name  = var.resource_group_name
@@ -32,11 +32,4 @@ resource "azurerm_subnet" "kv_pe" {
   address_prefixes     = [cidrsubnet(var.vnet_address_space[0], 8, 17)]
 
   private_endpoint_network_policies = "Enabled"
-}
-
-resource "azurerm_subnet" "apim" {
-  name                 = "sn-apim"
-  resource_group_name  = var.resource_group_name
-  virtual_network_name = azurerm_virtual_network.main.name
-  address_prefixes     = [cidrsubnet(var.vnet_address_space[0], 8, 18)]
 }

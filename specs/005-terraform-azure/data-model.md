@@ -13,8 +13,7 @@ Resource Group (rg-dip-dev)
 ├── Virtual Network (vnet-dip-dev)
 │   ├── Subnet: sn-cae          (Container Apps environment, /23, no delegation)
 │   ├── Subnet: sn-sql-pe       (SQL private endpoint)
-│   ├── Subnet: sn-kv-pe        (Key Vault private endpoint)
-│   └── Subnet: sn-apim         (APIM, if VNet-integrated)
+│   └── Subnet: sn-kv-pe        (Key Vault private endpoint)
 │
 ├── Private DNS Zones
 │   ├── privatelink.database.windows.net  → linked to VNet
@@ -41,20 +40,16 @@ Resource Group (rg-dip-dev)
 │   └── RBAC: id-tenancy-api → AcrPull
 │
 ├── Container Apps Environment (cae-dip-dev, Consumption-only, in sn-cae)
-│   └── Container App: ca-tenancy-api-dev (single revision mode, 2–3 replicas)
+│   └── Container App: ca-tenancy-api-dev (single revision mode, 1–3 replicas)
 │       ├── Identities: id-tenancy-api, id-otel-collector
-│       ├── Ingress: external, port 8080, allow-list = APIM public IPs
+│       ├── Ingress: external, port 8080, no source restriction (ADR-024)
 │       ├── Secret: new-relic-licence-key (Key Vault reference via id-otel-collector)
 │       ├── Container: tenancy-api  (probes on /health/live, /health/ready)
 │       └── Container: otel-collector (sidecar; secret mounted at /mnt/secrets)
 │
-├── API Management (apim-dip-dev, Developer tier)
-│   ├── API: tenancy-api (backend → container app FQDN)
-│   └── Policy: rate-limit, cors, jwt-validation (optional)
-│
 └── Front Door (fd-dip-dev, Standard tier)
     ├── Endpoint: dip-dev.azurefd.net
-    ├── Origin Group → APIM gateway URL
+    ├── Origin Group → container app FQDN
     ├── Route: /* → origin group
     └── Managed TLS certificate
 ```
@@ -73,13 +68,12 @@ Both identities are attached to the one container app. There is no federation: t
 ```text
 Internet
   → Front Door (TLS termination, *.azurefd.net)
-    → APIM (API policies, Developer tier)
-      → Container Apps ingress (public, allow-list = APIM IPs)
-        → Tenancy API container (port 8080)
-          → Azure SQL (via private endpoint, managed identity token)
-          → localhost:4317 → OTel Collector sidecar
-                               → New Relic OTLP endpoint (outbound HTTPS)
-        Key Vault (via private endpoint): the platform resolves the licence-key
+    → Container Apps ingress (public)
+      → Tenancy API container (port 8080)
+        → Azure SQL (via private endpoint, managed identity token)
+        → localhost:4317 → OTel Collector sidecar
+                             → New Relic OTLP endpoint (outbound HTTPS)
+      Key Vault (via private endpoint): the platform resolves the licence-key
         secret reference with id-otel-collector and mounts it as a file
 ```
 
@@ -92,15 +86,10 @@ identity    ←── (managed identities)
 keyvault    ←── (needs: networking.sn-kv-pe, identity.id-*)
 sql         ←── (needs: networking.sn-sql-pe)
 acr         ←── (standalone)
-apim        ←── (instance only: needs nothing but the SKU)
     ↓
-containerapp ←── (needs: networking.sn-cae, acr, identity.*, sql, keyvault secret ID,
-                  apim.public_ip_addresses for the ingress allow-list)
+containerapp ←── (needs: networking.sn-cae, acr, identity.*, sql, keyvault secret ID)
     ↓
-apim API definition ←── (needs: containerapp FQDN; lives in the apim module, so the
-                         module-level graph looks cyclic but the resource graph is not)
-    ↓
-frontdoor   ←── (needs: apim gateway URL for origin)
+frontdoor   ←── (needs: containerapp FQDN for origin)
 ```
 
-The `apim` instance has no dependency on the container app; only its API definition does. Terraform builds the graph per resource, not per module, so no override variable or second apply is needed. The one manual ordering is that the container app needs an image: `terraform apply -target=module.acr` first, then `deploy.sh`.
+The one manual ordering is that the container app needs an image: `terraform apply -target=module.acr` first, then `deploy.sh`.

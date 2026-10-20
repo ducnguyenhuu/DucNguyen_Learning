@@ -46,7 +46,7 @@ Like S6, every file-authoring task can be completed **without Azure or GitHub sp
 - [x] T006 [P] Create `infrastructure/terraform/persistent/variables.tf` and `outputs.tf`: the repository slug, resource group and location as variables; both identities' client IDs and principal IDs as outputs (they become GitHub variables in T017)
 - [x] T007 Amend `infrastructure/terraform/modules/containerapp/app.tf`: add `lifecycle { ignore_changes = [template[0].container[0].image] }` so Terraform owns the app's shape and the pipeline owns the image tag (research R2, R10). Keep the existing empty-tag precondition for first creation
 - [x] T008 [P] Amend `infrastructure/scripts/deploy.sh` and `infrastructure/scripts/rollback.sh` so that once the container app exists they run `az containerapp update --image <acr>/tenancy-api:<tag>` instead of `terraform apply -var api_image_tag=...`; keep `terraform apply` only for the first creation path (depends on T007, which would otherwise make the apply a no-op)
-- [x] T009 [P] Amend `infrastructure/terraform/modules/apim/api.tf`: replace the single `GET /*` operation with operations for GET, POST, PUT, PATCH and DELETE (`/*`), so load-test seeding can `POST /tenants` (research context, gap 1)
+- [x] T009 [P] Amend `infrastructure/terraform/modules/apim/api.tf`: replace the single `GET /*` operation with operations for GET, POST, PUT, PATCH and DELETE (`/*`), so load-test seeding can `POST /tenants` (research context, gap 1) *(Moot: ADR-024 removed API Management and its `apim` module on 2026-10-20.)*
 - [x] T010 Amend the S6 root `infrastructure/terraform/main.tf`: role assignments for the deployer — `AcrPush` on the ACR and `Container Apps Contributor` scoped to the one container app — against `id-github-deployer`'s principal ID, looked up with `data "azurerm_user_assigned_identity"` by name and resource group (not `terraform_remote_state`, so `validate` and `plan` need no access to the other root's state; `persistent/` must be applied first) (research R2). No resource-group, subscription or Terraform-state role
 - [x] T011 Run `terraform fmt -recursive` and `terraform validate` in `infrastructure/terraform/`, `infrastructure/terraform/persistent/` and `infrastructure/github/`; fix any error
 
@@ -124,7 +124,7 @@ Like S6, every file-authoring task can be completed **without Azure or GitHub sp
 
 ## Phase 6: User Story 4 — Performance Verification Against a Real Environment (Priority: P4)
 
-**Goal**: A load test runs against the deployed dev environment through Front Door and APIM, verifying spec 001 SC-003, with a pass/fail decision from measured p95 and error rate.
+**Goal**: A load test runs against the deployed dev environment through Front Door, verifying spec 001 SC-003, with a pass/fail decision from measured p95 and error rate.
 
 **Independent Test**: With a healthy deployment in dev, run the `load-test` job; the summary shows p50/p95/p99 and error rate at 50 virtual users across 20 tenants, and the job passes only if p95 < 1 s and errors < 1%.
 
@@ -142,7 +142,7 @@ Like S6, every file-authoring task can be completed **without Azure or GitHub sp
 - [x] T045 [P] [US4] Create `tests/load/tenant-reads.js`: k6 scenario per contracts/load-test.md — `warmup` 50 VUs for 30 s (tagged `phase:warmup`), `steady` 50 VUs for 2 min (`phase:steady`), VU *n* uses tenant `n mod 20`, `GET /tenants/{id}` and `GET /tenants/{id}/members` tagged `kind:tenant-read`, 1 s think time, thresholds `p(95)<1000` and `rate<0.01`
 - [x] T046 [US4] Add the `load-test` job to `pipeline.yml` (`needs: deploy-dev`, `environment: dev`; also change the `production` job's `needs` to `load-test`): guard, `azure/login` as `id-loadtest-client`, `az account get-access-token --resource $TENANCY_API_APP_ID_URI`, `seed.sh`, k6 with `--summary-export`, upload `load-test-result`, write the table with the fields in data-model.md §4 (including the one-identity limitation) to the job summary, **no automatic retry**
 - [ ] T047 [US4] **[AZURE][GITHUB]** Apply `persistent/app-role.tf`, run the pipeline, and confirm `load-test` passes with p95 < 1 s and error rate < 1% (spec US4 Acceptance Scenarios 1–2)
-- [ ] T048 [US4] **[AZURE][GITHUB]** Prove the gate fails: run the load test with a deliberately reduced capacity (e.g. `api_max_replicas` and `min_replicas` temporarily 1 via a throwaway apply) or a tightened threshold, and confirm the job fails naming the breached metric while the preceding deploy stays in dev (spec US4 Acceptance Scenario 3)
+- [ ] T048 [US4] **[AZURE][GITHUB]** Prove the gate fails: run the load test with a deliberately reduced capacity (e.g. `api_max_replicas` temporarily 1, so the single replica cannot scale out, via a throwaway apply) or a tightened threshold, and confirm the job fails naming the breached metric while the preceding deploy stays in dev (spec US4 Acceptance Scenario 3)
 - [ ] T049 [US4] Create `docs/operations/load-test-baseline.md` with the measured p50/p95/p99, error rate, sample size, commit SHA and date from T047, and mark spec 001 SC-003 verified in `specs/001-auth-tenant-management/coverage.md`
 
 **Checkpoint**: Spec 001 SC-003 is measured, recorded, and enforced on every run.

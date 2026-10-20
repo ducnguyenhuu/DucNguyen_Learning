@@ -38,15 +38,6 @@ resource "azurerm_container_app" "api" {
       latest_revision = true
       percentage      = 100
     }
-
-    dynamic "ip_security_restriction" {
-      for_each = var.allowed_ingress_cidrs
-      content {
-        name             = "apim-${ip_security_restriction.key}"
-        action           = "Allow"
-        ip_address_range = ip_security_restriction.value
-      }
-    }
   }
 
   template {

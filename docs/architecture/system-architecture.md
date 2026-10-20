@@ -12,8 +12,6 @@ See [traceability U1](../traceability.md#u1--55-steps-2-4-and-6-require-five-doc
 ```text
 Azure Front Door
        ↓
-Azure API Management
-       ↓
   Container Apps
        ↓
 +------+-------+----------------+

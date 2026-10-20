@@ -20,10 +20,9 @@
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
 | `api_image_tag` | string | `""` | Image tag in ACR. Empty fails the container app's plan; `deploy.sh` supplies it |
-| `api_min_replicas` | number | `2` | Minimum API replicas (FR-014) |
+| `api_min_replicas` | number | `1` | Minimum API replicas (FR-014) |
 | `api_max_replicas` | number | `3` | Maximum API replicas |
 | `sql_sku` | string | `"Basic"` | Azure SQL database SKU |
-| `apim_sku` | string | `"Developer_1"` | APIM SKU name and capacity |
 | `frontdoor_sku` | string | `"Standard_AzureFrontDoor"` | Front Door SKU |
 | `vnet_address_space` | list(string) | `["10.0.0.0/16"]` | VNet CIDR |
 | `otel_sample_rate` | number | `10` | OTel Collector sampling percentage |
@@ -31,14 +30,13 @@
 
 ## First-apply ordering
 
-There are no override variables. APIM's public IPs feed the container app's ingress allow-list directly, and only the APIM *API definition* depends on the app's FQDN, so the graph has no cycle (ADR-023 removed the AKS OIDC and NSG cycles). The one ordering constraint is that the app needs an image: run `terraform apply -target=module.acr`, then `deploy.sh`.
+There are no override variables. Front Door takes the container app's FQDN as its origin, so the graph has no cycle (ADR-023 removed the AKS OIDC and NSG cycles). The one ordering constraint is that the app needs an image: run `terraform apply -target=module.acr`, then `deploy.sh`.
 
 ## Outputs
 
 | Output | Description |
 |--------|-------------|
 | `frontdoor_endpoint` | Front Door URL (e.g., `https://dip-dev.azurefd.net`) |
-| `apim_gateway_url` | APIM gateway URL |
 | `container_app_name` | Container app name (for `az containerapp` commands) |
 | `resource_group_name` | Resource group holding the environment |
 | `acr_login_server` | ACR login server (e.g., `acrdipdev.azurecr.io`) |

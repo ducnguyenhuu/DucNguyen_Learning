@@ -27,10 +27,8 @@ These were verified against the repository, not assumed:
 - **Callers are identified by `oid` and provisioned just-in-time.** `JitProvisionCallerFilter`
   resolves `tid` + `oid` and falls back to `{oid}@unresolved.invalid` when no email-like claim is
   present — so a non-human identity can already be provisioned without code changes.
-- **Two S6 gaps block this slice** (both on branch `005-terraform-azure`):
-  1. APIM's API definition has a single `GET /*` operation. Load-test seeding needs `POST
-     /tenants`, which APIM would reject with 404.
-  2. S6's container app declares the image tag in Terraform, so any pipeline update to the image would be reverted by the next `terraform apply`. The container app needs `ignore_changes` on the image, with Terraform owning the app's shape and `az containerapp update` owning the tag. (Compute is Container Apps, not AKS: ADR-023.)
+- **An S6 gap blocks this slice**: *(a second gap, APIM's `GET`-only API definition, vanished when ADR-024 removed API Management on 2026-10-20: Front Door forwards every method.)*
+  S6's container app declares the image tag in Terraform, so any pipeline update to the image would be reverted by the next `terraform apply`. The container app needs `ignore_changes` on the image, with Terraform owning the app's shape and `az containerapp update` owning the tag. (Compute is Container Apps, not AKS: ADR-023.)
 
 ## R1 — CI/CD platform
 
@@ -214,7 +212,7 @@ subject to MFA.
   90-day credential. Rejected for the same reason.
 - *A test-only authentication scheme enabled in the deployed dev build*: A backdoor in a deployed
   artifact. Rejected outright.
-- *Seed data and load from inside the environment (a job in the Container Apps environment)*: Bypasses Front Door and APIM, so
+- *Seed data and load from inside the environment (a job in the Container Apps environment)*: Bypasses Front Door, so
   it would not measure the path spec 001 SC-003 is about, and still needs an identity.
 
 **Documented limitation**: all 50 virtual users share **one** identity across 20 tenants. SC-003's
@@ -240,7 +238,7 @@ result the pipeline archives and summarizes.
 
 **Rationale**: Thresholds are declarative and live beside the scenario, so the gate *is* the test
 file. k6 is a single binary with an official Action, and its `scenarios` model expresses a warm-up
-phase excluded from the measurement (JIT, connection pools, APIM cache) — without which the first
+phase excluded from the measurement (JIT, connection pools) — without which the first
 seconds would make p95 meaningless.
 
 **Alternatives considered**:

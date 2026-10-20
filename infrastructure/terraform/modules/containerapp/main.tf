@@ -1,7 +1,6 @@
 # VNet-integrated, Consumption-only Container Apps environment (ADR-023). External ingress
-# because the Developer-tier APIM is not VNet-integrated (research.md R3) — it reaches the
-# app over the public endpoint, and the app's ingress IP restriction (app.tf) allows only
-# APIM. No logs_destination: ADR-018 makes New Relic the telemetry backend, so no Log
+# because Front Door Standard reaches its origin over the public endpoint (ADR-024 removed
+# API Management). No logs_destination: ADR-018 makes New Relic the telemetry backend, so no Log
 # Analytics workspace is provisioned.
 resource "azurerm_container_app_environment" "main" {
   name                           = "cae-dip-${var.environment}"

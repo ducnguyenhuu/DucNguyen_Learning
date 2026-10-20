@@ -3,6 +3,7 @@
 **Status**: Accepted
 **Date**: 2026-10-16
 **Deciders**: Project owner
+**Refined by**: ADR-024 (API Management removed; the topology diagram below predates it)
 **Relates to**: ADR-007 (refines — compute clause only) · ADR-001 · ADR-012 · ADR-018 · Constitution → Technology Constraints, Principle X · `idea.md` §17, §52, §59.2 · roadmap S6
 
 ## Context

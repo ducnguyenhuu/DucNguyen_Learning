@@ -33,7 +33,7 @@ cd infrastructure/terraform
 terraform apply -var-file=dev.tfvars
 ```
 
-Adds the all-method APIM operations, the container app's image `ignore_changes`, and the deployer's role assignments against
+Adds the container app's image `ignore_changes` and the deployer's role assignments against
 the ACR and container app that currently exist.
 
 ## Step 3 — Repository configuration

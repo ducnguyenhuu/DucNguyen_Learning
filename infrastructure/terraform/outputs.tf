@@ -3,11 +3,6 @@ output "frontdoor_endpoint" {
   value       = "https://${module.frontdoor.endpoint_hostname}"
 }
 
-output "apim_gateway_url" {
-  description = "APIM gateway URL."
-  value       = module.apim.gateway_url
-}
-
 output "container_app_name" {
   description = "Container app name, for `az containerapp` commands."
   value       = module.containerapp.app_name

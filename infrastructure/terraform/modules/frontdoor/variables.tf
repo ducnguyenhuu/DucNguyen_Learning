@@ -10,8 +10,8 @@ variable "frontdoor_sku" {
   type = string
 }
 
-variable "apim_gateway_hostname" {
-  description = "APIM gateway hostname (without scheme), used as the Front Door origin."
+variable "origin_hostname" {
+  description = "Container app ingress FQDN (without scheme), used as the Front Door origin."
   type        = string
 }
 
