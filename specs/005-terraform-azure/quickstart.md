@@ -10,6 +10,23 @@
 4. **Docker** running (to build and push the container image)
 5. **New Relic account** with an active ingest licence key
 
+## Working sessions: one command up, one command down
+
+After the one-time setup (Steps 1–2 below and the S7 `persistent/` apply), a session is:
+
+```bash
+export TF_VAR_new_relic_licence_key=...        # never written to a file
+infrastructure/scripts/session-up.sh           # init, registry, build+scan+push+deploy, refresh GitHub variables
+# ... work, verify ...
+infrastructure/scripts/session-down.sh         # destroy, purge the soft-deleted Key Vault, verify nothing is left
+```
+
+`session-down.sh` exits non-zero and lists anything still present, so a forgotten resource is
+never silent. The environment costs roughly $0.20 an hour while it exists. The state storage and
+the pipeline identities are kept between sessions (they cost cents or nothing).
+
+The numbered steps below are what these scripts automate; run them by hand when debugging.
+
 ## Step 1 — Bootstrap Terraform State Backend
 
 This is a one-time operation. It creates the Azure Storage Account that holds Terraform's remote state.
