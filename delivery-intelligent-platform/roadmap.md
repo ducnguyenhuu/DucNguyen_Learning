@@ -20,7 +20,7 @@ Full reasoning in [idea.md §46](idea.md) · rules in the
 | **S4** | Observability | [003](specs/003-observability/spec.md) | ✅ **done** | 1.5–2 w |
 | **S5** | Containerization | [004](specs/004-containerization/spec.md) | ✅ **done** | 1 w |
 | S6 | Terraform → Azure | [005](specs/005-terraform-azure/spec.md) | 🟡 **code written, validated, never applied** — 46 of 70 tasks ticked; the rest need a funded Azure subscription | **3–4 w** |
-| S7 | CI/CD | [006](specs/006-ci-cd/spec.md) | 🟡 **authored, never run** — 39 of 57 tasks ticked (the free authoring ones; the rest wait on measured results or need Azure and GitHub); run S6 first. Branch `006-ci-cd`, not yet merged | 1.5–2 w |
+| S7 | CI/CD | [006](specs/006-ci-cd/spec.md) | 🟡 **authored, never run** — 39 of 57 tasks ticked (the free authoring ones; the rest wait on measured results or need Azure and GitHub); run S6 first. Merged to `main` | 1.5–2 w |
 | S8 | Service Bus | — | ⬜ not started | 2 w |
 | | **⛔ GATE 1** | | | |
 | S9 | Integration + one connector | — | ⬜ | 2–3 w |
@@ -59,10 +59,10 @@ list is not yet proven.
 9. 🟡 S6 code written on Azure Container Apps ([ADR-023](docs/adr/ADR-023-azure-container-apps-for-compute.md),
    2026-10-16), `terraform validate` passes, **never planned or applied** (no funded subscription yet)
 10. 🟡 S7 pipeline, scripts, load test, repository Terraform and the API authorization policy written on
-    branch `006-ci-cd`; local checks pass (105 integration tests, gate self-tests, image scans)
+    (merged to `main`); local checks pass (105 integration tests, gate self-tests, image scans)
 11. ⏭ **Next, one paid session:** pick a funded subscription → S6 apply and verification
     ([tasks](specs/005-terraform-azure/tasks.md), T026 onward) → S7 [AZURE]/[GITHUB] tasks
-    ([quickstart](specs/006-ci-cd/quickstart.md)) → merge `006-ci-cd` → tick the *Done when* lists
+    ([quickstart](specs/006-ci-cd/quickstart.md)) → tick the *Done when* lists
     → `terraform destroy`
 
 Open decisions in [docs/traceability.md](docs/traceability.md#open-decisions). None blocks
