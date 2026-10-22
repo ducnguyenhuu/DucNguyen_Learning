@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>cecb6127-f5eb-43c8-b1fe-db9bcb5f2722</UserSecretsId>
+    <!-- Suppress NU1510: Microsoft.Extensions.Diagnostics.HealthChecks is explicitly required for health check support -->
+    <NoWarn>$(NoWarn);NU1510</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.OpenApi" />
+    <PackageReference Include="Microsoft.Identity.Web" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+    <PackageReference Include="AspNetCore.HealthChecks.SqlServer" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Tenancy.Application\Tenancy.Application.csproj" />
+    <ProjectReference Include="..\Tenancy.Infrastructure\Tenancy.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Lets Tenancy.IntegrationTests' ApiFactory (T042) construct
+         WebApplicationFactory<Program> and reach internal test-seam types if ever needed. -->
+    <InternalsVisibleTo Include="Tenancy.IntegrationTests" />
+  </ItemGroup>
+
+</Project>

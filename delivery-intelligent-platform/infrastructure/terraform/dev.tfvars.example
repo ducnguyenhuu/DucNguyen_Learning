@@ -1,0 +1,27 @@
+# Copy to dev.tfvars and fill in real values. dev.tfvars is git-ignored — never commit it.
+# new_relic_licence_key is sensitive: prefer `export TF_VAR_new_relic_licence_key=...`
+# over writing it into this file at all.
+
+environment          = "dev"
+location              = "eastus2"
+subscription_id       = "<your-subscription-id>"
+tenant_id             = "<your-entra-id-tenant-id>"
+resource_group_name   = "rg-dip-dev"
+sql_admin_object_id   = "<azure-ad-object-id-for-sql-admin>"
+new_relic_licence_key = "<set-via-TF_VAR_new_relic_licence_key>"
+acr_name              = "acrdipdev"
+
+# Optional — shown here at their defaults for visibility; omit to inherit defaults.
+api_min_replicas    = 1
+api_max_replicas    = 3
+sql_sku             = "Basic"
+frontdoor_sku       = "Standard_AzureFrontDoor"
+vnet_address_space  = ["10.0.0.0/16"]
+otel_sample_rate    = 10
+tags = {
+  project     = "dip"
+  environment = "dev"
+}
+
+# api_image_tag is deliberately not set here: deploy.sh passes it after pushing the image.
+# First-ever apply: `terraform apply -target=module.acr -var-file=dev.tfvars`, then deploy.sh.

@@ -1,0 +1,9 @@
+{
+  "// note": "Hide .claude/ from explorer and search. It is only a symlink to .agent/skills (ADR-016) and showing both paths makes every skill appear twice.",
+  "files.exclude": {
+    ".claude": true
+  },
+  "search.exclude": {
+    ".claude": true
+  }
+}

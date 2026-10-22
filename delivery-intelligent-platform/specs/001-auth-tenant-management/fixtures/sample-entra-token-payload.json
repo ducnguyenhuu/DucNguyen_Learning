@@ -1,0 +1,21 @@
+{
+  "_comment": "Real Entra ID v2 access token payload, captured 2026-08-10 via `az account get-access-token` against this slice's API app registration. Secrets (signature, aio, rh, uti, sid) stripped. Kept as evidence that Entra actually issues the claims research.md R2 and data-model.md assume — no test in this suite proves that on its own.",
+  "aud": "959f992d-dd36-4a49-aada-a73ec5c7ee14",
+  "iss": "https://login.microsoftonline.com/6cedae69-3542-4a29-bf78-0d82986c4474/v2.0",
+  "azp": "04b07795-8ddb-461a-bbee-02f9e1bf7b46",
+  "idp": "live.com",
+  "name": "Duc Nguyen",
+  "oid": "07ff9411-dc15-4c9c-8ec2-042ce6ecda01",
+  "preferred_username": "duc.nguyenhuu.vn@gmail.com",
+  "scp": "access_as_user",
+  "sub": "VzdimLIo3GS0jNLn-3RH5BACWgmLs-uy4wU_O2Keb0Y",
+  "tid": "6cedae69-3542-4a29-bf78-0d82986c4474",
+  "ver": "2.0",
+  "_verified": {
+    "ver_is_2.0": true,
+    "oid_present": true,
+    "tid_present": true,
+    "sub_differs_from_oid": true,
+    "note": "sub != oid confirms research.md R2: sub is pairwise per client app, oid is the stable per-tenant identity. Production code must key on (tid, oid), never sub."
+  }
+}
