@@ -67,19 +67,6 @@ if [ -z "$FEATURE_DESCRIPTION" ]; then
     exit 1
 fi
 
-# Function to find the repository root by searching for existing project markers
-find_repo_root() {
-    local dir="$1"
-    while [ "$dir" != "/" ]; do
-        if [ -d "$dir/.git" ] || [ -d "$dir/.specify" ]; then
-            echo "$dir"
-            return 0
-        fi
-        dir="$(dirname "$dir")"
-    done
-    return 1
-}
-
 # Function to get highest number from specs directory
 get_highest_from_specs() {
     local specs_dir="$1"
@@ -155,20 +142,20 @@ clean_branch_name() {
     echo "$name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/-\+/-/g' | sed 's/^-//' | sed 's/-$//'
 }
 
-# Resolve repository root. Prefer git information when available, but fall back
-# to searching for repository markers so the workflow still functions in repositories that
-# were initialised with --no-git.
+# Resolve project root: the directory holding .specify/, not the git root. This project lives
+# in a subdirectory of a monorepo, and specs/ must stay under the project. Git is still used
+# for branches when available.
 SCRIPT_DIR="$(CDPATH="" cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+REPO_ROOT="$(CDPATH="" cd "$SCRIPT_DIR/../../.." && pwd)"
+if [ ! -d "$REPO_ROOT/.specify" ]; then
+    echo "Error: Could not determine project root (no .specify/ at $REPO_ROOT)." >&2
+    exit 1
+fi
+
 if git rev-parse --show-toplevel >/dev/null 2>&1; then
-    REPO_ROOT=$(git rev-parse --show-toplevel)
     HAS_GIT=true
 else
-    REPO_ROOT="$(find_repo_root "$SCRIPT_DIR")"
-    if [ -z "$REPO_ROOT" ]; then
-        echo "Error: Could not determine repository root. Please run this script from within the repository." >&2
-        exit 1
-    fi
     HAS_GIT=false
 fi
 
