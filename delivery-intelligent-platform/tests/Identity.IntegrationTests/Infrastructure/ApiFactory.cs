@@ -174,14 +174,22 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
                 "fixture injected into that constructor) before the host is built.");
         }
 
+        // Placeholder Entra settings so Microsoft.Identity.Web can build its options on a machine
+        // with no user secrets (CI). Issuer, audience and signing key are overridden below, so
+        // these values are never used to validate a token.
+        var settings = new Dictionary<string, string?>
+        {
+            ["AzureAd:Instance"] = "https://login.microsoftonline.com/",
+            ["AzureAd:TenantId"] = "test-tenant",
+            ["AzureAd:ClientId"] = "00000000-0000-0000-0000-000000000001",
+        };
+
         if (_otlpEndpointOverride is not null)
         {
-            builder.ConfigureAppConfiguration(configBuilder => configBuilder.AddInMemoryCollection(
-                new Dictionary<string, string?>
-                {
-                    [OpenTelemetryExtensions.OtlpEndpointConfigurationKey] = _otlpEndpointOverride,
-                }));
+            settings[OpenTelemetryExtensions.OtlpEndpointConfigurationKey] = _otlpEndpointOverride;
         }
+
+        builder.ConfigureAppConfiguration(configBuilder => configBuilder.AddInMemoryCollection(settings));
 
         // Registered before ConfigureServices below so every category the host logs from
         // (ASP.NET Core's own request/hosting diagnostics, Microsoft.Identity.Web, etc.) is

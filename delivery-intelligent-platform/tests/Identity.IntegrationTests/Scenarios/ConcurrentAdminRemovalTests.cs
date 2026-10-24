@@ -48,8 +48,9 @@ public sealed class ConcurrentAdminRemovalTests : IdentityIntegrationTestBase
     /// <summary>
     /// Both administrators fire a <c>DELETE</c> at the other's membership, both started before
     /// either is awaited and gated on a shared <see cref="TaskCompletionSource"/> to maximize real
-    /// overlap. At most one may succeed (204); the other is refused (409); and the organization
-    /// must never be left with zero active administrators.
+    /// overlap. At most one may succeed (204); the other is refused, with 409 when it reached the
+    /// guarded write, or 403 when the winner's removal of its caller committed before membership
+    /// resolution ran. The organization must never be left with zero active administrators.
     /// </summary>
     [CoversRequirement("FR-015")]
     [Fact]
@@ -73,7 +74,9 @@ public sealed class ConcurrentAdminRemovalTests : IdentityIntegrationTestBase
 
         responses.Count(r => r.StatusCode == HttpStatusCode.NoContent).Should().BeLessThanOrEqualTo(1);
         responses.Should().OnlyContain(r =>
-            r.StatusCode == HttpStatusCode.NoContent || r.StatusCode == HttpStatusCode.Conflict);
+            r.StatusCode == HttpStatusCode.NoContent
+            || r.StatusCode == HttpStatusCode.Conflict
+            || r.StatusCode == HttpStatusCode.Forbidden);
 
         (await CountActiveAdministratorsAsync()).Should().BeGreaterThanOrEqualTo(1);
     }
