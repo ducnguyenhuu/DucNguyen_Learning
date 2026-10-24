@@ -7,13 +7,13 @@ on:
   pull_request:
     paths:
       - ".github/workflows/**"
-      - ".github/scripts/**"
-      - "infrastructure/scripts/validate-commit-messages.sh"
-      - "infrastructure/scripts/scan-image-*.sh"
-      - "Directory.Build.props"
-      - "Directory.Packages.props"
-      - "tests/ArchitectureTests/**"
-      - "tests/gate-selftest/**"
+      - "delivery-intelligent-platform/.github/scripts/**"
+      - "delivery-intelligent-platform/infrastructure/scripts/validate-commit-messages.sh"
+      - "delivery-intelligent-platform/infrastructure/scripts/scan-image-*.sh"
+      - "delivery-intelligent-platform/Directory.Build.props"
+      - "delivery-intelligent-platform/Directory.Packages.props"
+      - "delivery-intelligent-platform/tests/ArchitectureTests/**"
+      - "delivery-intelligent-platform/tests/gate-selftest/**"
   schedule:
     - cron: "0 3 * * 1" # Mondays, 03:00 UTC
   workflow_dispatch:
@@ -26,6 +26,12 @@ env:
   DOTNET_NOLOGO: "true"
   DOTNET_CLI_TELEMETRY_OPTOUT: "true"
 
+# Lives at the monorepo root because GitHub reads workflows only from there; everything it runs
+# lives in delivery-intelligent-platform/. `run` steps only, so `with:` paths carry the prefix.
+defaults:
+  run:
+    working-directory: delivery-intelligent-platform
+
 jobs:
   selftest:
     runs-on: ubuntu-latest
@@ -33,7 +39,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
-          global-json-file: global.json
+          global-json-file: delivery-intelligent-platform/global.json
       - name: Install gitleaks
         run: |
           curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz" \

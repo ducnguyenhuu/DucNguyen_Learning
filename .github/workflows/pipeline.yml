@@ -3,11 +3,16 @@ name: pipeline
 # Contract: specs/006-ci-cd/contracts/pipeline.md. The job names below are listed as required
 # status checks by infrastructure/github/main.tf — renaming one without updating the ruleset
 # silently removes a gate.
+#
+# This repository is a monorepo and GitHub reads workflows only from its root, so this file lives
+# here while everything it runs lives in delivery-intelligent-platform/.
 on:
   pull_request:
     branches: [main]
+    paths: ["delivery-intelligent-platform/**", ".github/workflows/pipeline.yml"]
   push:
     branches: [main]
+    paths: ["delivery-intelligent-platform/**", ".github/workflows/pipeline.yml"]
   workflow_dispatch:
 
 permissions:
@@ -17,6 +22,11 @@ permissions:
 env:
   DOTNET_NOLOGO: "true"
   DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+
+# `run` steps only; paths under `with:` carry the prefix themselves.
+defaults:
+  run:
+    working-directory: delivery-intelligent-platform
 
 jobs:
   # ---------------------------------------------------------------- gate jobs
@@ -69,7 +79,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
-          global-json-file: global.json
+          global-json-file: delivery-intelligent-platform/global.json
       - name: Restore (NuGet Audit fails on a high or critical advisory)
         run: dotnet restore DeliveryIntelligence.slnx
       - run: dotnet build DeliveryIntelligence.slnx --no-restore --configuration Release
@@ -98,7 +108,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
-          global-json-file: global.json
+          global-json-file: delivery-intelligent-platform/global.json
       - run: dotnet restore tests/Identity.IntegrationTests
       - name: Integration tests (Testcontainers SQL Server, the runner's Docker daemon)
         run: dotnet test tests/Identity.IntegrationTests --no-restore --configuration Release
@@ -125,7 +135,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: identity-api-image
-          path: identity-api.tar.gz
+          path: delivery-intelligent-platform/identity-api.tar.gz
           retention-days: 1
       - if: always()
         run: .github/scripts/job-summary.sh container-scan "${{ job.status }}"
@@ -156,6 +166,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: identity-api-image
+          path: delivery-intelligent-platform
       - name: Push the scanned image
         run: |
           docker load <identity-api.tar.gz
@@ -293,7 +304,7 @@ jobs:
         if: always()
         with:
           name: load-test-result
-          path: k6-summary.json
+          path: delivery-intelligent-platform/k6-summary.json
           if-no-files-found: ignore
       - if: always()
         run: .github/scripts/job-summary.sh load-test "${{ job.status }}"
