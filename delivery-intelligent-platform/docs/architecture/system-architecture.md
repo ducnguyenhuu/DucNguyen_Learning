@@ -42,9 +42,9 @@ ADR-007 (compute platform: Container Apps, per ADR-023).
 | Model abstraction | [ADR-009](../adr/ADR-009-capability-based-model-abstraction.md) |
 | Instrumentation | [ADR-011](../adr/ADR-011-opentelemetry.md) |
 | Infrastructure as code | [ADR-012](../adr/ADR-012-terraform.md) |
-| **Multi-tenancy model** | [ADR-013](../adr/ADR-013-multi-tenancy-model.md) |
+| **One organization per deployment** (multi-tenancy removed) | [ADR-025](../adr/ADR-025-single-organization.md) |
 | Bounded contexts, aggregates | [domain-model.md](domain-model.md) |
-| Security principles | `idea.md` §18 · Constitution Principles IV, V |
+| Security principles | `idea.md` §18 · Constitution Principle V |
 | Observability requirements | `idea.md` §20 · Constitution Principle VI |
 | Distributed-systems behaviour | `idea.md` §21 · Constitution Principle VII |
 | Testing strategy | `idea.md` §22 · Constitution Principle VII |
@@ -57,7 +57,7 @@ Four, per ADR-003 — **created by the slice that needs them, not up front.**
 
 | Service | Owns its database | Slice |
 |---------|------------------|-------|
-| Platform / Tenancy | tenants, users, memberships, invitations | 2 |
+| Identity | users, memberships, invitations, audit | 2 |
 | Integration | connections, sync state, raw payloads | 9 |
 | Delivery | canonical work data, health scores, risks | 11 |
 | AI Platform | capabilities, prompts, invocations, costs | 13 |

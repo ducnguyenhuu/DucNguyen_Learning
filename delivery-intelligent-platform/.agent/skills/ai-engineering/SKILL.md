@@ -72,7 +72,7 @@ answers is a system that sometimes confabulates.
 
 ## Cost accountability
 
-Every invocation records: tenant, capability, model, tokens, cost, latency, outcome
+Every invocation records: caller, capability, model, tokens, cost, latency, outcome
 (Principle IX). Without this, `idea.md` §11's measured model comparison and Gate 2's
 "cost per insight is known" are both impossible.
 

@@ -9,6 +9,11 @@ today. Roughly 700 commitments.
 **Purpose**: prove nothing in the blueprint is silently dropped, and surface where the
 blueprint contradicts itself or the roadmap.
 
+**Updated 2026-10-23 — multi-tenancy removed** ([ADR-025](adr/ADR-025-single-organization.md),
+`idea.md` v0.7, Constitution 2.0.0). Tenant-isolation commitments (§18, §19) are withdrawn,
+not dropped silently. U5 is resolved and U10 is moot (see each). Entries below that discuss
+tenant filters and tenant context record the reasoning at the time.
+
 ---
 
 ## Summary
@@ -32,7 +37,7 @@ U6 is partially resolved and U13 was added on 2026-08-09; both are dated in plac
 |---|---|
 | §7 no individual ranking, §46a Track D caveat | Constitution **Principle XI** |
 | §14 §15 service boundaries + data ownership | **Principle III**, **ADR-003** |
-| §18 §19 security and tenant isolation | **Principles IV, V**, **ADR-013** |
+| §18 §19 security (tenant isolation withdrawn in v0.7) | **Principle V**, **ADR-025** (supersedes ADR-013) |
 | §20 §21 observability, correlation, distributed behaviour | **Principle VI**, **ADR-011** |
 | §22 architecture governance, §23 pipeline gates | **Principle VII** |
 | §24 §27 §35 §39 §42 §56 human authority, authority hierarchy | **Principles I, II** |
@@ -113,7 +118,7 @@ Creating empty project folders now would be structure without content, and ADR-0
 deliberately introduces services *as their slices arrive*.
 
 **Recommendation:** S1 creates `src/` and `tests/` only. Service projects are created
-by the slice that needs them — Platform/Tenancy at S2, Integration at S9, AI Platform at
+by the slice that needs them — Platform/Tenancy (now Identity) at S2, Integration at S9, AI Platform at
 S13, Engineering never in the MVP. **Decision needed.**
 
 ### U5 — §16's event list does not contain the event roadmap S8 builds
@@ -130,7 +135,11 @@ not exist until S11, so using one would make S8 wait for Horizon 2 — but S8 ex
 prove messaging mechanics, and those need only *an* event. `TenantCreated` is the only
 event available in Horizon 1.
 
-**Recommendation:** add `TenantCreated` to §16's list. Low-risk. **Not yet applied.**
+**Recommendation:** add `TenantCreated` to §16's list. Low-risk.
+
+**Resolved 2026-10-23.** With tenancy removed (ADR-025), S8 builds `MemberInvited` instead,
+for the same reason — only Identity events exist in Horizon 1 — and `idea.md` v0.7 adds it to
+§16's list.
 
 ### U6 — §22 lists eight test types; only four are scheduled
 
@@ -209,6 +218,9 @@ Invitations.
 Documents in Track B, Teams and Projects as projections at S11, Policies never in the
 MVP. **No action; recorded for completeness.**
 
+**Moot since 2026-10-23:** v0.7 replaces §19's Tenant with an implicit organization
+(ADR-025). The sequencing above still holds.
+
 ### U11 — §57.5's Product B success measure is still undefined
 
 `idea.md` §57.5 records this as an open issue and proposes a candidate: *the proportion
@@ -236,7 +248,7 @@ gate. Each is recorded in its ADR's Compliance section:
 
 **FR-012 vs FR-027 — two different halves of the background-job gap.** `BackgroundJobGates.cs`'s
 FR-012 closes the *direct route*: a structural gate rejecting any background job whose
-constructor takes `TenancyDbContext` (or a persistence port) directly, so a job can no longer be
+constructor takes `IdentityDbContext` (or a persistence port) directly, so a job can no longer be
 written to sidestep tenant context by construction. FR-027 (already done, commit `3aebea6`)
 closes the *underlying property* instead: a runtime backstop ensuring any insert made with no
 tenant context set simply fails, regardless of which code path — job, handler, or otherwise —
@@ -276,9 +288,10 @@ the blueprint from quietly contradicting the running system. **Not yet applied.*
 
 Two consequences to carry forward rather than rediscover:
 
-- **Cardinality:** New Relic's limits apply to metrics, not spans. `tenant.id` belongs on spans
-  and logs, **never as a metric dimension** — otherwise Principle VI's tenant-annotation
-  requirement collides with a hard per-day limit as tenant count grows.
+- **Cardinality:** New Relic's limits apply to metrics, not spans. `user.id` belongs on spans
+  and logs, **never as a metric dimension** — otherwise Principle VI's identity-annotation
+  requirement collides with a hard per-day limit as the user count grows. (Written for
+  `tenant.id`, which no longer exists since ADR-025; the rule is unchanged.)
 - **S4 gains, not loses.** App Insights needed an Azure subscription, so ADR-011 had accepted a
   local collector for S4's proof. New Relic's free tier means S4 can run against a real backend
   two slices earlier than planned.

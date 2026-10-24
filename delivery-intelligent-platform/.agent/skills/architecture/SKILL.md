@@ -21,7 +21,7 @@ do in this repository, because it makes the documentation lie.
 
 | Context | Owns | Slice |
 |---------|------|-------|
-| Tenancy | Tenant, User, Membership, Invitation | 2 |
+| Identity | User, Membership, Invitation | 2 |
 | Integration | Connection, SyncRun, RawPayload | 9 |
 | Delivery | work projections, Risk, HealthScore | 11 |
 | AI Platform | Capability, Prompt, Invocation, Cost | 13 |
@@ -33,8 +33,8 @@ advance — that is structure without content and it rots.
 
 1. **Each context owns its data exclusively.** No shared tables, no shared schemas, no
    reading another context's store. No exceptions.
-2. **Cross-context references are values, not joins.** Hold a `TenantId`; never join to
-   the Tenancy database.
+2. **Cross-context references are values, not joins.** Hold a `UserId`; never join to
+   the Identity database.
 3. **The domain layer depends on nothing outward.** Not on EF Core, not on Azure SDKs,
    not on ASP.NET. If the domain needs something from infrastructure, invert it.
 4. **A new service needs justification** by bounded context, business ownership, data
@@ -104,4 +104,5 @@ Jira. When tempted, re-read `idea.md` §3 and the classification table in domain
 - **Duplicating an ingested entity so users can edit it.** If they need to edit it, they
   edit it in Jira.
 - **Anemic domain with all logic in services.** Invariants belong on the aggregate — a
-  Tenant that can lose its last administrator is a broken model, not a service bug.
+  rule that lets the organization lose its last administrator, enforced only in a service,
+  is a broken model, not a service bug.

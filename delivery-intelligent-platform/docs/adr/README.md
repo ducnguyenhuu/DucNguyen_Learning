@@ -58,17 +58,19 @@ what was decided and why it changed is the point of the record.
 | 010 | RAG | *Not yet written* — Horizon 3, Track B |  |
 | [011](ADR-011-opentelemetry.md) | OpenTelemetry as the instrumentation standard | Accepted — backend clause refined by 018 | Principle VI |
 | [012](ADR-012-terraform.md) | Terraform for all infrastructure | Accepted | Constraints |
-| [013](ADR-013-multi-tenancy-model.md) | Shared infrastructure with logical tenant isolation | Accepted | Principle IV |
+| [013](ADR-013-multi-tenancy-model.md) | Shared infrastructure with logical tenant isolation | Superseded by 025 | — |
 | 014 | AI governance | *Not yet written* — Horizon 2, alongside roadmap S13–S15 |  |
 | 015 | AI-assisted development methodology | Superseded in advance by the Constitution, which is the operative document |  |
 | [016](ADR-016-agent-neutral-skill-location.md) | Agent-neutral skill location | Accepted | idea.md §38 |
-| [017](ADR-017-tenant-context-resolution.md) | Tenant context from a validated route selector | Accepted | Principle IV |
+| [017](ADR-017-tenant-context-resolution.md) | Tenant context from a validated route selector | Superseded by 025 | — |
 | [018](ADR-018-new-relic-telemetry-backend.md) | New Relic as the default telemetry backend | Accepted | Principle VI |
-| [019](ADR-019-single-entra-tenant-in-horizon-1.md) | One Entra tenant in Horizon 1; multi-directory sign-in deferred | Accepted | Principle IV, X |
+| [019](ADR-019-single-entra-tenant-in-horizon-1.md) | One Entra tenant in Horizon 1; multi-directory sign-in deferred | Accepted — annotated by 025 | Principle X |
 | [020](ADR-020-ef-core-rowversion-pinning-requires-explicit-modified-state.md) | Pinning a RowVersion for optimistic concurrency requires explicit EntityState.Modified | Accepted | FR-021 |
 | [021](ADR-021-application-layer-patterns-at-first-consumer.md) | Application-layer pattern machinery adopted at its first real consumer | Accepted | Principle IX, X |
-| [022](ADR-022-application-identities-as-tenant-members.md) | A named application identity may be a tenant member, under an explicit token policy | Accepted | Principle I, IV, V |
+| [022](ADR-022-application-identities-as-tenant-members.md) | A named application identity may be a tenant member, under an explicit token policy | Accepted — point 4 refined by 025 | Principle I, V |
 | [023](ADR-023-azure-container-apps-for-compute.md) | Azure Container Apps as the compute platform, in place of AKS | Accepted | Constraints |
+| [024](ADR-024-remove-api-management.md) | Remove API Management; Front Door fronts Container Apps directly | Accepted | Constraints |
+| [025](ADR-025-single-organization.md) | One organization per deployment; multi-tenancy removed | Accepted | Principle V, X |
 
 ### Deliberately unwritten
 

@@ -1,6 +1,6 @@
 # ADR-013: Shared infrastructure with logical tenant isolation
 
-**Status**: Accepted
+**Status**: Superseded by [ADR-025](ADR-025-single-organization.md) (2026-10-23)
 **Date**: 2026-08-08
 **Deciders**: Project owner
 **Relates to**: Constitution → Principle IV · `idea.md` §19, §18 · roadmap S2 · `specs/001-auth-tenant-management` Assumption 2

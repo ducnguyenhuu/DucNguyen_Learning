@@ -11,8 +11,10 @@ current. Work only on that slice.
 ## The rules that override everything
 
 The [Constitution](.specify/memory/constitution.md) is the engineering law of this
-repository — 11 principles, all binding. Read it before your first change. The four
-most likely to be violated by accident:
+repository — 11 principles, ten binding (Principle IV, tenant isolation, was retired in
+2.0.0 by [ADR-025](docs/adr/ADR-025-single-organization.md): one deployment serves one
+organization). Read it before your first change. The four most likely to be violated by
+accident:
 
 1. **Principle I — humans own intent, architecture, risk, and authorization.** Do not
    expand scope beyond the task. If the work seems to need more, stop and ask. Never
@@ -21,8 +23,8 @@ most likely to be violated by accident:
    Constitution → architecture → ADRs → feature spec → plan → code → skills. A skill
    never overrides an ADR. **If an ADR looks wrong, propose a change; do not work
    around it.**
-3. **Principle IV — tenant isolation.** Every tenant-scoped operation resolves to
-   exactly one tenant, and cross-tenant access must be impossible, not unlikely.
+3. **Principle V — secure by default.** Every member-only route resolves the caller's
+   membership from the database, never from a token claim, and refuses non-members.
 4. **Principle VIII — deterministic first.** Rule out a deterministic solution before
    reaching for AI. Scoring and thresholds are arithmetic; AI explains them.
 
@@ -63,13 +65,12 @@ nothing a reader can resolve or check.
 Keep the reasoning, drop the citation:
 
 ```csharp
-// Wrong — T027 is unresolvable once the slice is archived
-// Sets CurrentTenantId first because the interceptor (T027) stamps Added entities.
+// Wrong — T075 is unresolvable once the slice is archived
+// Takes the lock first because of the race found in T075.
 
 // Right — same reasoning, no dangling reference
-// Set the tenant context before saving: the save interceptor stamps every newly added
-// tenant-owned entity with whatever ambient tenant is current, so without this the new
-// membership would be written against the wrong tenant.
+// Take the lock before counting administrators: two concurrent removals could otherwise
+// both see two administrators and both succeed, leaving none.
 ```
 
 Task lists in `specs/*/tasks.md` **do** carry these identifiers — that is their job. They
@@ -82,8 +83,8 @@ the code compiles, and not when it works on the happy path.
 
 This project is research-first (`idea.md` §59.2): **a technology is not proven until it
 has been driven under failure conditions.** Service Bus needs a duplicate handled and a
-dead letter replayed. Multi-tenancy needs a test that actually caught a cross-tenant
-read. Demonstrating the happy path proves nothing worth knowing.
+dead letter replayed. Authorization needs a test that actually caught a non-member and a
+non-administrator being refused. Demonstrating the happy path proves nothing worth knowing.
 
 ## Reporting
 
@@ -132,10 +133,10 @@ running locally — is specified *and planned*:
 [quickstart](specs/001-auth-tenant-management/quickstart.md).
 `/speckit.tasks` is next. **No application code exists yet.**
 
-Before writing S2 code, read
-[ADR-017](docs/adr/ADR-017-tenant-context-resolution.md) — tenant context comes from a
-**validated route selector**, and it enumerates the only three operations permitted to run
-without tenant context. A fourth would need the ADR amended.
+**Multi-tenancy was removed after S7** ([ADR-025](docs/adr/ADR-025-single-organization.md)).
+The service is `src/Identity`; one deployment serves one organization. Specs 001–006 still
+describe tenants and are kept as history — read ADR-025 first for how their requirements map
+to the current code.
 
 Open decisions are recorded in
 [docs/traceability.md](docs/traceability.md#open-decisions). They need a human, not an
@@ -149,10 +150,10 @@ security test scheduling remain open.
 [data model](specs/003-observability/data-model.md) ·
 [quickstart](specs/003-observability/quickstart.md). It shipped OpenTelemetry
 traces/metrics/logs correlated by a W3C `traceparent`-propagated identifier (present on
-every span and structured log line for a request), tenant/user enrichment on spans and
-logs only (never as a metric dimension, per ADR-018's cardinality concern), `/health/live`
+every span and structured log line for a request), user enrichment on spans and logs only
+(never as a metric dimension, per ADR-018's cardinality concern), `/health/live`
 and `/health/ready` health checks reflecting real dependency reachability, a DB-trigger-
-enforced append-only audit log for tenant-mutating actions and authorization refusals, a
+enforced append-only audit log for membership changes and authorization refusals, a
 local OTel Collector (`deploy/otel-collector/`) for offline development, and a New Relic
 OTLP backend switch that is configuration-only (`Observability:OtlpEndpoint` /
 `Observability:NewRelicApiKey`, read in `OpenTelemetryExtensions.cs`) — no vendor SDK/agent
@@ -190,7 +191,7 @@ is the single agent instruction file — there is no `CLAUDE.md`, deliberately.*
 - SQL Server 2022 (container) (001-auth-tenant-management)
 - No new dependencies — architecture gates use .csproj parsing, source scanning, and reflection; NetArchTest rejected on evidence, see specs/002-architecture-tests/research.md R1 (002-architecture-tests)
 - OpenTelemetry SDK + OTLP exporter (never a vendor SDK/agent, per ADR-011/ADR-018); ASP.NET Core health checks; a DB-trigger-enforced append-only AuditEntries table (003-observability)
-- Multi-stage container image on `aspnet:10.0-noble-chiseled-extra` (non-root uid 1654, no shell; `-extra` required because `Microsoft.Data.SqlClient` needs ICU/tzdata, see research.md R1); local `compose.yaml` of api + SQL Server 2022 + the existing OTel Collector; Trivy for image secret and vulnerability scanning; a tiny `Tenancy.HealthProbe` executable because chiseled images have no `curl` (004-containerization)
+- Multi-stage container image on `aspnet:10.0-noble-chiseled-extra` (non-root uid 1654, no shell; `-extra` required because `Microsoft.Data.SqlClient` needs ICU/tzdata, see research.md R1); local `compose.yaml` of api + SQL Server 2022 + the existing OTel Collector; Trivy for image secret and vulnerability scanning; a tiny `Identity.HealthProbe` executable because chiseled images have no `curl` (004-containerization)
 - HCL (Terraform ≥ 1.9) for infrastructure; Bash for orchestration scripts + azurerm provider (~> 4.0), azuread provider (~> 3.0) (005-terraform-azure)
 - Azure Storage Account (Terraform remote state); Azure SQL (application data) (005-terraform-azure)
 - GitHub Actions workflow YAML; Bash for gate scripts; JavaScript (k6) for the load test; HCL (Terraform ≥ 1.9) for identities and repository configuration; C# 14 / .NET 10 for the authorization-policy change + GitHub Actions (`actions/checkout`, `actions/setup-dotnet`, `azure/login`, `grafana/setup-k6-action`), gitleaks, Trivy (existing S5 scripts), NuGet Audit (built into the .NET SDK), Terraform providers `azurerm` ~> 4.0, `azuread` ~> 3.0, `integrations/github` ~> 6.0 (006-ci-cd)

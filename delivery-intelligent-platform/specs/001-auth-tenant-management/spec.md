@@ -1,5 +1,7 @@
 # Feature Specification: Authentication & Tenant Management
 
+> **Historical — multi-tenancy was removed on 2026-10-23** ([ADR-025](../../docs/adr/ADR-025-single-organization.md)). This spec describes the system as built at the time and is not rewritten. Where it says tenant, the current code has one organization per deployment, and the service is `src/Identity`. Retired requirements: FR-006 to FR-010, SC-004, SC-005. FR-005 now means the first user bootstraps as administrator, and SC-003 is measured on `GET /me`. Routes moved from `/tenants/{tenantId}/…` to `/members` and `/invitations`.
+
 **Feature Branch**: `001-auth-tenant-management`
 **Created**: 2026-08-08
 **Narrowed**: 2026-08-08 — scope reduced to slice S2 (see Revision Note)

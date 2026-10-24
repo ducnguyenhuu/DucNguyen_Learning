@@ -1,6 +1,6 @@
 # ADR-017: Tenant context is resolved from a validated route selector
 
-**Status**: **Accepted**
+**Status**: Superseded by [ADR-025](ADR-025-single-organization.md) (2026-10-23)
 **Date**: 2026-08-09
 **Deciders**: Project owner
 **Relates to**: Constitution → Principle IV · ADR-013 · `specs/001-auth-tenant-management` FR-007, FR-009, FR-010 · roadmap S2

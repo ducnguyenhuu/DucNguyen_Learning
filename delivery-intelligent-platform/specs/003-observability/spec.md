@@ -1,5 +1,7 @@
 # Feature Specification: Observability
 
+> **Historical — multi-tenancy was removed on 2026-10-23** ([ADR-025](../../docs/adr/ADR-025-single-organization.md)). This spec describes the system as built at the time and is not rewritten. Where it says tenant, the current code has one organization per deployment, and the service is `src/Identity`. `tenant.id` enrichment no longer exists; spans and logs carry `user.id`.
+
 **Feature Branch**: `003-observability`
 **Created**: 2026-08-22
 **Status**: Draft
