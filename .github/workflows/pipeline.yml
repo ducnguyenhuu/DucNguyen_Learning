@@ -111,7 +111,9 @@ jobs:
           global-json-file: delivery-intelligent-platform/global.json
       - run: dotnet restore tests/Identity.IntegrationTests
       - name: Integration tests (Testcontainers SQL Server, the runner's Docker daemon)
-        run: dotnet test tests/Identity.IntegrationTests --no-restore --configuration Release
+        # `dotnet run` for the same reason as the architecture tests: it names each failing test
+        # on the console, where `dotnet test` writes it only to a log file.
+        run: dotnet run --project tests/Identity.IntegrationTests --no-restore --configuration Release
       - if: always()
         run: .github/scripts/job-summary.sh integration-test "${{ job.status }}"
         env:
@@ -121,7 +123,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: aquasecurity/setup-trivy@v0.2.3
+      - uses: aquasecurity/setup-trivy@v0.2.6
         with:
           version: v0.74.0
       - name: Build the release candidate once
