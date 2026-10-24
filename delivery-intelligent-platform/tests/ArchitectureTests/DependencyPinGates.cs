@@ -100,7 +100,7 @@ public sealed class DependencyPinGates
     };
 
     // Directory names that would indicate an AI Platform capability exists under src/. Mirrors
-    // CapabilityBoundaryGates.NoCapabilityOtherThanTenancyExistsUnderSrc and
+    // CapabilityBoundaryGates.NoCapabilityOtherThanIdentityExistsUnderSrc and
     // BackgroundJobGates.NoBackgroundJobTypeExistsUnderSrc: a documented snapshot of "does not
     // exist yet," not an enforced naming rule.
     private static readonly string[] AiPlatformCapabilityDirectoryNamePatterns =

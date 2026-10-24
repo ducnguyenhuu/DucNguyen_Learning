@@ -18,10 +18,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/Tenancy/Tenancy.Domain/Tenancy.Domain.csproj" />
-    <ProjectReference Include="../../src/Tenancy/Tenancy.Application/Tenancy.Application.csproj" />
-    <ProjectReference Include="../../src/Tenancy/Tenancy.Infrastructure/Tenancy.Infrastructure.csproj" />
-    <ProjectReference Include="../../src/Tenancy/Tenancy.Api/Tenancy.Api.csproj" />
+    <ProjectReference Include="../../src/Identity/Identity.Domain/Identity.Domain.csproj" />
+    <ProjectReference Include="../../src/Identity/Identity.Application/Identity.Application.csproj" />
+    <ProjectReference Include="../../src/Identity/Identity.Infrastructure/Identity.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/Identity/Identity.Api/Identity.Api.csproj" />
   </ItemGroup>
 
 </Project>

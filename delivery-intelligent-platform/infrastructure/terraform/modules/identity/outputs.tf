@@ -1,13 +1,13 @@
-output "tenancy_api_id" {
-  value = azurerm_user_assigned_identity.tenancy_api.id
+output "identity_api_id" {
+  value = azurerm_user_assigned_identity.identity_api.id
 }
 
-output "tenancy_api_principal_id" {
-  value = azurerm_user_assigned_identity.tenancy_api.principal_id
+output "identity_api_principal_id" {
+  value = azurerm_user_assigned_identity.identity_api.principal_id
 }
 
-output "tenancy_api_client_id" {
-  value = azurerm_user_assigned_identity.tenancy_api.client_id
+output "identity_api_client_id" {
+  value = azurerm_user_assigned_identity.identity_api.client_id
 }
 
 output "otel_collector_id" {

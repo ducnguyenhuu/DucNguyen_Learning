@@ -9,7 +9,7 @@ namespace ArchitectureTests;
 /// <summary>
 /// Verifies that spec 001's declared requirement-coverage claims — the
 /// <see cref="CoversRequirementAttribute"/> usages scattered across
-/// <c>Tenancy.UnitTests</c> and <c>Tenancy.IntegrationTests</c> — stay true over time: every one
+/// <c>Identity.UnitTests</c> and <c>Identity.IntegrationTests</c> — stay true over time: every one
 /// of spec 001's twenty-six functional requirements still has at least one declaring test, and no
 /// declaration names a requirement identifier that does not actually exist in spec 001.
 /// </summary>
@@ -45,7 +45,7 @@ namespace ArchitectureTests;
 /// </para>
 /// <para>
 /// <b>Why two sibling test assemblies are loaded by file path rather than by project
-/// reference.</b> Both <c>Tenancy.UnitTests</c> and <c>Tenancy.IntegrationTests</c> carry a
+/// reference.</b> Both <c>Identity.UnitTests</c> and <c>Identity.IntegrationTests</c> carry a
 /// <c>ProjectReference</c> to this project (added so their test methods can use
 /// <see cref="CoversRequirementAttribute"/> itself), so a <c>ProjectReference</c> in the other
 /// direction would be circular. Instead, this gate loads their already-built output assemblies
@@ -151,10 +151,10 @@ public sealed class RequirementCoverageGates
 
         var assemblyPaths = new[]
         {
-            Path.Combine(repoRoot, "tests", "Tenancy.UnitTests", "bin", configuration,
-                frameworkFolderName, "Tenancy.UnitTests.dll"),
-            Path.Combine(repoRoot, "tests", "Tenancy.IntegrationTests", "bin", configuration,
-                frameworkFolderName, "Tenancy.IntegrationTests.dll"),
+            Path.Combine(repoRoot, "tests", "Identity.UnitTests", "bin", configuration,
+                frameworkFolderName, "Identity.UnitTests.dll"),
+            Path.Combine(repoRoot, "tests", "Identity.IntegrationTests", "bin", configuration,
+                frameworkFolderName, "Identity.IntegrationTests.dll"),
         };
 
         var coverages = new List<DeclaredCoverage>();
@@ -168,7 +168,7 @@ public sealed class RequirementCoverageGates
                 throw new InvalidOperationException(
                     $"Expected to find a built test assembly at {assemblyPath}, but it does " +
                     "not exist. Build the whole solution (or at least " +
-                    "Tenancy.UnitTests and Tenancy.IntegrationTests) before running this gate.");
+                    "Identity.UnitTests and Identity.IntegrationTests) before running this gate.");
             }
 
             assemblies.Add(Assembly.LoadFrom(assemblyPath));

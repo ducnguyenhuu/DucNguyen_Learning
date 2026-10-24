@@ -97,12 +97,12 @@ public sealed class FailureMessageContentTests
     {
         var pattern = GetPrivateStaticRegex(typeof(BackgroundJobGates), "ParameterTypePattern");
 
-        var match = pattern.Match("TenancyDbContext db");
+        var match = pattern.Match("IdentityDbContext db");
 
         match.Success.Should().BeTrue(
-            "a constructor parameter typed TenancyDbContext must be captured so the gate's " +
+            "a constructor parameter typed IdentityDbContext must be captured so the gate's " +
             "failure message can name it as the offending dependency");
-        match.Groups["type"].Value.Trim().Should().Be("TenancyDbContext",
+        match.Groups["type"].Value.Trim().Should().Be("IdentityDbContext",
             "this is the exact substring the gate's failure message interpolates for the " +
             "offending parameter — not a generic placeholder");
     }
@@ -112,13 +112,13 @@ public sealed class FailureMessageContentTests
     {
         var pattern = GetPrivateStaticRegex(typeof(BackgroundJobGates), "ParameterTypePattern");
 
-        var matches = pattern.Matches("TenancyDbContext db, ILogger<SyncWorker> logger");
+        var matches = pattern.Matches("IdentityDbContext db, ILogger<SyncWorker> logger");
 
         matches.Count.Should().Be(2,
             "a constructor with more than one parameter must have every parameter captured, " +
             "not just the first — otherwise an offending second (or later) parameter would " +
             "never be named in the gate's failure message");
-        matches[0].Groups["type"].Value.Trim().Should().Be("TenancyDbContext");
+        matches[0].Groups["type"].Value.Trim().Should().Be("IdentityDbContext");
         matches[1].Groups["type"].Value.Trim().Should().Be("ILogger<SyncWorker>");
     }
 }

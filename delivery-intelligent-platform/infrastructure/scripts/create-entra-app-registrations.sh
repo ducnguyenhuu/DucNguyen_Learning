@@ -211,7 +211,7 @@ $(printf '\033[32mâœ“ Done.\033[0m') Neither registration has a client secret â€
 
 Configure the API (from the repo root, once src/ exists):
 
-  cd src/Tenancy/Tenancy.Api
+  cd src/Identity/Identity.Api
   dotnet user-secrets init
   dotnet user-secrets set "AzureAd:TenantId" "$TENANT_ID"
   dotnet user-secrets set "AzureAd:ClientId" "$API_APP_ID"

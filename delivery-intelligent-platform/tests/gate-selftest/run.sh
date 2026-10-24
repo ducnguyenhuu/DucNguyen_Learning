@@ -43,13 +43,13 @@ git_scratch() {
 }
 
 gate_architecture() {
-    # Tenancy.Domain taking on an ORM dependency breaks the layering rule.
+    # Identity.Domain taking on an ORM dependency breaks the layering rule.
     local copy="${SCRATCH}/architecture"
     mkdir -p "${copy}"
     rsync -a --exclude=.git --exclude=bin --exclude=obj "${REPO_ROOT}/" "${copy}/"
     sed -i.bak 's#</Project>#  <ItemGroup><PackageReference Include="Microsoft.EntityFrameworkCore" /></ItemGroup>\n</Project>#' \
-        "${copy}/src/Tenancy/Tenancy.Domain/Tenancy.Domain.csproj"
-    expect_rejected architecture "Tenancy.Domain must not depend" \
+        "${copy}/src/Identity/Identity.Domain/Identity.Domain.csproj"
+    expect_rejected architecture "Identity.Domain must not depend" \
         dotnet run --project "${copy}/tests/ArchitectureTests"
 }
 

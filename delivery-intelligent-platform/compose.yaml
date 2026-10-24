@@ -44,7 +44,7 @@ services:
     # would be too short.
     stop_grace_period: 45s
     environment:
-      ConnectionStrings__TenancyDb: Server=sqlserver;Database=TenancyDb;User Id=sa;Password=${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD is required — copy .env.example to .env and set it};Encrypt=True;TrustServerCertificate=True
+      ConnectionStrings__IdentityDb: Server=sqlserver;Database=IdentityDb;User Id=sa;Password=${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD is required — copy .env.example to .env and set it};Encrypt=True;TrustServerCertificate=True
       AzureAd__Instance: https://login.microsoftonline.com/
       AzureAd__TenantId: ${AZURE_AD_TENANT_ID:?AZURE_AD_TENANT_ID is required for authenticated scenarios — copy .env.example to .env and set it}
       AzureAd__ClientId: ${AZURE_AD_CLIENT_ID:?AZURE_AD_CLIENT_ID is required for authenticated scenarios — copy .env.example to .env and set it}
@@ -53,7 +53,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       Https__RedirectionEnabled: "false"
       # No new configuration key: this composed stack sets no new key beyond what
-      # src/Tenancy/Tenancy.Api already reads via IConfiguration (research.md R3, R5).
+      # src/Identity/Identity.Api already reads via IConfiguration (research.md R3, R5).
 
 volumes:
   sqlserver-data:

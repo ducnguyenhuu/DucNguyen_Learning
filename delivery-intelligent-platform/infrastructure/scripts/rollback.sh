@@ -24,7 +24,7 @@ ACR="$(terraform -chdir="${TERRAFORM_DIR}" output -raw acr_login_server)"
 # Terraform ignores the image tag (see modules/containerapp/app.tf), so recovery is an
 # image update on the app, the same mechanism as a normal deploy.
 echo "Redeploying known-good tag ${GOOD_TAG}..."
-az containerapp update --name "${APP}" --resource-group "${RG}" --image "${ACR}/tenancy-api:${GOOD_TAG}"
+az containerapp update --name "${APP}" --resource-group "${RG}" --image "${ACR}/identity-api:${GOOD_TAG}"
 
 echo "Revisions now:"
 az containerapp revision list --name "${APP}" --resource-group "${RG}" \

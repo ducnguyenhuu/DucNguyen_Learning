@@ -8,7 +8,7 @@ resource "azurerm_key_vault_secret" "new_relic_licence_key" {
   key_vault_id = azurerm_key_vault.main.id
 
   depends_on = [
-    azurerm_role_assignment.tenancy_api_secrets_user,
+    azurerm_role_assignment.identity_api_secrets_user,
     azurerm_role_assignment.otel_collector_secrets_user,
   ]
 }

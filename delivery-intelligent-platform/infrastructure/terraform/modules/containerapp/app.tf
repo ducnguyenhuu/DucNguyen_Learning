@@ -1,10 +1,10 @@
-# One container app, two containers (ADR-023): the Tenancy API and the OTel Collector as a
+# One container app, two containers (ADR-023): the Identity API and the OTel Collector as a
 # sidecar. Containers in a replica share a network namespace, so the API exports OTLP to
 # localhost. Single revision mode: a new revision only takes traffic once its probes pass,
 # and the previous revision keeps serving until then — this is what makes a broken rollout
 # invisible to callers (FR-014, US4).
 resource "azurerm_container_app" "api" {
-  name                         = "ca-tenancy-api-${var.environment}"
+  name                         = "ca-identity-api-${var.environment}"
   resource_group_name          = var.resource_group_name
   container_app_environment_id = azurerm_container_app_environment.main.id
   revision_mode                = "Single"
@@ -12,12 +12,12 @@ resource "azurerm_container_app" "api" {
 
   identity {
     type         = "UserAssigned"
-    identity_ids = [var.tenancy_api_identity_id, var.otel_collector_identity_id]
+    identity_ids = [var.identity_api_identity_id, var.otel_collector_identity_id]
   }
 
   registry {
     server   = var.acr_login_server
-    identity = var.tenancy_api_identity_id
+    identity = var.identity_api_identity_id
   }
 
   # Resolved by the platform from Key Vault with the collector's identity; mounted below as
@@ -50,8 +50,8 @@ resource "azurerm_container_app" "api" {
     }
 
     container {
-      name   = "tenancy-api"
-      image  = "${var.acr_login_server}/tenancy-api:${var.api_image_tag}"
+      name   = "identity-api"
+      image  = "${var.acr_login_server}/identity-api:${var.api_image_tag}"
       cpu    = 0.5
       memory = "1Gi"
 
@@ -75,7 +75,7 @@ resource "azurerm_container_app" "api" {
       }
       env {
         name  = "AZURE_CLIENT_ID"
-        value = var.tenancy_api_client_id
+        value = var.identity_api_client_id
       }
       env {
         name  = "OTEL_EXPORTER_OTLP_ENDPOINT"

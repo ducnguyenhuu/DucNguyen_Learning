@@ -12,7 +12,7 @@ namespace ArchitectureTests;
 /// subclass) is a singleton with no request scope to resolve tenant context from. ADR-013 names
 /// this as the most likely place for a global-filter bypass to happen, and its own Consequences
 /// section lists closing this as a known weakness deferred to this roadmap slice. This gate closes
-/// the most direct route: a job whose constructor takes <c>TenancyDbContext</c> or a
+/// the most direct route: a job whose constructor takes <c>IdentityDbContext</c> or a
 /// persistence-port interface directly, bypassing whatever request-scoped tenant resolution would
 /// otherwise apply.
 /// </summary>
@@ -49,7 +49,7 @@ public sealed class BackgroundJobGates
     private const string HostedServiceInterface = "IHostedService";
 
     // Matches a constructor declaration for a given class name, capturing its parameter list, so
-    // each parameter's declared type can be checked against TenancyDbContext and the known
+    // each parameter's declared type can be checked against IdentityDbContext and the known
     // persistence-port set. Text-based like the class-declaration scan above: this looks for
     // "public ClassName(...)" (constructors are conventionally public in this codebase).
     private static Regex ConstructorPattern(string className) => new(
@@ -64,7 +64,7 @@ public sealed class BackgroundJobGates
         options: RegexOptions.Compiled);
 
     [Fact]
-    public void BackgroundJobs_DoNotTakeTenancyDbContextOrAPersistencePortDirectly()
+    public void BackgroundJobs_DoNotTakeIdentityDbContextOrAPersistencePortDirectly()
     {
         var repoRoot = ProjectFile.GetRepoRoot();
         var sourceRoot = Path.Combine(repoRoot, "src");
@@ -76,7 +76,7 @@ public sealed class BackgroundJobGates
             .ToArray();
 
         violations.Should().BeEmpty(
-            "a background job's constructor must not depend on TenancyDbContext or a " +
+            "a background job's constructor must not depend on IdentityDbContext or a " +
             "persistence port directly: it runs as a singleton with no request-scoped tenant " +
             "context to rely on, and ADR-013 names this as the most likely route for a " +
             "cross-tenant leak. ADR-013 explains why this matters but does not yet prescribe a " +
@@ -92,7 +92,7 @@ public sealed class BackgroundJobGates
     [Fact]
     public void NoBackgroundJobTypeExistsUnderSrc()
     {
-        // Mirrors CapabilityBoundaryGates.NoCapabilityOtherThanTenancyExistsUnderSrc: this pins
+        // Mirrors CapabilityBoundaryGates.NoCapabilityOtherThanIdentityExistsUnderSrc: this pins
         // down that today's codebase has zero IHostedService/BackgroundService types at all, so
         // the gate above passes vacuously rather than because every job happens to be written
         // correctly. If this fails because a background job was legitimately added, that is
@@ -157,7 +157,7 @@ public sealed class BackgroundJobGates
             var type = parameterMatch.Groups["type"].Value.Trim();
             var simpleTypeName = type.Split('.').Last();
 
-            if (simpleTypeName == "TenancyDbContext" || knownPorts.Contains(simpleTypeName))
+            if (simpleTypeName == "IdentityDbContext" || knownPorts.Contains(simpleTypeName))
             {
                 yield return type;
             }

@@ -55,7 +55,7 @@ public sealed class RawSqlGates
     private static readonly AllowListEntry[] AllowList =
     {
         new(
-            "src/Tenancy/Tenancy.Infrastructure/Persistence/MembershipRepository.cs",
+            "src/Identity/Identity.Infrastructure/Persistence/MembershipRepository.cs",
             "RemoveMembershipAsync",
             "Takes an exclusive UPDLOCK/HOLDLOCK row lock on the tenant row before counting " +
             "active administrators, so a second concurrent removal targeting the same tenant " +

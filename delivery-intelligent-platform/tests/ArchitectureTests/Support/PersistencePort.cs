@@ -5,7 +5,7 @@ namespace ArchitectureTests.Support;
 /// <summary>
 /// Mechanically determines the set of "persistence port" interfaces — interfaces whose
 /// implementing class lives under a directory path containing a <c>Persistence</c> segment
-/// (e.g. <c>Tenancy.Infrastructure/Persistence/UserRepository.cs</c> implementing
+/// (e.g. <c>Identity.Infrastructure/Persistence/UserRepository.cs</c> implementing
 /// <c>IUserRepository</c>).
 /// </summary>
 /// <remarks>

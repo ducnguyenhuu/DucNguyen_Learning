@@ -23,21 +23,21 @@ namespace ArchitectureTests;
 /// </para>
 /// <list type="bullet">
 /// <item><description>
-/// <c>src/Tenancy/Tenancy.Infrastructure/Persistence/InvitationRepository.cs:67</c>, inside
+/// <c>src/Identity/Identity.Infrastructure/Persistence/InvitationRepository.cs:67</c>, inside
 /// <c>FindByTokenHashAsync</c> — looks up an invitation by its bare token hash before any tenant
 /// is known.
 /// </description></item>
 /// <item><description>
-/// <c>src/Tenancy/Tenancy.Infrastructure/Persistence/MembershipRepository.cs:82</c>, inside
+/// <c>src/Identity/Identity.Infrastructure/Persistence/MembershipRepository.cs:82</c>, inside
 /// <c>RemoveMembershipAsync</c> — discovers a membership's owning tenant by id alone.
 /// </description></item>
 /// <item><description>
-/// <c>src/Tenancy/Tenancy.Infrastructure/Persistence/MembershipRepository.cs:105</c>, also inside
+/// <c>src/Identity/Identity.Infrastructure/Persistence/MembershipRepository.cs:105</c>, also inside
 /// <c>RemoveMembershipAsync</c> — a second, later call in the same method, after the tenant has
 /// been discovered and set explicitly.
 /// </description></item>
 /// <item><description>
-/// <c>src/Tenancy/Tenancy.Infrastructure/Persistence/Audited/MembershipDirectory.cs:40</c>, inside
+/// <c>src/Identity/Identity.Infrastructure/Persistence/Audited/MembershipDirectory.cs:40</c>, inside
 /// <c>GetMembershipsForUserCoreAsync</c> — the sanctioned cross-tenant listing used by
 /// <c>GET /tenants</c>, paired with a mandatory <c>UserId</c> predicate in the same query.
 /// </description></item>

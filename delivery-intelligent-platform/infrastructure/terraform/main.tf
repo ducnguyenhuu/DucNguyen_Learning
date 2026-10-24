@@ -59,7 +59,7 @@ module "keyvault" {
   tenant_id                    = var.tenant_id
   kv_pe_subnet_id              = module.networking.kv_pe_subnet_id
   keyvault_private_dns_zone_id = module.networking.keyvault_private_dns_zone_id
-  tenancy_api_principal_id     = module.identity.tenancy_api_principal_id
+  identity_api_principal_id     = module.identity.identity_api_principal_id
   otel_collector_principal_id  = module.identity.otel_collector_principal_id
   new_relic_licence_key        = var.new_relic_licence_key
   tags                         = var.tags
@@ -87,7 +87,7 @@ module "acr" {
   tags                = var.tags
 }
 
-# The Tenancy API and its OTel Collector sidecar (ADR-023). Needs an image already in ACR,
+# The Identity API and its OTel Collector sidecar (ADR-023). Needs an image already in ACR,
 # so the first-ever apply is two-step: `terraform apply -target=module.acr`, then
 # deploy.sh builds and pushes the image and runs the full apply with api_image_tag set.
 module "containerapp" {
@@ -102,9 +102,9 @@ module "containerapp" {
   api_image_tag              = var.api_image_tag
   api_min_replicas           = var.api_min_replicas
   api_max_replicas           = var.api_max_replicas
-  tenancy_api_identity_id    = module.identity.tenancy_api_id
-  tenancy_api_principal_id   = module.identity.tenancy_api_principal_id
-  tenancy_api_client_id      = module.identity.tenancy_api_client_id
+  identity_api_identity_id    = module.identity.identity_api_id
+  identity_api_principal_id   = module.identity.identity_api_principal_id
+  identity_api_client_id      = module.identity.identity_api_client_id
   otel_collector_identity_id = module.identity.otel_collector_id
   sql_server_fqdn            = module.sql.server_fqdn
   sql_database_name          = module.sql.database_name

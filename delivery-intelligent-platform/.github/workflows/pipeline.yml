@@ -74,7 +74,7 @@ jobs:
         run: dotnet restore DeliveryIntelligence.slnx
       - run: dotnet build DeliveryIntelligence.slnx --no-restore --configuration Release
       - name: Unit tests
-        run: dotnet test tests/Tenancy.UnitTests --no-build --configuration Release
+        run: dotnet test tests/Identity.UnitTests --no-build --configuration Release
       - name: Architecture tests
         # `dotnet run` rather than `dotnet test`: it prints each failing rule and file to the
         # console, where `dotnet test` writes them only to a log file.
@@ -99,9 +99,9 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-      - run: dotnet restore tests/Tenancy.IntegrationTests
+      - run: dotnet restore tests/Identity.IntegrationTests
       - name: Integration tests (Testcontainers SQL Server, the runner's Docker daemon)
-        run: dotnet test tests/Tenancy.IntegrationTests --no-restore --configuration Release
+        run: dotnet test tests/Identity.IntegrationTests --no-restore --configuration Release
       - if: always()
         run: .github/scripts/job-summary.sh integration-test "${{ job.status }}"
         env:
@@ -115,17 +115,17 @@ jobs:
         with:
           version: v0.74.0
       - name: Build the release candidate once
-        run: docker build -t "tenancy-api:${{ github.sha }}" .
+        run: docker build -t "identity-api:${{ github.sha }}" .
       - name: Vulnerability scan (HIGH and CRITICAL fail)
-        run: infrastructure/scripts/scan-image-vulnerabilities.sh "tenancy-api:${{ github.sha }}"
+        run: infrastructure/scripts/scan-image-vulnerabilities.sh "identity-api:${{ github.sha }}"
       - name: Secret scan, including the bait-image negative proof
-        run: infrastructure/scripts/scan-image-secrets.sh "tenancy-api:${{ github.sha }}"
+        run: infrastructure/scripts/scan-image-secrets.sh "identity-api:${{ github.sha }}"
       - name: Save the scanned image so the publish job pushes exactly these bytes
-        run: docker save "tenancy-api:${{ github.sha }}" | gzip >tenancy-api.tar.gz
+        run: docker save "identity-api:${{ github.sha }}" | gzip >identity-api.tar.gz
       - uses: actions/upload-artifact@v4
         with:
-          name: tenancy-api-image
-          path: tenancy-api.tar.gz
+          name: identity-api-image
+          path: identity-api.tar.gz
           retention-days: 1
       - if: always()
         run: .github/scripts/job-summary.sh container-scan "${{ job.status }}"
@@ -155,13 +155,13 @@ jobs:
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       - uses: actions/download-artifact@v4
         with:
-          name: tenancy-api-image
+          name: identity-api-image
       - name: Push the scanned image
         run: |
-          docker load <tenancy-api.tar.gz
+          docker load <identity-api.tar.gz
           az acr login --name "${ACR_LOGIN_SERVER%%.*}"
-          docker tag "tenancy-api:${GITHUB_SHA}" "${ACR_LOGIN_SERVER}/tenancy-api:${GITHUB_SHA}"
-          docker push "${ACR_LOGIN_SERVER}/tenancy-api:${GITHUB_SHA}"
+          docker tag "identity-api:${GITHUB_SHA}" "${ACR_LOGIN_SERVER}/identity-api:${GITHUB_SHA}"
+          docker push "${ACR_LOGIN_SERVER}/identity-api:${GITHUB_SHA}"
         env:
           ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
       - if: always()
@@ -203,7 +203,7 @@ jobs:
       - name: Update the image
         run: |
           az containerapp update --name "${CONTAINER_APP_NAME}" --resource-group "${RESOURCE_GROUP}" \
-            --image "${ACR_LOGIN_SERVER}/tenancy-api:${GITHUB_SHA}" >/dev/null
+            --image "${ACR_LOGIN_SERVER}/identity-api:${GITHUB_SHA}" >/dev/null
         env:
           CONTAINER_APP_NAME: ${{ vars.CONTAINER_APP_NAME }}
           RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}

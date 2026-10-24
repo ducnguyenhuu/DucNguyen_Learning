@@ -25,7 +25,7 @@ variable "acr_login_server" {
 }
 
 variable "api_image_tag" {
-  description = "Tag of the tenancy-api image already pushed to ACR. The container app cannot be created without a real image, so this must be set (deploy.sh does) on the first full apply."
+  description = "Tag of the identity-api image already pushed to ACR. The container app cannot be created without a real image, so this must be set (deploy.sh does) on the first full apply."
   type        = string
   default     = ""
 }
@@ -41,16 +41,16 @@ variable "api_max_replicas" {
   default = 3
 }
 
-variable "tenancy_api_identity_id" {
+variable "identity_api_identity_id" {
   description = "User-assigned identity: ACR pull and Azure SQL access."
   type        = string
 }
 
-variable "tenancy_api_principal_id" {
+variable "identity_api_principal_id" {
   type = string
 }
 
-variable "tenancy_api_client_id" {
+variable "identity_api_client_id" {
   description = "Passed as AZURE_CLIENT_ID so DefaultAzureCredential selects this user-assigned identity."
   type        = string
 }

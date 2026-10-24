@@ -1,5 +1,5 @@
-resource "azurerm_user_assigned_identity" "tenancy_api" {
-  name                = "id-tenancy-api-${var.environment}"
+resource "azurerm_user_assigned_identity" "identity_api" {
+  name                = "id-identity-api-${var.environment}"
   resource_group_name = var.resource_group_name
   location            = var.location
   tags                = var.tags
