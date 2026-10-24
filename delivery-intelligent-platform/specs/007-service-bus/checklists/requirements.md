@@ -37,3 +37,6 @@
    store" name the required behaviour (FR-001, FR-005). No library, framework, or code
    structure is named.
 2. Items marked incomplete require spec updates before `/speckit.clarify` or `/speckit.plan`.
+3. 2026-10-23: the event changed from `TenantCreated` to `MemberInvited` after multi-tenancy was
+   removed (ADR-025). The requirements were re-read against this checklist and still pass.
+   FR-003 now forbids the invitation token and the invited email address in the message.
