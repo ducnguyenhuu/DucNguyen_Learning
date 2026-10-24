@@ -15,9 +15,8 @@ namespace Identity.Application.Users;
 /// not in this task's scope.
 ///
 /// This class provisions the <see cref="User"/> row only. It is a distinct concern from
-/// membership resolution (T035's middleware) — a JIT-provisioned user with no memberships yet
-/// still correctly yields a 404 from T035's middleware for a candidate tenant they don't belong
-/// to. Wiring this use case into the request pipeline (or a specific endpoint) is out of scope
+/// membership resolution (<c>MembershipResolutionFilter</c>) — a JIT-provisioned user with no
+/// membership yet is still correctly refused with 403 by that filter on member-only routes. Wiring this use case into the request pipeline (or a specific endpoint) is out of scope
 /// for this task; see the accompanying report for where later tasks are expected to call it.
 /// </remarks>
 public class EnsureUserProvisioned

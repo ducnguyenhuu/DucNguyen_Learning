@@ -8,12 +8,12 @@ namespace Identity.UnitTests.Auditing;
 /// <summary>
 /// Failing (red) unit tests specifying the public API of the not-yet-implemented
 /// <see cref="AuditEntry"/> entity. These tests define the contract:
-/// - Static factory <c>AuditEntry.Create(TenantId? tenantId, UserId? actorUserId, string action,
+/// - Static factory <c>AuditEntry.Create(UserId? actorUserId, string action,
 ///   string resourceType, string resourceId, IClock clock)</c> creates a new audit entry with
 ///   <c>OccurredAtUtc</c> read from <paramref name="clock"/>'s current time — never
 ///   <c>DateTimeOffset.UtcNow</c> directly.
-/// - <c>TenantId</c> and <c>ActorUserId</c> may both be <c>null</c> simultaneously — this is the
-///   unauthenticated-refusal case, not an error.
+/// - <c>ActorUserId</c> may be <c>null</c> — this is the unauthenticated-refusal case, not an
+///   error.
 /// - <c>Action</c>, <c>ResourceType</c>, and <c>ResourceId</c> are required and throw
 ///   <see cref="DomainException"/> when null/empty/whitespace.
 /// </summary>
@@ -25,15 +25,13 @@ public class AuditEntryTests
     }
 
     [Fact]
-    public void Create_WithValidArgumentsAndTenantAndActor_SucceedsAndSetsOccurredAtFromClock()
+    public void Create_WithValidArgumentsAndActor_SucceedsAndSetsOccurredAtFromClock()
     {
-        var tenantId = TenantId.New();
         var actorUserId = UserId.New();
         var occurredAt = new DateTimeOffset(2026, 8, 19, 9, 30, 0, TimeSpan.Zero);
         var clock = new FakeClock(occurredAt);
 
         var entry = AuditEntry.Create(
-            tenantId,
             actorUserId,
             "membership.removed",
             "Membership",
@@ -41,7 +39,6 @@ public class AuditEntryTests
             clock);
 
         entry.Id.Should().NotBe(default(AuditEntryId));
-        entry.TenantId.Should().Be(tenantId);
         entry.ActorUserId.Should().Be(actorUserId);
         entry.Action.Should().Be("membership.removed");
         entry.ResourceType.Should().Be("Membership");
@@ -50,19 +47,17 @@ public class AuditEntryTests
     }
 
     [Fact]
-    public void Create_WithNullTenantAndActor_Succeeds()
+    public void Create_WithNullActor_Succeeds()
     {
         var clock = new FakeClock(DateTimeOffset.UtcNow);
 
         var entry = AuditEntry.Create(
-            tenantId: null,
             actorUserId: null,
             "auth.refused",
             "Session",
             "unknown",
             clock);
 
-        entry.TenantId.Should().BeNull();
         entry.ActorUserId.Should().BeNull();
     }
 
@@ -75,7 +70,6 @@ public class AuditEntryTests
         var clock = new FakeClock(DateTimeOffset.UtcNow);
 
         Action act = () => AuditEntry.Create(
-            TenantId.New(),
             UserId.New(),
             action!,
             "Membership",
@@ -94,7 +88,6 @@ public class AuditEntryTests
         var clock = new FakeClock(DateTimeOffset.UtcNow);
 
         Action act = () => AuditEntry.Create(
-            TenantId.New(),
             UserId.New(),
             "membership.removed",
             resourceType!,
@@ -113,7 +106,6 @@ public class AuditEntryTests
         var clock = new FakeClock(DateTimeOffset.UtcNow);
 
         Action act = () => AuditEntry.Create(
-            TenantId.New(),
             UserId.New(),
             "membership.removed",
             "Membership",

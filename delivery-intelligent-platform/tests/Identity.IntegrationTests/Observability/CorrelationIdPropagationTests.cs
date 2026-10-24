@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net.Http.Headers;
 using AwesomeAssertions;
+using Identity.Domain.Abstractions;
 using Identity.IntegrationTests.Infrastructure;
 using Xunit;
 
@@ -48,15 +49,15 @@ public sealed class CorrelationIdPropagationTests : IdentityIntegrationTestBase
     }
 
     /// <summary>
-    /// A request that touches the database (<c>GET /tenants/{tenantId}</c>, an existing
+    /// A request that touches the database (<c>GET /members</c>, an existing
     /// endpoint from spec 001/002) must produce one connected trace — at least one HTTP-server
     /// activity and at least one SQL-client activity, all sharing the same <c>TraceId</c>.
     /// </summary>
     [Fact]
-    public async Task GetTenant_ProducesOneConnectedTrace_AcrossHttpAndSqlActivities()
+    public async Task GetMembers_ProducesOneConnectedTrace_AcrossHttpAndSqlActivities()
     {
         await Factory.InitializeDatabaseAsync();
-        var seed = await Factory.SeedTwoTenantsAsync();
+        var seed = await Factory.SeedMemberAsync(Role.Administrator);
 
         var capturedActivities = new System.Collections.Concurrent.ConcurrentQueue<Activity>();
 
@@ -72,10 +73,10 @@ public sealed class CorrelationIdPropagationTests : IdentityIntegrationTestBase
         using var client = Factory.CreateClient();
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
-            $"/tenants/{seed.TenantA.TenantId.Value}");
+            "/members");
         request.Headers.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
-        request.Headers.Add("X-Test-Oid", seed.TenantA.EntraObjectId.ToString());
-        request.Headers.Add("X-Test-Tid", seed.TenantA.EntraTenantId.ToString());
+        request.Headers.Add("X-Test-Oid", seed.EntraObjectId.ToString());
+        request.Headers.Add("X-Test-Tid", seed.EntraTenantId.ToString());
 
         var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
         response.EnsureSuccessStatusCode();
@@ -116,7 +117,7 @@ public sealed class CorrelationIdPropagationTests : IdentityIntegrationTestBase
             $"activities were: [{string.Join(", ", activities.Select(a => $"{a.Source.Name}/{a.OperationName}"))}]).");
 
         sqlClientActivity.Should().NotBeNull(
-            "the request touches the database (GetTenant reads via EF Core/SqlClient), so a " +
+            "the request touches the database (GET /members reads via EF Core/SqlClient), so a " +
             "SQL-client activity must exist — this is the piece the SqlClient " +
             $"instrumentation is responsible for; captured activities were: " +
             $"[{string.Join(", ", activities.Select(a => $"{a.Source.Name}/{a.OperationName}"))}].");
@@ -126,6 +127,11 @@ public sealed class CorrelationIdPropagationTests : IdentityIntegrationTestBase
             "the HTTP-server activity and the SQL-client activity for one request must share a " +
             "single TraceId to form one connected trace — this is the property the " +
             "instrumentation wiring produces.");
+
+        // Identity enrichment on the span (FR-004, ADR-025 decision 7): the request's server
+        // span carries user.id, and no span carries a tenant attribute.
+        httpServerActivity.GetTagItem("user.id").Should().Be(seed.EntraObjectId.ToString());
+        activities.Should().NotContain(activity => activity.GetTagItem("tenant.id") != null);
     }
 
     /// <summary>
@@ -135,10 +141,10 @@ public sealed class CorrelationIdPropagationTests : IdentityIntegrationTestBase
     /// request's HTTP-server activity.
     /// </summary>
     [Fact]
-    public async Task GetTenant_LogLine_CarriesSameTraceId_AsItsActivity()
+    public async Task GetMembers_LogLine_CarriesSameTraceId_AsItsActivity()
     {
         await Factory.InitializeDatabaseAsync();
-        var seed = await Factory.SeedTwoTenantsAsync();
+        var seed = await Factory.SeedMemberAsync(Role.Administrator);
 
         var capturedActivities = new System.Collections.Concurrent.ConcurrentQueue<Activity>();
 
@@ -156,10 +162,10 @@ public sealed class CorrelationIdPropagationTests : IdentityIntegrationTestBase
         using var client = Factory.CreateClient();
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
-            $"/tenants/{seed.TenantA.TenantId.Value}");
+            "/members");
         request.Headers.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
-        request.Headers.Add("X-Test-Oid", seed.TenantA.EntraObjectId.ToString());
-        request.Headers.Add("X-Test-Tid", seed.TenantA.EntraTenantId.ToString());
+        request.Headers.Add("X-Test-Oid", seed.EntraObjectId.ToString());
+        request.Headers.Add("X-Test-Tid", seed.EntraTenantId.ToString());
 
         var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
         response.EnsureSuccessStatusCode();
@@ -219,10 +225,10 @@ public sealed class CorrelationIdPropagationTests : IdentityIntegrationTestBase
     /// malformed-correlation-ID edge case.
     /// </summary>
     [Fact]
-    public async Task GetTenant_WithMalformedTraceparentHeader_GeneratesFreshValidTraceId()
+    public async Task GetMembers_WithMalformedTraceparentHeader_GeneratesFreshValidTraceId()
     {
         await Factory.InitializeDatabaseAsync();
-        var seed = await Factory.SeedTwoTenantsAsync();
+        var seed = await Factory.SeedMemberAsync(Role.Administrator);
 
         var capturedActivities = new System.Collections.Concurrent.ConcurrentQueue<Activity>();
 
@@ -238,10 +244,10 @@ public sealed class CorrelationIdPropagationTests : IdentityIntegrationTestBase
         using var client = Factory.CreateClient();
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
-            $"/tenants/{seed.TenantA.TenantId.Value}");
+            "/members");
         request.Headers.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
-        request.Headers.Add("X-Test-Oid", seed.TenantA.EntraObjectId.ToString());
-        request.Headers.Add("X-Test-Tid", seed.TenantA.EntraTenantId.ToString());
+        request.Headers.Add("X-Test-Oid", seed.EntraObjectId.ToString());
+        request.Headers.Add("X-Test-Tid", seed.EntraTenantId.ToString());
         request.Headers.Add("traceparent", "not-a-valid-traceparent");
 
         var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
@@ -300,10 +306,10 @@ public sealed class CorrelationIdPropagationTests : IdentityIntegrationTestBase
     /// complementing the malformed-header test above.
     /// </summary>
     [Fact]
-    public async Task GetTenant_WithWellFormedTraceparentHeader_AdoptsSameTraceId()
+    public async Task GetMembers_WithWellFormedTraceparentHeader_AdoptsSameTraceId()
     {
         await Factory.InitializeDatabaseAsync();
-        var seed = await Factory.SeedTwoTenantsAsync();
+        var seed = await Factory.SeedMemberAsync(Role.Administrator);
 
         var capturedActivities = new System.Collections.Concurrent.ConcurrentQueue<Activity>();
 
@@ -323,10 +329,10 @@ public sealed class CorrelationIdPropagationTests : IdentityIntegrationTestBase
         using var client = Factory.CreateClient();
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
-            $"/tenants/{seed.TenantA.TenantId.Value}");
+            "/members");
         request.Headers.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
-        request.Headers.Add("X-Test-Oid", seed.TenantA.EntraObjectId.ToString());
-        request.Headers.Add("X-Test-Tid", seed.TenantA.EntraTenantId.ToString());
+        request.Headers.Add("X-Test-Oid", seed.EntraObjectId.ToString());
+        request.Headers.Add("X-Test-Tid", seed.EntraTenantId.ToString());
         request.Headers.Add("traceparent", traceparentValue);
 
         var response = await client.SendAsync(request, TestContext.Current.CancellationToken);

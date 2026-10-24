@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
-using Identity.Application.Abstractions;
 using Identity.Domain.Abstractions;
 using Identity.Infrastructure.Persistence;
 
@@ -13,16 +12,14 @@ namespace Identity.Api.Idempotency;
 /// <summary>
 /// Caches the outcome of a mutating request so a client-supplied <c>Idempotency-Key</c> header
 /// can be safely retried without double-applying it (T056). This entity's persistence shape is
-/// <see cref="IdempotencyRecord"/> — see its remarks for why the entity is keyed by
-/// <c>(TenantId, CreatedByUserId, Endpoint, Key)</c> with a sentinel <see cref="TenantId.Empty"/>
-/// standing in for "no tenant yet" rather than a nullable column.
+/// <see cref="IdempotencyRecord"/>, keyed by <c>(CreatedByUserId, Endpoint, Key)</c>.
 /// </summary>
 /// <remarks>
 /// <para>
 /// <b>Why this is an <see cref="IEndpointFilter"/>, not classic middleware:</b> per this task's
 /// own text, "middleware runs before routing and model binding" — an idempotency check needs to
 /// run once the endpoint (and therefore its route pattern, used as part of the cache key) is
-/// known, following the same precedent as <c>TenantContextResolutionMiddleware</c> (T035).
+/// known, following the same precedent as <c>MembershipResolutionFilter</c>.
 /// </para>
 /// <para>
 /// <b>Response-capture constraint:</b> to cache a response for replay, this filter must observe
@@ -30,7 +27,7 @@ namespace Identity.Api.Idempotency;
 /// result itself (<see cref="IResult.ExecuteAsync"/>) against a buffered
 /// <see cref="HttpResponse.Body"/>, which requires the downstream handler to return an
 /// <see cref="IResult"/> — this project's established convention (e.g.
-/// <c>TenantContextResolutionMiddleware</c>'s <c>Results.NotFound()</c>). A handler that returns
+/// <c>MembershipResolutionFilter</c>'s <c>Results.Forbid()</c>). A handler that returns
 /// a plain POCO (relying on minimal APIs' implicit JSON-result path, which executes *after* the
 /// filter chain returns, when this filter can no longer observe it) is not supported by this
 /// filter as written; every mutating handler in this codebase already returns an
@@ -102,7 +99,6 @@ public sealed class IdempotencyFilter : IEndpointFilter
         var dbContext = httpContext.RequestServices.GetRequiredService<IdentityDbContext>();
         var clock = httpContext.RequestServices.GetRequiredService<IClock>();
 
-        var tenantId = ResolveTenantId(httpContext);
         var createdByUserId = await ResolveUserIdAsync(httpContext, dbContext, ct);
         if (createdByUserId is null)
         {
@@ -117,8 +113,7 @@ public sealed class IdempotencyFilter : IEndpointFilter
         var now = clock.UtcNow;
 
         var existing = await dbContext.IdempotencyRecords.SingleOrDefaultAsync(
-            r => r.TenantId == tenantId &&
-                 r.CreatedByUserId == createdByUserId.Value &&
+            r => r.CreatedByUserId == createdByUserId.Value &&
                  r.Endpoint == endpoint &&
                  r.Key == key,
             ct);
@@ -140,7 +135,6 @@ public sealed class IdempotencyFilter : IEndpointFilter
 
         var record = new IdempotencyRecord
         {
-            TenantId = tenantId,
             CreatedByUserId = createdByUserId.Value,
             Endpoint = endpoint,
             Key = key,
@@ -172,9 +166,9 @@ public sealed class IdempotencyFilter : IEndpointFilter
             if (!existing.RequestHash.AsSpan().SequenceEqual(requestHash))
             {
                 _logger.LogInformation(
-                    "Idempotency refusal for tenant {TenantId}: key reuse with a different " +
+                    "Idempotency refusal for user {UserId}: key reuse with a different " +
                     "request body on endpoint {Endpoint}",
-                    existing.TenantId,
+                    existing.CreatedByUserId,
                     existing.Endpoint);
 
                 return Results.Problem(
@@ -206,9 +200,9 @@ public sealed class IdempotencyFilter : IEndpointFilter
         if (age < InFlightReclaimThreshold)
         {
             _logger.LogInformation(
-                "Idempotency refusal for tenant {TenantId}: request already in flight on " +
+                "Idempotency refusal for user {UserId}: request already in flight on " +
                 "endpoint {Endpoint}",
-                existing.TenantId,
+                existing.CreatedByUserId,
                 existing.Endpoint);
 
             httpContext.Response.Headers.RetryAfter = ((int)InFlightReclaimThreshold.TotalSeconds).ToString();
@@ -263,8 +257,7 @@ public sealed class IdempotencyFilter : IEndpointFilter
             dbContext.Entry(record).State = EntityState.Detached;
 
             var raceWinner = await dbContext.IdempotencyRecords.SingleOrDefaultAsync(
-                r => r.TenantId == record.TenantId &&
-                     r.CreatedByUserId == record.CreatedByUserId &&
+                r => r.CreatedByUserId == record.CreatedByUserId &&
                      r.Endpoint == record.Endpoint &&
                      r.Key == record.Key,
                 ct);
@@ -389,30 +382,6 @@ public sealed class IdempotencyFilter : IEndpointFilter
     }
 
     /// <summary>
-    /// Uses the ambient <see cref="ITenantContext"/> when it has been resolved (i.e. this filter
-    /// is applied downstream of <c>TenantContextResolutionMiddleware</c> on a
-    /// <c>{tenantId}</c>-scoped route group), or the fixed sentinel
-    /// <see cref="TenantId.Empty"/> otherwise (e.g. <c>POST /tenants</c>, which has no tenant
-    /// context to resolve). <see cref="ITenantContext"/> is documented to throw
-    /// <see cref="InvalidOperationException"/> rather than return a default value when
-    /// unresolved (a deliberate fail-closed design so a default tenant id is never used as a
-    /// filter value by accident) — that same throw is used here purely as an "is it resolved"
-    /// check, since the interface has no <c>TryGet</c>.
-    /// </summary>
-    private static TenantId ResolveTenantId(HttpContext httpContext)
-    {
-        var tenantContext = httpContext.RequestServices.GetRequiredService<ITenantContext>();
-        try
-        {
-            return tenantContext.TenantId;
-        }
-        catch (InvalidOperationException)
-        {
-            return TenantId.Empty;
-        }
-    }
-
-    /// <summary>
     /// A stable identifier for "which operation this record applies to" — the HTTP method plus
     /// the endpoint's route pattern (e.g. <c>"POST /invitations/{token}/accept"</c>), matching
     /// data-model.md's example. Falls back to the raw request path if no route pattern is
@@ -445,15 +414,13 @@ public sealed class IdempotencyFilter : IEndpointFilter
 
 /// <summary>
 /// Opt-in wiring for <see cref="IdempotencyFilter"/>. Deliberately not blanket middleware —
-/// applied per-endpoint/route-group at wiring time (T058), following T035's established
-/// <c>WithTenantContextResolution</c> opt-in pattern.
+/// applied per-endpoint/route-group at wiring time, following the same opt-in pattern as
+/// <c>RequireMembership()</c>.
 /// </summary>
 public static class IdempotencyEndpointConventionBuilderExtensions
 {
     /// <summary>
-    /// Adds <see cref="IdempotencyFilter"/> to the given route group. When the group also opts
-    /// into ADR-017's tenant context resolution, apply that filter first so
-    /// <see cref="ITenantContext"/> is resolved by the time this filter reads it.
+    /// Adds <see cref="IdempotencyFilter"/> to the given route group.
     /// </summary>
     public static RouteGroupBuilder WithIdempotency(this RouteGroupBuilder builder)
     {

@@ -1,15 +1,8 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using AwesomeAssertions;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.DependencyInjection;
-using Identity.Api.ETags;
 using Identity.Domain.Abstractions;
-using Identity.Domain.Memberships;
-using Identity.Domain.Tenants;
-using Identity.Domain.Users;
-using Identity.Infrastructure.Persistence;
 using Identity.IntegrationTests.Infrastructure;
 using Xunit;
 
@@ -20,7 +13,7 @@ namespace Identity.IntegrationTests.Auditing;
 /// real SQL Server container, by issuing direct <c>UPDATE</c>/<c>DELETE</c> statements via plain
 /// ADO.NET — bypassing the application entirely (no <c>IdentityDbContext</c>/EF Core involved) —
 /// and asserting the database itself rejects both via <c>TR_AuditEntries_PreventModification</c>
-/// (added in the <c>AddAuditEntries</c> migration).
+/// (created by the <c>InitialIdentity</c> migration).
 /// </summary>
 /// <remarks>
 /// <c>AuditEntries</c> is excluded from Respawn's per-test reset (see <see cref="ApiFactory"/>'s
@@ -43,7 +36,6 @@ public sealed class AuditEntryAppendOnlyTests : IdentityIntegrationTestBase
     [Fact]
     public async Task DirectUpdateAndDelete_AgainstAuditEntries_AreBothRejectedByTheDatabase()
     {
-        await Factory.InitializeDatabaseAsync();
 
         var resourceId = Guid.NewGuid().ToString();
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -56,8 +48,8 @@ public sealed class AuditEntryAppendOnlyTests : IdentityIntegrationTestBase
         await using (var insert = connection.CreateCommand())
         {
             insert.CommandText = """
-                INSERT INTO AuditEntries (Id, TenantId, ActorUserId, Action, ResourceType, ResourceId, OccurredAtUtc)
-                VALUES (@id, NULL, NULL, @action, @resourceType, @resourceId, @occurredAtUtc)
+                INSERT INTO AuditEntries (Id, ActorUserId, Action, ResourceType, ResourceId, OccurredAtUtc)
+                VALUES (@id, NULL, @action, @resourceType, @resourceId, @occurredAtUtc)
                 """;
             insert.Parameters.AddWithValue("@id", Guid.NewGuid());
             insert.Parameters.AddWithValue("@action", originalAction);
@@ -107,16 +99,15 @@ public sealed class AuditEntryAppendOnlyTests : IdentityIntegrationTestBase
     [Fact]
     public async Task Delete_ActiveMember_ProducesExactlyOneMatchingAuditEntry()
     {
-        await Factory.InitializeDatabaseAsync();
         var seed = await SeedAdministratorAndMemberAsync();
         var cancellationToken = TestContext.Current.CancellationToken;
 
-        using var adminClient = CreateAuthenticatedClient(seed.Administrator);
-        var ifMatch = await GetMembershipIfMatchAsync(seed.Administrator.TenantId, seed.Member.MembershipId);
+        using var adminClient = Factory.CreateClientFor(seed.Administrator);
+        var ifMatch = await Factory.GetMembershipIfMatchAsync(seed.Member.MembershipId);
         adminClient.DefaultRequestHeaders.Add("If-Match", ifMatch);
 
         var response = await adminClient.DeleteAsync(
-            $"/tenants/{seed.Administrator.TenantId.Value}/members/{seed.Member.UserId.Value}",
+            $"/members/{seed.Member.UserId.Value}",
             cancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
@@ -128,12 +119,10 @@ public sealed class AuditEntryAppendOnlyTests : IdentityIntegrationTestBase
         select.CommandText = """
             SELECT COUNT(*)
             FROM AuditEntries
-            WHERE TenantId = @tenantId
-              AND ActorUserId = @actorUserId
+            WHERE ActorUserId = @actorUserId
               AND ResourceId = @resourceId
               AND Action LIKE 'membership.removed%'
             """;
-        select.Parameters.AddWithValue("@tenantId", seed.Administrator.TenantId.Value);
         select.Parameters.AddWithValue("@actorUserId", seed.Administrator.UserId.Value);
         select.Parameters.AddWithValue("@resourceId", seed.Member.UserId.Value.ToString());
 
@@ -144,7 +133,7 @@ public sealed class AuditEntryAppendOnlyTests : IdentityIntegrationTestBase
     }
 
     /// <summary>
-    /// The atomicity half of this coverage: an attempt to remove a tenant's <em>last</em> administrator is refused
+    /// The atomicity half of this coverage: an attempt to remove the organization's <em>last</em> administrator is refused
     /// (409 Conflict, the last-administrator invariant in
     /// <c>RemoveMember.cs</c>) — neither the membership nor an audit entry for the attempt should
     /// exist afterward, proving the removal and its audit entry rise and fall together without
@@ -153,16 +142,15 @@ public sealed class AuditEntryAppendOnlyTests : IdentityIntegrationTestBase
     [Fact]
     public async Task Delete_SoleAdministrator_IsRefused_AndProducesNoAuditEntry()
     {
-        await Factory.InitializeDatabaseAsync();
-        var seed = await SeedSoleAdministratorTenantAsync();
+        var seed = await Factory.SeedMemberAsync(Role.Administrator);
         var cancellationToken = TestContext.Current.CancellationToken;
 
-        using var client = CreateAuthenticatedClient(seed.EntraTenantId, seed.EntraObjectId);
-        var ifMatch = await GetMembershipIfMatchAsync(seed.TenantId, seed.MembershipId);
+        using var client = Factory.CreateClientFor(seed);
+        var ifMatch = await Factory.GetMembershipIfMatchAsync(seed.MembershipId);
         client.DefaultRequestHeaders.Add("If-Match", ifMatch);
 
         var response = await client.DeleteAsync(
-            $"/tenants/{seed.TenantId.Value}/members/{seed.UserId.Value}",
+            $"/members/{seed.UserId.Value}",
             cancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
@@ -174,11 +162,9 @@ public sealed class AuditEntryAppendOnlyTests : IdentityIntegrationTestBase
         select.CommandText = """
             SELECT COUNT(*)
             FROM AuditEntries
-            WHERE TenantId = @tenantId
-              AND ResourceId = @resourceId
+            WHERE ResourceId = @resourceId
               AND Action LIKE 'membership.removed%'
             """;
-        select.Parameters.AddWithValue("@tenantId", seed.TenantId.Value);
         select.Parameters.AddWithValue("@resourceId", seed.UserId.Value.ToString());
 
         var matchingRowCount = (int)(await select.ExecuteScalarAsync(cancellationToken))!;
@@ -196,16 +182,15 @@ public sealed class AuditEntryAppendOnlyTests : IdentityIntegrationTestBase
     [Fact]
     public async Task Post_Invitation_AsNonAdministrator_IsRefused_AndProducesMatchingAuditEntry()
     {
-        await Factory.InitializeDatabaseAsync();
         var seed = await SeedAdministratorAndMemberAsync();
         var cancellationToken = TestContext.Current.CancellationToken;
 
-        using var memberClient = CreateAuthenticatedClient(seed.Member);
+        using var memberClient = Factory.CreateClientFor(seed.Member);
         memberClient.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
 
         var response = await memberClient.PostAsJsonAsync(
-            $"/tenants/{seed.Administrator.TenantId.Value}/invitations",
-            new { email = "refused-invitee@admin-and-member-tenant.example.com", role = "Member" },
+            "/invitations",
+            new { email = "refused-invitee@example.com", role = "Member" },
             cancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -217,11 +202,9 @@ public sealed class AuditEntryAppendOnlyTests : IdentityIntegrationTestBase
         select.CommandText = """
             SELECT COUNT(*)
             FROM AuditEntries
-            WHERE TenantId = @tenantId
-              AND ActorUserId = @actorUserId
+            WHERE ActorUserId = @actorUserId
               AND Action LIKE 'authorization.refused%'
             """;
-        select.Parameters.AddWithValue("@tenantId", seed.Administrator.TenantId.Value);
         select.Parameters.AddWithValue("@actorUserId", seed.Member.UserId.Value);
 
         var matchingRowCount = (int)(await select.ExecuteScalarAsync(cancellationToken))!;
@@ -230,100 +213,8 @@ public sealed class AuditEntryAppendOnlyTests : IdentityIntegrationTestBase
             "an authorization refusal per spec 001 FR-025 must produce a matching audit entry");
     }
 
-    private HttpClient CreateAuthenticatedClient(SeededTenant seededTenant) =>
-        CreateAuthenticatedClient(seededTenant.EntraTenantId, seededTenant.EntraObjectId);
+    private async Task<AdministratorAndMemberSeed> SeedAdministratorAndMemberAsync() =>
+        new(await Factory.SeedMemberAsync(Role.Administrator), await Factory.SeedMemberAsync(Role.Member));
 
-    private HttpClient CreateAuthenticatedClient(Guid entraTenantId, Guid entraObjectId)
-    {
-        var client = Factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
-        client.DefaultRequestHeaders.Add("X-Test-Oid", entraObjectId.ToString());
-        client.DefaultRequestHeaders.Add("X-Test-Tid", entraTenantId.ToString());
-        return client;
-    }
-
-    /// <summary>
-    /// Builds a valid <c>If-Match</c> value directly from the membership's current, persisted
-    /// <c>RowVersion</c> — mirrors the established pattern in
-    /// <c>RolePermissionMatrixTests</c>/<c>InviteAndManageMembersTests</c>, since
-    /// <c>DELETE /tenants/{tenantId}/members/{userId}</c> requires a genuine If-Match
-    /// precondition (contracts/openapi.yaml, FR-021).
-    /// </summary>
-    private async Task<string> GetMembershipIfMatchAsync(TenantId tenantId, MembershipId membershipId)
-    {
-        using var scope = Factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-        db.CurrentTenantId = tenantId;
-        var membership = await db.Memberships.FindAsync(
-            [membershipId], TestContext.Current.CancellationToken);
-        return RowVersionETag.ToETag(membership!.RowVersion);
-    }
-
-    /// <summary>
-    /// Seeds a single tenant with exactly one active <see cref="Role.Administrator"/> and one
-    /// active <see cref="Role.Member"/> — local equivalent of the same-shaped helper in
-    /// <c>InviteAndManageMembersTests</c>/<c>RolePermissionMatrixTests</c>, both <c>private</c> to
-    /// their own classes and therefore inaccessible from here.
-    /// </summary>
-    private async Task<AdministratorAndMemberSeed> SeedAdministratorAndMemberAsync()
-    {
-        using var scope = Factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-
-        var tenant = Tenant.Create("Audit Admin And Member Tenant");
-        var admin = User.Create(
-            entraTenantId: Guid.CreateVersion7(),
-            entraObjectId: Guid.CreateVersion7(),
-            email: new EmailAddress("admin@audit-admin-and-member-tenant.example.com"));
-        var member = User.Create(
-            entraTenantId: Guid.CreateVersion7(),
-            entraObjectId: Guid.CreateVersion7(),
-            email: new EmailAddress("member@audit-admin-and-member-tenant.example.com"));
-
-        db.Tenants.Add(tenant);
-        db.Users.Add(admin);
-        db.Users.Add(member);
-        await db.SaveChangesAsync();
-
-        db.CurrentTenantId = tenant.Id;
-        var adminMembership = Membership.Create(tenant.Id, admin.Id, Role.Administrator);
-        var memberMembership = Membership.Create(tenant.Id, member.Id, Role.Member);
-        db.Memberships.Add(adminMembership);
-        db.Memberships.Add(memberMembership);
-        await db.SaveChangesAsync();
-
-        return new AdministratorAndMemberSeed(
-            new SeededTenant(tenant.Id, admin.Id, adminMembership.Id, admin.EntraTenantId, admin.EntraObjectId),
-            new SeededTenant(tenant.Id, member.Id, memberMembership.Id, member.EntraTenantId, member.EntraObjectId));
-    }
-
-    /// <summary>
-    /// Seeds a single tenant with exactly one active <see cref="Role.Administrator"/> member —
-    /// needed to attempt removing the last administrator, mirroring the same-shaped helper in
-    /// <c>InviteAndManageMembersTests</c>.
-    /// </summary>
-    private async Task<SeededTenant> SeedSoleAdministratorTenantAsync()
-    {
-        using var scope = Factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-
-        var tenant = Tenant.Create("Audit Sole Admin Tenant");
-        var admin = User.Create(
-            entraTenantId: Guid.CreateVersion7(),
-            entraObjectId: Guid.CreateVersion7(),
-            email: new EmailAddress("sole-admin@audit-sole-admin-tenant.example.com"));
-
-        db.Tenants.Add(tenant);
-        db.Users.Add(admin);
-        await db.SaveChangesAsync();
-
-        db.CurrentTenantId = tenant.Id;
-        var membership = Membership.Create(tenant.Id, admin.Id, Role.Administrator);
-        db.Memberships.Add(membership);
-        await db.SaveChangesAsync();
-
-        return new SeededTenant(tenant.Id, admin.Id, membership.Id, admin.EntraTenantId, admin.EntraObjectId);
-    }
-
-    private sealed record AdministratorAndMemberSeed(SeededTenant Administrator, SeededTenant Member);
+    private sealed record AdministratorAndMemberSeed(SeededMember Administrator, SeededMember Member);
 }

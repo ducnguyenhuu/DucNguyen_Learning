@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Sockets;
 using AwesomeAssertions;
+using Identity.Domain.Abstractions;
 using Identity.IntegrationTests.Infrastructure;
 using Xunit;
 
@@ -61,7 +62,7 @@ public sealed class TelemetryResilienceTests : IdentityIntegrationTestBase
     }
 
     /// <summary>
-    /// The acceptance test for FR-006: a normal, existing request (<c>GET /tenants/{tenantId}</c>) must
+    /// The acceptance test for FR-006: a normal, existing request (<c>GET /members</c>) must
     /// still succeed and complete promptly even though the OTLP exporter is configured to point
     /// at an address nothing is listening on. A generous upper bound (well under the exporter's
     /// own 10-second <c>TimeoutMilliseconds</c>) is used for the latency assertion — the point is
@@ -69,18 +70,18 @@ public sealed class TelemetryResilienceTests : IdentityIntegrationTestBase
     /// against: the request thread blocking on (or being slowed by) the unreachable exporter.
     /// </summary>
     [Fact]
-    public async Task GetTenant_SucceedsPromptly_EvenWhenOtlpExporterEndpointIsUnreachable()
+    public async Task GetMembers_SucceedsPromptly_EvenWhenOtlpExporterEndpointIsUnreachable()
     {
         await Factory.InitializeDatabaseAsync();
-        var seed = await Factory.SeedTwoTenantsAsync();
+        var seed = await Factory.SeedMemberAsync(Role.Administrator);
 
         using var client = Factory.CreateClient();
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
-            $"/tenants/{seed.TenantA.TenantId.Value}");
+            "/members");
         request.Headers.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
-        request.Headers.Add("X-Test-Oid", seed.TenantA.EntraObjectId.ToString());
-        request.Headers.Add("X-Test-Tid", seed.TenantA.EntraTenantId.ToString());
+        request.Headers.Add("X-Test-Oid", seed.EntraObjectId.ToString());
+        request.Headers.Add("X-Test-Tid", seed.EntraTenantId.ToString());
 
         var stopwatch = Stopwatch.StartNew();
         using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);

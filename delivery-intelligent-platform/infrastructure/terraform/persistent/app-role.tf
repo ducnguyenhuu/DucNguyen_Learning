@@ -20,7 +20,7 @@ resource "azuread_application_app_role" "automation_member" {
 
   allowed_member_types = ["Application"]
   display_name         = "Tenancy automation member"
-  description          = "A named application identity that acts as a tenant member (ADR-022)."
+  description          = "A named application identity that acts as a member (ADR-022)."
   value                = "Tenancy.Automation.Member"
 }
 

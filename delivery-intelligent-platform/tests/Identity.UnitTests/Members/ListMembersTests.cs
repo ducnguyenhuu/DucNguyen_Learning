@@ -16,15 +16,6 @@ namespace Identity.UnitTests.Members;
 /// </summary>
 public class ListMembersTests
 {
-    private static readonly TenantId TestTenantId = new(Guid.CreateVersion7());
-
-    private sealed class FakeTenantContext : ITenantContext
-    {
-        public TenantId TenantId { get; set; } = TestTenantId;
-
-        public Role Role { get; set; } = Role.Administrator;
-    }
-
     private sealed class FakeMembershipRepository : IMembershipRepository
     {
         public List<Membership> ActiveMembers { get; } = [];
@@ -36,6 +27,9 @@ public class ListMembersTests
             throw new NotSupportedException("Not used by ListMembersTests.");
 
         public Task RemoveMembershipAsync(MembershipId membershipId, CancellationToken ct) =>
+            throw new NotSupportedException("Not used by ListMembersTests.");
+
+        public Task<bool> TryAddFirstAdministratorAsync(Membership administratorMembership, CancellationToken ct) =>
             throw new NotSupportedException("Not used by ListMembersTests.");
 
         public Task SaveAsync(Membership membership, CancellationToken ct) =>
@@ -58,14 +52,14 @@ public class ListMembersTests
 
     private static ListMembers CreateUseCase(
         FakeMembershipRepository membershipRepository, FakeUserRepository userRepository) =>
-        new(membershipRepository, userRepository, new FakeTenantContext(), NullLogger<ListMembers>.Instance);
+        new(membershipRepository, userRepository, NullLogger<ListMembers>.Instance);
 
     [CoversRequirement("FR-014")]
     [Fact]
     public async Task ExecuteAsync_ReturnsActiveMembers_WithResolvedEmails()
     {
         var user = User.Create(Guid.NewGuid(), Guid.NewGuid(), new EmailAddress("member@example.com"));
-        var membership = Membership.Create(TestTenantId, user.Id, Role.Member);
+        var membership = Membership.Create(user.Id, Role.Member);
 
         var membershipRepository = new FakeMembershipRepository();
         membershipRepository.ActiveMembers.Add(membership);
@@ -98,7 +92,7 @@ public class ListMembersTests
     [Fact]
     public async Task ExecuteAsync_MissingUserRow_ReturnsNullEmail()
     {
-        var membership = Membership.Create(TestTenantId, UserId.New(), Role.Member);
+        var membership = Membership.Create(UserId.New(), Role.Member);
         var membershipRepository = new FakeMembershipRepository();
         membershipRepository.ActiveMembers.Add(membership);
         var userRepository = new FakeUserRepository();

@@ -47,12 +47,12 @@ public class InvitationConfiguration : IEntityTypeConfiguration<Invitation>
             .HasMaxLength(TokenHashLength)
             .IsRequired();
 
-        // Enforces "one pending invitation per email per tenant" — makes FR-020's idempotency
-        // correct even if the idempotency layer is bypassed (data-model.md).
-        builder.HasIndex(i => new { i.TenantId, i.Email })
+        // Enforces "one pending invitation per email" — makes FR-020's idempotency correct even
+        // if the idempotency layer is bypassed (data-model.md).
+        builder.HasIndex(i => i.Email)
             .IsUnique()
             .HasFilter("[Status] = 'Pending'")
-            .HasDatabaseName("IX_Invitations_TenantId_Email_Pending");
+            .HasDatabaseName("IX_Invitations_Email_Pending");
 
         builder.Property(i => i.ExpiresAtUtc)
             .IsRequired();

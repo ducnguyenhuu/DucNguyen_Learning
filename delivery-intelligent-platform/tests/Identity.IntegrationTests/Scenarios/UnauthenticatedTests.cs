@@ -8,88 +8,53 @@ using Xunit;
 namespace Identity.IntegrationTests.Scenarios;
 
 /// <summary>
-/// Failing test (T046) asserting <b>401 Unauthorized</b> for every tenant operation when no
-/// <c>Authorization</c> header is present at all (the T040 <c>TestAuthHandler</c>
-/// <c>NoResult()</c> path — not "present but invalid", which is a different case).
+/// <b>401 Unauthorized</b> for every non-health route when no <c>Authorization</c> header is
+/// present at all (<see cref="TestAuthHandler"/>'s <c>NoResult()</c> path — not "present but
+/// invalid", which <see cref="TokenValidationTests"/> covers). FR-002: an unauthenticated request
+/// is rejected without disclosing any data.
 /// </summary>
 /// <remarks>
-/// <b>What this file proves right now, and what it doesn't.</b> As confirmed while reviewing
-/// T045: <c>Program.cs</c>'s pipeline runs <c>UseAuthentication()</c> → <c>UseAuthorization()</c>,
-/// but for a route that doesn't match any endpoint (the <c>/tenants</c> endpoints don't exist
-/// yet; T058 adds them), the request never reaches an endpoint, so <c>UseAuthorization</c> is a
-/// no-op and the request falls through to a plain 404 — not a 401. These tests are written as the
-/// real, eventual-correct spec (assert <c>Unauthorized</c> specifically) and are expected to fail
-/// today with a genuine 401-vs-404 assertion mismatch, not weakened to "not 200" just to pass
-/// prematurely. They'll go genuinely green once T058 lands the endpoints behind authentication.
+/// The theory includes the routes that are deliberately <em>not</em> member-only
+/// (<c>GET /me</c>, <c>POST /members/bootstrap</c>, <c>POST /invitations/{token}/accept</c>):
+/// being callable by a non-member never means being callable anonymously.
 /// </remarks>
 public sealed class UnauthenticatedTests : IdentityIntegrationTestBase
 {
-
     public UnauthenticatedTests(SqlServerFixture sqlServerFixture, ApiFactory factory)
         : base(sqlServerFixture, factory)
     {
     }
 
-    [CoversRequirement("FR-002")]
-    [Fact]
-    public async Task Post_Tenants_WithNoAuthorizationHeader_ReturnsUnauthorized()
+    public static TheoryData<string, string> Routes() => new()
     {
-        await Factory.InitializeDatabaseAsync();
-
-        using var client = Factory.CreateClient();
-
-        var response = await client.PostAsync(
-            "/tenants",
-            JsonContent("Acme Delivery Co"),
-            TestContext.Current.CancellationToken);
-
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
+        { "GET", "/me" },
+        { "POST", "/members/bootstrap" },
+        { "GET", "/members" },
+        { "PATCH", "/members/0198a3c4-0000-7000-8000-000000000001" },
+        { "DELETE", "/members/0198a3c4-0000-7000-8000-000000000001" },
+        { "POST", "/invitations" },
+        { "GET", "/invitations" },
+        { "DELETE", "/invitations/0198a3c4-0000-7000-8000-000000000002" },
+        { "POST", "/invitations/some-token/accept" },
+    };
 
     [CoversRequirement("FR-002")]
-    [Fact]
-    public async Task Get_Tenants_WithNoAuthorizationHeader_ReturnsUnauthorized()
+    [Theory]
+    [MemberData(nameof(Routes))]
+    public async Task Route_WithNoAuthorizationHeader_ReturnsUnauthorized_AndDisclosesNothing(string method, string path)
     {
-        await Factory.InitializeDatabaseAsync();
-
         using var client = Factory.CreateClient();
+        using var request = new HttpRequestMessage(new HttpMethod(method), path);
+        if (method is "POST" or "PATCH")
+        {
+            request.Content = JsonContent.Create(new { email = "someone@example.com", role = "Member" });
+        }
 
-        var response = await client.GetAsync("/tenants", TestContext.Current.CancellationToken);
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        body.Should().NotContain("someone@example.com");
     }
-
-    [CoversRequirement("FR-002")]
-    [Fact]
-    public async Task Get_TenantById_WithNoAuthorizationHeader_ReturnsUnauthorized()
-    {
-        await Factory.InitializeDatabaseAsync();
-
-        using var client = Factory.CreateClient();
-
-        var response = await client.GetAsync(
-            $"/tenants/{Guid.NewGuid()}",
-            TestContext.Current.CancellationToken);
-
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [CoversRequirement("FR-002")]
-    [Fact]
-    public async Task Patch_TenantById_WithNoAuthorizationHeader_ReturnsUnauthorized()
-    {
-        await Factory.InitializeDatabaseAsync();
-
-        using var client = Factory.CreateClient();
-
-        var response = await client.PatchAsync(
-            $"/tenants/{Guid.NewGuid()}",
-            JsonContent("Renamed Tenant"),
-            TestContext.Current.CancellationToken);
-
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    private static JsonContent JsonContent(object payload) =>
-        System.Net.Http.Json.JsonContent.Create(new { displayName = payload });
 }

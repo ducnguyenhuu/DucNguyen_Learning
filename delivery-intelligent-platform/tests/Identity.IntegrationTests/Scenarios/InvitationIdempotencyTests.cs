@@ -1,69 +1,54 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using ArchitectureTests.Support;
 using AwesomeAssertions;
-using Microsoft.Extensions.DependencyInjection;
 using Identity.Domain.Abstractions;
-using Identity.Domain.Memberships;
-using Identity.Domain.Tenants;
-using Identity.Domain.Users;
-using Identity.Infrastructure.Persistence;
 using Identity.IntegrationTests.Infrastructure;
 using Xunit;
 
 namespace Identity.IntegrationTests.Scenarios;
 
 /// <summary>
-/// Failing tests (T066) proving that FR-020's idempotency guarantee — already proven for
-/// <c>POST /tenants</c> by <see cref="IdempotencyTests"/> (T050/T056/T058/T061) — also applies to
-/// <c>POST /tenants/{tenantId}/invitations</c> once that endpoint is wired onto the same
-/// <c>IdempotencyFilter</c> (T078). This file does not add a new mechanism; it re-proves the
-/// already-correct filter behavior against a second, tenant-scoped endpoint.
+/// FR-020's idempotency guarantee on <c>POST /invitations</c>, the one idempotent endpoint
+/// (<c>IdempotencyFilter</c>, wired by <c>WithIdempotency()</c>): a replay with a previously seen
+/// <c>Idempotency-Key</c> returns the stored status and body verbatim (a 201 replays as 201,
+/// never 200) without creating a second invitation; the same key reused with a different body
+/// returns 422; and a request whose identical twin is still in flight returns 409.
 /// </summary>
 /// <remarks>
-/// <b>What this file proves right now, and what it doesn't.</b> Same caveat as
-/// <see cref="IdempotencyTests"/> and <see cref="InviteAndManageMembersTests"/>: neither
-/// <c>POST /tenants/{tenantId}/invitations</c> (T078) nor its idempotency wiring exist yet, so
-/// every request below hits a route absent from <c>Program.cs</c>'s route table and gets ASP.NET
-/// Core's own "no matching endpoint" 404 — not any real idempotency behavior. These tests encode
-/// the eventual-correct behavior per openapi.yaml/FR-020 so they go genuinely green once T078
-/// lands.
+/// The idempotency record is keyed by <c>(CreatedByUserId, Endpoint, Key)</c> (ADR-025,
+/// decision 7), so a key is private to the caller who used it: a second administrator reusing the
+/// same key value is a different request, not a replay.
 /// </remarks>
 public sealed class InvitationIdempotencyTests : IdentityIntegrationTestBase
 {
-
     public InvitationIdempotencyTests(SqlServerFixture sqlServerFixture, ApiFactory factory)
         : base(sqlServerFixture, factory)
     {
     }
 
     /// <summary>
-    /// Sending the exact same <c>POST /tenants/{tenantId}/invitations</c> request (same
-    /// <c>Idempotency-Key</c>, same body) twice must return the same status code both times — a
-    /// 201 replays as 201, never a 200 — with the second response's body identical to the first,
-    /// with <c>Idempotency-Replayed: true</c> present only on the replay, and with exactly one
-    /// invitation actually persisted, confirmed via <c>GET /tenants/{tenantId}/invitations</c>.
+    /// Sending the exact same request twice returns the same status both times, the second body
+    /// identical to the first, <c>Idempotency-Replayed: true</c> only on the replay, and exactly
+    /// one invitation persisted (confirmed via <c>GET /invitations</c>). openapi.yaml says the
+    /// header is "Present and true when this response was replayed", so it may simply be absent on
+    /// the original — the test only requires it not to be "true" there.
     /// </summary>
     [CoversRequirement("FR-020")]
     [Fact]
     public async Task Post_Invitations_ReplayedWithSameKeyAndBody_ReturnsSameStatusAndBodyVerbatim_AndOnlyOneInvitationExists()
     {
-        await Factory.InitializeDatabaseAsync();
-        var administrator = await SeedSoleAdministratorTenantAsync();
-
-        using var client = CreateAuthenticatedClient(administrator);
+        var administrator = await Factory.SeedMemberAsync(Role.Administrator);
+        using var client = Factory.CreateClientFor(administrator);
 
         var idempotencyKey = Guid.CreateVersion7().ToString();
-        const string invitedEmail = "invitee@sole-admin-tenant.example.com";
+        const string invitedEmail = "invitee@example.com";
 
-        var firstResponse = await SendPostInvitation(
-            client, administrator.TenantId, idempotencyKey, invitedEmail, "Member");
+        var firstResponse = await SendPostInvitation(client, idempotencyKey, invitedEmail, "Member");
         var firstBody = await firstResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         var firstReplayedHeader = GetIdempotencyReplayedHeaderValue(firstResponse);
 
-        var secondResponse = await SendPostInvitation(
-            client, administrator.TenantId, idempotencyKey, invitedEmail, "Member");
+        var secondResponse = await SendPostInvitation(client, idempotencyKey, invitedEmail, "Member");
         var secondBody = await secondResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
         secondResponse.StatusCode.Should().Be(firstResponse.StatusCode);
@@ -73,47 +58,95 @@ public sealed class InvitationIdempotencyTests : IdentityIntegrationTestBase
         firstReplayedHeader.Should().NotBe("true");
         GetIdempotencyReplayedHeaderValue(secondResponse).Should().Be("true");
 
-        var listResponse = await client.GetAsync(
-            $"/tenants/{administrator.TenantId.Value}/invitations",
-            TestContext.Current.CancellationToken);
+        var listResponse = await client.GetAsync("/invitations", TestContext.Current.CancellationToken);
         listResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var listBody = await listResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        var occurrences = CountOccurrences(listBody, invitedEmail);
-        occurrences.Should().Be(1);
+        CountOccurrences(listBody, invitedEmail).Should().Be(1);
     }
 
     /// <summary>
-    /// Reusing the same <c>Idempotency-Key</c> against
-    /// <c>POST /tenants/{tenantId}/invitations</c> with a materially different request body (a
-    /// different invited email) must be rejected as key reuse with <c>422</c>, per the same
-    /// mismatch-detection behavior already proven for <c>POST /tenants</c> by
-    /// <see cref="IdempotencyTests.Post_Tenants_SameKeyDifferentBody_ReturnsUnprocessableEntity"/>.
+    /// Reusing the same key with a materially different body (a different invited email) is
+    /// rejected as key reuse with 422.
     /// </summary>
     [CoversRequirement("FR-020")]
     [Fact]
     public async Task Post_Invitations_SameKeyDifferentBody_ReturnsUnprocessableEntity()
     {
-        await Factory.InitializeDatabaseAsync();
-        var administrator = await SeedSoleAdministratorTenantAsync();
-
-        using var client = CreateAuthenticatedClient(administrator);
+        var administrator = await Factory.SeedMemberAsync(Role.Administrator);
+        using var client = Factory.CreateClientFor(administrator);
 
         var idempotencyKey = Guid.CreateVersion7().ToString();
 
-        await SendPostInvitation(
-            client, administrator.TenantId, idempotencyKey, "first-invitee@sole-admin-tenant.example.com", "Member");
-        var secondResponse = await SendPostInvitation(
-            client, administrator.TenantId, idempotencyKey, "second-invitee@sole-admin-tenant.example.com", "Member");
+        await SendPostInvitation(client, idempotencyKey, "first-invitee@example.com", "Member");
+        var secondResponse = await SendPostInvitation(client, idempotencyKey, "second-invitee@example.com", "Member");
 
         secondResponse.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
     }
 
-    private static async Task<HttpResponseMessage> SendPostInvitation(
-        HttpClient client, TenantId tenantId, string idempotencyKey, string email, string role)
+    /// <summary>
+    /// Two identical requests fired concurrently: whichever loses either sees its twin in flight
+    /// (409) or replays the finished result (201). Either way at least one response is the
+    /// original 201, and only one invitation exists.
+    /// </summary>
+    /// <remarks>
+    /// <b>Honest limitation.</b> Forcing the two requests to overlap in flight from outside the
+    /// process is not deterministic, so this asserts the outcome set rather than that 409
+    /// specifically fires.
+    /// </remarks>
+    [CoversRequirement("FR-020")]
+    [Fact]
+    public async Task Post_Invitations_ConcurrentIdenticalRequests_CreateExactlyOneInvitation()
     {
-        using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/tenants/{tenantId.Value}/invitations")
+        var administrator = await Factory.SeedMemberAsync(Role.Administrator);
+        using var client = Factory.CreateClientFor(administrator);
+
+        var idempotencyKey = Guid.CreateVersion7().ToString();
+        const string invitedEmail = "concurrent-invitee@example.com";
+
+        var responses = await Task.WhenAll(
+            SendPostInvitation(client, idempotencyKey, invitedEmail, "Member"),
+            SendPostInvitation(client, idempotencyKey, invitedEmail, "Member"));
+
+        responses.Should().Contain(r => r.StatusCode == HttpStatusCode.Created);
+        responses.Should().OnlyContain(r =>
+            r.StatusCode == HttpStatusCode.Created || r.StatusCode == HttpStatusCode.Conflict);
+
+        var listBody = await client.GetStringAsync("/invitations", TestContext.Current.CancellationToken);
+        CountOccurrences(listBody, invitedEmail).Should().Be(1);
+    }
+
+    /// <summary>
+    /// The key is scoped to its caller: a second administrator using the same key value with a
+    /// different body is not a key-reuse 422 and not a replay of the first administrator's
+    /// response — it is a new request that creates its own invitation.
+    /// </summary>
+    [CoversRequirement("FR-020")]
+    [Fact]
+    public async Task Post_Invitations_SameKeyFromDifferentAdministrators_AreIndependentRequests()
+    {
+        var firstAdministrator = await Factory.SeedMemberAsync(Role.Administrator);
+        var secondAdministrator = await Factory.SeedMemberAsync(Role.Administrator);
+        using var firstClient = Factory.CreateClientFor(firstAdministrator);
+        using var secondClient = Factory.CreateClientFor(secondAdministrator);
+
+        var sharedKey = Guid.CreateVersion7().ToString();
+
+        var first = await SendPostInvitation(firstClient, sharedKey, "from-first@example.com", "Member");
+        var second = await SendPostInvitation(secondClient, sharedKey, "from-second@example.com", "Reader");
+
+        first.StatusCode.Should().Be(HttpStatusCode.Created);
+        second.StatusCode.Should().Be(HttpStatusCode.Created);
+        GetIdempotencyReplayedHeaderValue(second).Should().NotBe("true");
+
+        var listBody = await firstClient.GetStringAsync("/invitations", TestContext.Current.CancellationToken);
+        listBody.Should().Contain("from-first@example.com").And.Contain("from-second@example.com");
+    }
+
+    private static async Task<HttpResponseMessage> SendPostInvitation(
+        HttpClient client, string idempotencyKey, string email, string role)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/invitations")
         {
             Content = JsonContent.Create(new { email, role }),
         };
@@ -136,44 +169,5 @@ public sealed class InvitationIdempotencyTests : IdentityIntegrationTestBase
         }
 
         return count;
-    }
-
-    private HttpClient CreateAuthenticatedClient(SeededTenant seededTenant)
-    {
-        var client = Factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
-        client.DefaultRequestHeaders.Add("X-Test-Oid", seededTenant.EntraObjectId.ToString());
-        client.DefaultRequestHeaders.Add("X-Test-Tid", seededTenant.EntraTenantId.ToString());
-        return client;
-    }
-
-    /// <summary>
-    /// Seeds a single tenant with exactly one active <see cref="Role.Administrator"/> member —
-    /// this route is tenant-scoped and requires an authenticated administrator caller, unlike
-    /// <c>POST /tenants</c>'s ADR-017 unscoped-exception pattern used by
-    /// <see cref="IdempotencyTests"/>. Mirrors
-    /// <see cref="InviteAndManageMembersTests.SeedSoleAdministratorTenantAsync"/>'s shape.
-    /// </summary>
-    private async Task<SeededTenant> SeedSoleAdministratorTenantAsync()
-    {
-        using var scope = Factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-
-        var tenant = Tenant.Create("Sole Admin Invitation Tenant");
-        var admin = User.Create(
-            entraTenantId: Guid.CreateVersion7(),
-            entraObjectId: Guid.CreateVersion7(),
-            email: new EmailAddress("sole-admin@sole-admin-invitation-tenant.example.com"));
-
-        db.Tenants.Add(tenant);
-        db.Users.Add(admin);
-        await db.SaveChangesAsync();
-
-        db.CurrentTenantId = tenant.Id;
-        var membership = Membership.Create(tenant.Id, admin.Id, Role.Administrator);
-        db.Memberships.Add(membership);
-        await db.SaveChangesAsync();
-
-        return new SeededTenant(tenant.Id, admin.Id, membership.Id, admin.EntraTenantId, admin.EntraObjectId);
     }
 }

@@ -4,8 +4,8 @@ namespace Identity.Api.Authorization;
 
 /// <summary>
 /// Authorization requirement satisfied only when the caller's <see cref="Identity.Domain.Abstractions.Role"/>
-/// in the current tenant — as resolved by <c>TenantContextResolutionMiddleware</c> (T035) from the
-/// real <c>Membership</c> row, never from a token claim (ADR-017 step 5) — is
+/// in the organization — as resolved by <c>MembershipResolutionFilter</c> from the real
+/// <c>Membership</c> row, never from a token claim — is
 /// <see cref="Identity.Domain.Abstractions.Role.Administrator"/>.
 /// </summary>
 /// <remarks>

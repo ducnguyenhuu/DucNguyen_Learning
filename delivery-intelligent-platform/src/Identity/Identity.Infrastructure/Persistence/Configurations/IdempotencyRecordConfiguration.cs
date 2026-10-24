@@ -27,21 +27,10 @@ public class IdempotencyRecordConfiguration : IEntityTypeConfiguration<Idempoten
 
     public void Configure(EntityTypeBuilder<IdempotencyRecord> builder)
     {
-        // The composite (TenantId, CreatedByUserId, Endpoint, Key) is the primary key — the
-        // uniqueness of this key IS the concurrency control, and scoping by tenant prevents
-        // cross-tenant key probing. There is deliberately no surrogate Id.
-        //
-        // TenantId is non-nullable: SQL Server does not support NULL in ANY column that is part
-        // of a PRIMARY KEY, composite or not — no per-column exception exists, and a CLR
-        // `TenantId?` would be silently discarded by EF Core's model builder once the property
-        // participates in HasKey(...) anyway (it always generates a plain non-nullable
-        // uniqueidentifier column). For the POST /tenants no-tenant-context case, callers use the
-        // fixed sentinel TenantId.Empty instead of null. CreatedByUserId — always the real
-        // caller, never a sentinel — is the actual disambiguator for two different users both
-        // calling POST /tenants with the same client-supplied idempotency key; it is included in
-        // the key even for the normal tenant-scoped case (redundant with TenantId alone there,
-        // but harmless, since it is already required data on every record).
-        builder.HasKey(r => new { r.TenantId, r.CreatedByUserId, r.Endpoint, r.Key });
+        // The composite (CreatedByUserId, Endpoint, Key) is the primary key — the uniqueness of
+        // this key IS the concurrency control, and scoping by caller prevents one user probing or
+        // replaying another's keys. There is deliberately no surrogate Id.
+        builder.HasKey(r => new { r.CreatedByUserId, r.Endpoint, r.Key });
 
         builder.Property(r => r.Endpoint)
             .IsRequired()
@@ -56,7 +45,7 @@ public class IdempotencyRecordConfiguration : IEntityTypeConfiguration<Idempoten
             .HasMaxLength(RequestHashLength);
 
         // tinyint per data-model.md — a compact numeric mapping, not the string mapping used for
-        // the domain enums (Role/TenantStatus/etc.) elsewhere in this project.
+        // the domain enums (Role/MembershipStatus/etc.) elsewhere in this project.
         builder.Property(r => r.Status)
             .HasConversion<byte>()
             .IsRequired();

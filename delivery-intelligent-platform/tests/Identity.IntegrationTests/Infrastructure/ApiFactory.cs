@@ -12,11 +12,9 @@ using Respawn;
 using Identity.Domain.Abstractions;
 using Identity.Domain.Invitations;
 using Identity.Domain.Memberships;
-using Identity.Domain.Tenants;
 using Identity.Domain.Users;
 using Identity.Infrastructure.Observability;
 using Identity.Infrastructure.Persistence;
-using Identity.Infrastructure.Persistence.Interceptors;
 
 namespace Identity.IntegrationTests.Infrastructure;
 
@@ -108,7 +106,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     /// host. <see cref="SignedTokenHarness.MintToken"/> callers should pass this value for the
     /// happy path, and a different value to exercise the "wrong audience" negative case.
     /// </summary>
-    public const string ExpectedAudience = "api://tenancy-test";
+    public const string ExpectedAudience = "api://identity-test";
 
     private readonly SignedTokenHarness _tokenHarness = new();
     private readonly CapturingLoggerProvider _loggerProvider = new();
@@ -202,11 +200,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             // 1. Point IdentityDbContext at the SqlServerFixture container instead of whatever
             // Program.cs would otherwise read from configuration.
             services.RemoveAll<DbContextOptions<IdentityDbContext>>();
-            services.AddDbContext<IdentityDbContext>((sp, options) =>
-            {
-                var interceptor = sp.GetRequiredService<TenantSaveChangesInterceptor>();
-                options.UseSqlServer(_connectionString).AddInterceptors(interceptor);
-            });
+            services.AddDbContext<IdentityDbContext>(options => options.UseSqlServer(_connectionString));
 
             // 2. Register Tier 1's fake scheme and the forwarding policy scheme described in the
             // type-level remarks, and make the policy scheme the default.
@@ -305,165 +299,125 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     }
 
     /// <summary>
-    /// Seeds two independent tenants, each with exactly one distinct, active member — the
-    /// fixture every cross-tenant isolation test builds on. Returns enough
-    /// identifying information for a test to authenticate as Tenant A's user (via
-    /// <see cref="TestAuthHandler"/>'s <c>X-Test-Oid</c>/<c>X-Test-Tid</c> headers, populated from
-    /// <see cref="SeededTenant.EntraObjectId"/>/<see cref="SeededTenant.EntraTenantId"/>) and then
-    /// attempt to read Tenant B's data using <see cref="SeededTenant.TenantId"/>.
-    /// </summary>
-    public async Task<TwoTenantSeed> SeedTwoTenantsAsync()
-    {
-        using var scope = Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-
-        var tenantA = Tenant.Create("Tenant A");
-        var tenantB = Tenant.Create("Tenant B");
-
-        var userA = User.Create(
-            entraTenantId: Guid.CreateVersion7(),
-            entraObjectId: Guid.CreateVersion7(),
-            email: new EmailAddress("member-a@tenant-a.example.com"));
-
-        var userB = User.Create(
-            entraTenantId: Guid.CreateVersion7(),
-            entraObjectId: Guid.CreateVersion7(),
-            email: new EmailAddress("member-b@tenant-b.example.com"));
-
-        // Each is the sole member of their own tenant, so — mirroring real
-        // CreateTenant/CreateTenantAsync behavior, where the creator becomes Administrator —
-        // both are seeded as Administrator rather than Member. Several tests using
-        // this fixture exercise administrator-only operations (PATCH /tenants/{tenantId}, invite,
-        // etc.) that are role-gated by the TenantAdministrator policy;
-        // Administrator is a strict superset of what those tests' non-administrator-agnostic
-        // assertions (isolation/"not Forbidden" checks) require, so this does not weaken
-        // any existing assertion.
-        var membershipA = Membership.Create(tenantA.Id, userA.Id, Role.Administrator);
-        var membershipB = Membership.Create(tenantB.Id, userB.Id, Role.Administrator);
-
-        db.Tenants.AddRange(tenantA, tenantB);
-        db.Users.AddRange(userA, userB);
-
-        // TenantSaveChangesInterceptor unconditionally stamps every newly-added
-        // ITenantOwned entity's TenantId with the context's ambient CurrentTenantId before it
-        // hits the database — it does not trust whatever TenantId the entity was constructed
-        // with. CurrentTenantId defaults to TenantId.Empty until something sets it, so batching
-        // both memberships into one SaveChangesAsync without setting CurrentTenantId first would
-        // silently stamp both with TenantId.Empty instead of tenantA.Id/tenantB.Id, corrupting
-        // every membership lookup that follows. Two saves, each preceded by pointing
-        // CurrentTenantId at the tenant that membership actually belongs to — the same pattern
-        // SeedOneUserInTwoTenantsAsync below already uses for the same reason.
-        await db.SaveChangesAsync();
-
-        db.CurrentTenantId = tenantA.Id;
-        db.Memberships.Add(membershipA);
-        await db.SaveChangesAsync();
-
-        db.CurrentTenantId = tenantB.Id;
-        db.Memberships.Add(membershipB);
-        await db.SaveChangesAsync();
-
-        return new TwoTenantSeed(
-            TenantA: new SeededTenant(tenantA.Id, userA.Id, membershipA.Id, userA.EntraTenantId, userA.EntraObjectId),
-            TenantB: new SeededTenant(tenantB.Id, userB.Id, membershipB.Id, userB.EntraTenantId, userB.EntraObjectId));
-    }
-
-    /// <summary>
-    /// Seeds two independent tenants and <b>one</b> <see cref="User"/> with an active
-    /// <see cref="Membership"/> in <b>each</b> tenant — the fixture the multi-tenant
-    /// membership test builds on. Unlike <see cref="SeedTwoTenantsAsync"/> (distinct members
-    /// per tenant), this models a single real user who legitimately belongs to both tenants, so
-    /// a test can authenticate once (via <see cref="TestAuthHandler"/>'s
-    /// <c>X-Test-Oid</c>/<c>X-Test-Tid</c> headers, populated from
-    /// <see cref="SharedUserSeed.EntraTenantId"/>/<see cref="SharedUserSeed.EntraObjectId"/>) and
-    /// assert both tenants' data comes back correctly separated, never blended. Both memberships
-    /// use <see cref="Role.Member"/>; the role is incidental to this test's isolation concern, so
-    /// there's no need for it to vary.
+    /// Seeds one <see cref="User"/> with an active <see cref="Membership"/> holding
+    /// <paramref name="role"/> in the organization, and returns what a test needs to authenticate
+    /// as them (<see cref="CreateClientFor"/>) and to target them by id.
     /// </summary>
     /// <remarks>
-    /// <b>Why two <c>SaveChangesAsync</c> calls, each preceded by setting
-    /// <see cref="IdentityDbContext.CurrentTenantId"/>.</b> <see cref="TenantSaveChangesInterceptor"/>
-    /// (the write-side isolation guard) stamps <b>every</b> newly-added <c>ITenantOwned</c>
-    /// entity's <c>TenantId</c> with the context's ambient <c>CurrentTenantId</c> before it hits
-    /// the database — it does not trust whatever <c>TenantId</c> the caller constructed the
-    /// entity with. A single batched save (as <see cref="SeedTwoTenantsAsync"/> does) works there
-    /// only because each membership's user is distinct, so the two rows never collide on the
-    /// unique <c>(TenantId, UserId)</c> index even when both get stamped with the same ambient
-    /// value. Here the same user holds both memberships, so both rows genuinely need different
-    /// <c>TenantId</c> values — this seeds each membership in its own save, switching
-    /// <see cref="IdentityDbContext.CurrentTenantId"/> in between so the interceptor stamps each
-    /// with the tenant it actually belongs to.
+    /// Each call creates a distinct user with fresh Entra <c>(tid, oid)</c> values, so a test
+    /// builds the exact cast it needs — say one Administrator and one Reader — by calling this once
+    /// per member. When <paramref name="email"/> is omitted a unique address is generated, so two
+    /// seeded members never collide on the user table's unique email lookups.
     /// </remarks>
-    public async Task<OneUserTwoTenantsSeed> SeedOneUserInTwoTenantsAsync()
+    public async Task<SeededMember> SeedMemberAsync(Role role, string? email = null)
     {
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
 
-        var tenantX = Tenant.Create("Tenant X");
-        var tenantY = Tenant.Create("Tenant Y");
-
-        var sharedUser = User.Create(
+        var user = User.Create(
             entraTenantId: Guid.CreateVersion7(),
             entraObjectId: Guid.CreateVersion7(),
-            email: new EmailAddress("shared-member@multi-tenant.example.com"));
+            email: new EmailAddress(email ?? $"{role.ToString().ToLowerInvariant()}-{Guid.NewGuid():N}@example.com"));
+        var membership = Membership.Create(user.Id, role);
 
-        db.Tenants.AddRange(tenantX, tenantY);
-        db.Users.Add(sharedUser);
+        db.Users.Add(user);
+        db.Memberships.Add(membership);
         await db.SaveChangesAsync();
 
-        db.CurrentTenantId = tenantX.Id;
-        var membershipX = Membership.Create(tenantX.Id, sharedUser.Id, Role.Member);
-        db.Memberships.Add(membershipX);
-        await db.SaveChangesAsync();
-
-        db.CurrentTenantId = tenantY.Id;
-        var membershipY = Membership.Create(tenantY.Id, sharedUser.Id, Role.Member);
-        db.Memberships.Add(membershipY);
-        await db.SaveChangesAsync();
-
-        return new OneUserTwoTenantsSeed(
-            TenantX: new TenantMembership(tenantX.Id, "Tenant X", membershipX.Id),
-            TenantY: new TenantMembership(tenantY.Id, "Tenant Y", membershipY.Id),
-            User: new SharedUserSeed(sharedUser.Id, sharedUser.EntraTenantId, sharedUser.EntraObjectId));
+        return new SeededMember(user.Id, membership.Id, user.EntraTenantId, user.EntraObjectId, user.Email.Value);
     }
 
     /// <summary>
-    /// Seeds the same two-tenant/two-member fixture as <see cref="SeedTwoTenantsAsync"/>, plus
-    /// one genuinely-persisted, still-<see cref="InvitationStatus.Pending"/>
-    /// <see cref="Invitation"/> in Tenant B — the fixture the invitation-isolation tests
-    /// (invite/list/revoke) build on so that a cross-tenant "revoke Tenant B's invitation via
-    /// Tenant A's route" attempt targets an invitation id that legitimately exists, rather than
-    /// one that is merely absent.
+    /// Seeds a persisted <see cref="Invitation"/> for <paramref name="email"/> whose stored token
+    /// hash is the real hash of <paramref name="rawToken"/>, so presenting <paramref name="rawToken"/>
+    /// to <c>POST /invitations/{token}/accept</c> genuinely resolves this row. Optionally moves it
+    /// out of <see cref="InvitationStatus.Pending"/> first (<see cref="InvitationStatus.Revoked"/>
+    /// or <see cref="InvitationStatus.Accepted"/>), for the refusal tests that need a token that
+    /// exists but can no longer be used.
     /// </summary>
-    public async Task<TwoTenantSeedWithInvitation> SeedTwoTenantsWithInvitationInTenantBAsync()
+    /// <remarks>
+    /// Accepting is done through <see cref="Invitation.Accept"/> with a clock pinned before the
+    /// expiry, so a test can seed an invitation that is both accepted and expired without the
+    /// domain refusing the transition.
+    /// </remarks>
+    public async Task<InvitationId> SeedInvitationAsync(
+        string email,
+        Role role,
+        string rawToken,
+        DateTimeOffset expiresAtUtc,
+        InvitationStatus status = InvitationStatus.Pending)
     {
-        var seed = await SeedTwoTenantsAsync();
-
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
 
-        db.CurrentTenantId = seed.TenantB.TenantId;
-
-        // The raw token value below must match exactly what UnscopedOperationTests presents on
-        // the wire ("some-valid-token-for-tenant-b-invitee") so that AcceptInvitation's real
-        // SHA-256-hash-and-lookup (Identity.Application.Invitations.InvitationToken) actually
-        // resolves this row — a fixed, unrelated placeholder hash here would make every accept
-        // attempt silently miss regardless of the presented token, masking both the 403
-        // (wrong-identity) and 200 (correct-identity) target-spec assertions those tests make.
-        var tokenHashBase64 = Convert.ToBase64String(
-            Identity.Application.Invitations.InvitationToken.Hash("some-valid-token-for-tenant-b-invitee"));
-
         var invitation = Invitation.Create(
-            seed.TenantB.TenantId,
-            new EmailAddress("invitee@tenant-b.example.com"),
-            Role.Member,
-            tokenHash: tokenHashBase64,
-            expiresAtUtc: DateTimeOffset.UtcNow.AddDays(7));
+            new EmailAddress(email),
+            role,
+            tokenHash: Convert.ToBase64String(Identity.Application.Invitations.InvitationToken.Hash(rawToken)),
+            expiresAtUtc);
+
+        switch (status)
+        {
+            case InvitationStatus.Pending:
+                break;
+            case InvitationStatus.Revoked:
+                invitation.Revoke();
+                break;
+            case InvitationStatus.Accepted:
+                invitation.Accept(new FixedClock(expiresAtUtc.AddMinutes(-1)));
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(
+                    nameof(status), status, "Expired is derived from ExpiresAtUtc, never stored.");
+        }
+
         db.Invitations.Add(invitation);
         await db.SaveChangesAsync();
 
-        return new TwoTenantSeedWithInvitation(seed.TenantA, seed.TenantB, invitation.Id);
+        return invitation.Id;
     }
+
+    /// <summary>
+    /// The <c>If-Match</c> value for <paramref name="membershipId"/>'s current, persisted
+    /// <c>RowVersion</c>. <c>PATCH</c>/<c>DELETE /members/{userId}</c> require a genuine
+    /// precondition (FR-021), and <c>GET /members</c> exposes no per-member ETag to round-trip
+    /// through HTTP instead.
+    /// </summary>
+    public async Task<string> GetMembershipIfMatchAsync(MembershipId membershipId)
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var membership = await db.Memberships.AsNoTracking().SingleAsync(m => m.Id == membershipId);
+        return Identity.Api.ETags.RowVersionETag.ToETag(membership.RowVersion);
+    }
+
+    /// <summary>
+    /// A client authenticated (Tier 1, <see cref="TestAuthHandler"/>) as the identity with the
+    /// given Entra <c>(tid, oid)</c>. The token kind defaults to a signed-in user's delegated
+    /// scope; callers add <c>X-Test-Roles</c>/<c>X-Test-Scp</c> themselves to model something
+    /// else.
+    /// </summary>
+    public HttpClient CreateClientFor(Guid entraTenantId, Guid entraObjectId)
+    {
+        var client = CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue(TestAuthHandler.SchemeName, "test");
+        client.DefaultRequestHeaders.Add("X-Test-Oid", entraObjectId.ToString());
+        client.DefaultRequestHeaders.Add("X-Test-Tid", entraTenantId.ToString());
+        return client;
+    }
+
+    /// <summary>A client authenticated as <paramref name="member"/>; see
+    /// <see cref="CreateClientFor(Guid, Guid)"/>.</summary>
+    public HttpClient CreateClientFor(SeededMember member) =>
+        CreateClientFor(member.EntraTenantId, member.EntraObjectId);
+
+    /// <summary>
+    /// A client authenticated as a brand-new identity that has never been seen before: no user
+    /// row, no membership. The non-member every member-only route must refuse with 403.
+    /// </summary>
+    public HttpClient CreateClientForStranger() =>
+        CreateClientFor(Guid.NewGuid(), Guid.NewGuid());
 
     /// <inheritdoc />
     protected override void Dispose(bool disposing)
@@ -475,73 +429,29 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
 
         base.Dispose(disposing);
     }
+
+    /// <summary>An <see cref="IClock"/> that always reports one instant, for seeding only.</summary>
+    private sealed class FixedClock(DateTimeOffset utcNow) : IClock
+    {
+        public DateTimeOffset UtcNow { get; } = utcNow;
+    }
 }
 
 /// <summary>
-/// A single seeded tenant and its one active member, as produced by
-/// <see cref="ApiFactory.SeedTwoTenantsAsync"/>.
+/// One seeded member of the organization, as produced by <see cref="ApiFactory.SeedMemberAsync"/>.
 /// </summary>
-/// <param name="TenantId">The platform tenant aggregate's id.</param>
-/// <param name="UserId">The member's platform user id.</param>
-/// <param name="MembershipId">The member's active membership id in this tenant.</param>
-/// <param name="EntraTenantId">
-/// The member's Entra (Azure AD) tenant id — the <c>tid</c> claim value to present when
-/// authenticating as this member.
-/// </param>
-/// <param name="EntraObjectId">
-/// The member's Entra object id — the <c>oid</c> claim value to present when authenticating as
-/// this member.
-/// </param>
-public sealed record SeededTenant(
-    TenantId TenantId,
+/// <param name="UserId">The member's platform user id — the <c>{userId}</c> in
+/// <c>/members/{userId}</c>.</param>
+/// <param name="MembershipId">The member's active membership id.</param>
+/// <param name="EntraTenantId">The member's Entra directory id — the <c>tid</c> claim value to
+/// present when authenticating as them. This is the identity provider's directory (ADR-019), not
+/// application tenancy.</param>
+/// <param name="EntraObjectId">The member's Entra object id — the <c>oid</c> claim value to
+/// present when authenticating as them.</param>
+/// <param name="Email">The member's seeded email address.</param>
+public sealed record SeededMember(
     UserId UserId,
     MembershipId MembershipId,
     Guid EntraTenantId,
-    Guid EntraObjectId);
-
-/// <summary>
-/// Two independent, seeded tenants with distinct members, as produced by
-/// <see cref="ApiFactory.SeedTwoTenantsAsync"/>. Tenant A's member is the caller in the
-/// cross-tenant read attempt against Tenant B.
-/// </summary>
-public sealed record TwoTenantSeed(SeededTenant TenantA, SeededTenant TenantB);
-
-/// <summary>
-/// The same two-tenant/two-member fixture as <see cref="TwoTenantSeed"/>, plus the id of a
-/// genuinely-persisted, still-pending <see cref="Invitation"/> that legitimately exists in
-/// Tenant B, as produced by <see cref="ApiFactory.SeedTwoTenantsWithInvitationInTenantBAsync"/>.
-/// </summary>
-public sealed record TwoTenantSeedWithInvitation(
-    SeededTenant TenantA,
-    SeededTenant TenantB,
-    InvitationId InvitationId);
-
-/// <summary>
-/// One tenant, and the shared user's active membership id within it, as produced by
-/// <see cref="ApiFactory.SeedOneUserInTwoTenantsAsync"/>.
-/// </summary>
-/// <param name="TenantId">The platform tenant aggregate's id.</param>
-/// <param name="DisplayName">The tenant's seeded display name — used by the multi-tenant
-/// membership test to assert each <c>GET /tenants/{id}</c> response reflects the correct tenant
-/// and never the other one.</param>
-/// <param name="MembershipId">The shared user's active membership id in this tenant.</param>
-public sealed record TenantMembership(TenantId TenantId, string DisplayName, MembershipId MembershipId);
-
-/// <summary>
-/// The single user shared across both tenants in <see cref="OneUserTwoTenantsSeed"/>, identified
-/// by the Entra claims a test presents via <see cref="TestAuthHandler"/>'s headers.
-/// </summary>
-/// <param name="UserId">The shared member's platform user id.</param>
-/// <param name="EntraTenantId">The <c>tid</c> claim value to present when authenticating as this
-/// user.</param>
-/// <param name="EntraObjectId">The <c>oid</c> claim value to present when authenticating as this
-/// user.</param>
-public sealed record SharedUserSeed(UserId UserId, Guid EntraTenantId, Guid EntraObjectId);
-
-/// <summary>
-/// Two independent tenants sharing one active member, as produced by
-/// <see cref="ApiFactory.SeedOneUserInTwoTenantsAsync"/>. The shared <see cref="User"/>
-/// authenticates once and is expected to operate against each tenant in turn, with each
-/// response reflecting only that tenant's own data (FR-010).
-/// </summary>
-public sealed record OneUserTwoTenantsSeed(TenantMembership TenantX, TenantMembership TenantY, SharedUserSeed User);
+    Guid EntraObjectId,
+    string Email);

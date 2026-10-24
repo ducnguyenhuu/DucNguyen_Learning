@@ -1,44 +1,28 @@
 namespace Identity.Domain.Abstractions;
 
 /// <summary>
-/// Represents the role of a member in a tenant.
+/// Represents the role of a member in the organization.
 /// </summary>
 public enum Role
 {
     /// <summary>
-    /// An administrator with full control over the tenant and its members.
+    /// An administrator with full control over the organization and its members.
     /// </summary>
     Administrator,
 
     /// <summary>
-    /// A member with full access to the tenant.
+    /// A member with full access to the organization.
     /// </summary>
     Member,
 
     /// <summary>
-    /// A member with read-only access to the tenant.
+    /// A member with read-only access to the organization.
     /// </summary>
     Reader,
 }
 
 /// <summary>
-/// Represents the lifecycle state of a tenant.
-/// </summary>
-public enum TenantStatus
-{
-    /// <summary>
-    /// The tenant is active and operational.
-    /// </summary>
-    Active,
-
-    /// <summary>
-    /// The tenant has been suspended and is not operational.
-    /// </summary>
-    Suspended,
-}
-
-/// <summary>
-/// Represents the lifecycle state of a tenant membership.
+/// Represents the lifecycle state of a membership.
 /// </summary>
 public enum MembershipStatus
 {
@@ -54,7 +38,7 @@ public enum MembershipStatus
 }
 
 /// <summary>
-/// Represents the lifecycle state of a tenant invitation.
+/// Represents the lifecycle state of an invitation.
 /// </summary>
 public enum InvitationStatus
 {

@@ -48,21 +48,6 @@ public sealed class FailureMessageContentTests
     }
 
     [Fact]
-    public void TenantIsolationGates_BarePattern_DistinguishesBareFromNamedForm()
-    {
-        var pattern = GetPrivateStaticRegex(typeof(TenantIsolationGates), "BareIgnoreQueryFiltersPattern");
-
-        pattern.IsMatch("var all = context.Users.IgnoreQueryFilters();").Should().BeTrue(
-            "the bare, no-argument form is exactly what this gate must catch and name in its " +
-            "failure message");
-
-        pattern.IsMatch("var mine = context.Users.IgnoreQueryFilters([\"TenantFilter\"]);")
-            .Should().BeFalse(
-                "the named form is the documented compliant baseline and must not be reported " +
-                "as an offender");
-    }
-
-    [Fact]
     public void ModelNamingGates_StringLiteralPattern_RequiresAQuotedPrefixNotACommentMention()
     {
         var pattern = GetPrivateStaticRegex(

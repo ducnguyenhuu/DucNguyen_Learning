@@ -6,14 +6,13 @@ using Identity.Domain.Invitations;
 namespace Identity.Application.Invitations;
 
 /// <summary>
-/// Lists pending invitations for the current tenant (FR-014), for
-/// <c>GET /tenants/{tenantId}/invitations</c> (T078 wires the endpoint — this is
+/// Lists pending invitations (FR-014), for <c>GET /invitations</c> (T078 wires the endpoint — this is
 /// application-layer only). Administrator-only per the contract; that authorization check is not
-/// this use case's concern (same division of responsibility as <c>RenameTenant</c>'s remarks).
+/// this use case's concern (the endpoint applies <c>RequireAdministrator()</c>).
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Derived expiry, not swept:</b> <see cref="IInvitationRepository.GetAllForCurrentTenantAsync"/>
+/// <b>Derived expiry, not swept:</b> <see cref="IInvitationRepository.GetAllPendingAsync"/>
 /// returns every row whose <i>stored</i> <see cref="Invitation.Status"/> is
 /// <see cref="InvitationStatus.Pending"/> — some of those may already be past
 /// <see cref="Invitation.ExpiresAtUtc"/> by wall-clock time, since data-model.md rules out a
@@ -34,30 +33,27 @@ namespace Identity.Application.Invitations;
 public class ListInvitations
 {
     private readonly IInvitationRepository _invitationRepository;
-    private readonly ITenantContext _tenantContext;
     private readonly IClock _clock;
     private readonly ILogger<ListInvitations> _logger;
 
     public ListInvitations(
         IInvitationRepository invitationRepository,
-        ITenantContext tenantContext,
         IClock clock,
         ILogger<ListInvitations> logger)
     {
         _invitationRepository = invitationRepository;
-        _tenantContext = tenantContext;
         _clock = clock;
         _logger = logger;
     }
 
     /// <summary>
-    /// Returns every pending-or-effectively-expired invitation in the current tenant, for the
+    /// Returns every pending-or-effectively-expired invitation, for the
     /// acting <paramref name="requestedByUserId"/> (logged only, not used to filter).
     /// </summary>
     public async Task<IReadOnlyList<ListedInvitation>> ExecuteAsync(
         UserId requestedByUserId, CancellationToken ct)
     {
-        var invitations = await _invitationRepository.GetAllForCurrentTenantAsync(ct);
+        var invitations = await _invitationRepository.GetAllPendingAsync(ct);
 
         var now = _clock.UtcNow;
         var result = invitations
@@ -70,9 +66,8 @@ public class ListInvitations
             .ToList();
 
         _logger.LogInformation(
-            "Listed {Count} pending invitations for tenant {TenantId}, requested by user {RequestedByUserId}",
+            "Listed {Count} pending invitations, requested by user {RequestedByUserId}",
             result.Count,
-            _tenantContext.TenantId,
             requestedByUserId);
 
         return result;

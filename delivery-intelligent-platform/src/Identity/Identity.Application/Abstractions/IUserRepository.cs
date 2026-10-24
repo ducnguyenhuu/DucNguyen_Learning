@@ -31,9 +31,7 @@ public interface IUserRepository
     /// <summary>
     /// Returns every <see cref="User"/> whose <see cref="User.Id"/> is in <paramref name="userIds"/>
     /// (T076, added for <c>ListMembers</c> to resolve each <c>Membership.UserId</c> to a display
-    /// email — <see cref="User"/> carries no tenant scoping of its own, so this is not a
-    /// tenant-scoped read; callers are expected to have already restricted <paramref name="userIds"/>
-    /// to a specific tenant's memberships before calling this).
+    /// email).
     /// </summary>
     Task<IReadOnlyList<User>> FindByIdsAsync(IReadOnlyCollection<UserId> userIds, CancellationToken ct);
 }

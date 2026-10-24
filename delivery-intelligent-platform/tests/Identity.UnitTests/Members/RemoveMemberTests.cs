@@ -16,15 +16,6 @@ namespace Identity.UnitTests.Members;
 /// </summary>
 public class RemoveMemberTests
 {
-    private static readonly TenantId TestTenantId = new(Guid.CreateVersion7());
-
-    private sealed class FakeTenantContext : ITenantContext
-    {
-        public TenantId TenantId { get; set; } = TestTenantId;
-
-        public Role Role { get; set; } = Role.Administrator;
-    }
-
     private sealed class FakeMembershipRepository : IMembershipRepository
     {
         public Membership? ActiveMembership { get; set; }
@@ -52,6 +43,9 @@ public class RemoveMemberTests
             return Task.CompletedTask;
         }
 
+        public Task<bool> TryAddFirstAdministratorAsync(Membership administratorMembership, CancellationToken ct) =>
+            throw new NotSupportedException("Not used by RemoveMemberTests.");
+
         public Task SaveAsync(Membership membership, CancellationToken ct) =>
             throw new NotSupportedException("Not used by RemoveMemberTests.");
     }
@@ -76,14 +70,14 @@ public class RemoveMemberTests
     }
 
     private static RemoveMember CreateUseCase(FakeMembershipRepository repository) =>
-        new(repository, new FakeTenantContext(), new FakeAuditWriter(), new FakeClock(), NullLogger<RemoveMember>.Instance);
+        new(repository, new FakeAuditWriter(), new FakeClock(), NullLogger<RemoveMember>.Instance);
 
     [CoversRequirement("FR-014")]
     [Fact]
     public async Task ExecuteAsync_HappyPath_RemovesMembership()
     {
         var targetUserId = UserId.New();
-        var membership = Membership.Create(TestTenantId, targetUserId, Role.Member);
+        var membership = Membership.Create(targetUserId, Role.Member);
         var repository = new FakeMembershipRepository { ActiveMembership = membership };
         var useCase = CreateUseCase(repository);
 
@@ -125,7 +119,7 @@ public class RemoveMemberTests
     public async Task ExecuteAsync_LastAdministrator_ReturnsConflict()
     {
         var targetUserId = UserId.New();
-        var membership = Membership.Create(TestTenantId, targetUserId, Role.Administrator);
+        var membership = Membership.Create(targetUserId, Role.Administrator);
         var repository = new FakeMembershipRepository
         {
             ActiveMembership = membership,

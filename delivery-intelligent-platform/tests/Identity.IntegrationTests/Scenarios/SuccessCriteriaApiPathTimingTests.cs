@@ -1,15 +1,15 @@
 using System.Diagnostics;
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using AwesomeAssertions;
+using Identity.Domain.Abstractions;
 using Identity.IntegrationTests.Infrastructure;
 using Xunit;
 
 namespace Identity.IntegrationTests.Scenarios;
 
 /// <summary>
-/// T094 — real, measured wall-clock timing for the mechanical API-path sequence a UI would
+/// Real, measured wall-clock timing for the mechanical API-path sequence a UI would
 /// eventually drive for SC-001 and SC-002, per plan.md's Complexity Tracking framing.
 /// </summary>
 /// <remarks>
@@ -39,38 +39,26 @@ public sealed class SuccessCriteriaApiPathTimingTests : IdentityIntegrationTestB
     }
 
     /// <summary>
-    /// SC-001's API-path proxy: authenticate as a new caller -&gt; POST /tenants (create) -&gt;
-    /// POST /tenants/{tenantId}/invitations (invite one colleague). Budget of 30s is deliberately
-    /// generous relative to SC-001's 5-minute human budget — this guards against gross regression,
-    /// not against the human-facing criterion itself.
+    /// SC-001's API-path proxy (ADR-025 reads "a created tenant" as "the organization, with its
+    /// first administrator"): a new caller -&gt; <c>POST /members/bootstrap</c> -&gt;
+    /// <c>POST /invitations</c> (invite one colleague). Budget of 30s is deliberately generous
+    /// relative to SC-001's 5-minute human budget — this guards against gross regression, not
+    /// against the human-facing criterion itself.
     /// </summary>
     [Fact]
-    public async Task ApiPath_CreateTenant_ThenInviteColleague_CompletesWellUnderScOneBudget()
+    public async Task ApiPath_Bootstrap_ThenInviteColleague_CompletesWellUnderScOneBudget()
     {
-        await Factory.InitializeDatabaseAsync();
-
-        using var client = Factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
-        client.DefaultRequestHeaders.Add("X-Test-Oid", Guid.NewGuid().ToString());
-        client.DefaultRequestHeaders.Add("X-Test-Tid", Guid.NewGuid().ToString());
+        using var client = Factory.CreateClientForStranger();
 
         var stopwatch = Stopwatch.StartNew();
 
-        client.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
-        var createResponse = await client.PostAsJsonAsync(
-            "/tenants",
-            new { displayName = "SC-001 Timing Tenant" },
-            TestContext.Current.CancellationToken);
-        createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+        var bootstrapResponse = await client.PostAsync(
+            "/members/bootstrap", content: null, TestContext.Current.CancellationToken);
+        bootstrapResponse.StatusCode.Should().Be(HttpStatusCode.Created);
 
-        var createdTenant = await createResponse.Content.ReadFromJsonAsync<TenantResponse>(
-            TestContext.Current.CancellationToken);
-        createdTenant.Should().NotBeNull();
-
-        client.DefaultRequestHeaders.Remove("Idempotency-Key");
         client.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
         var inviteResponse = await client.PostAsJsonAsync(
-            $"/tenants/{createdTenant!.Id}/invitations",
+            "/invitations",
             new { email = "colleague@sc001-timing.example.com", role = "Member" },
             TestContext.Current.CancellationToken);
         inviteResponse.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -78,7 +66,7 @@ public sealed class SuccessCriteriaApiPathTimingTests : IdentityIntegrationTestB
         stopwatch.Stop();
 
         TestContext.Current.SendDiagnosticMessage(
-            $"T094 SC-001 API-path timing (create tenant + invite colleague): {stopwatch.Elapsed.TotalSeconds:F3}s");
+            $"SC-001 API-path timing (bootstrap + invite colleague): {stopwatch.Elapsed.TotalSeconds:F3}s");
 
         stopwatch.Elapsed.Should().BeLessThan(
             TimeSpan.FromSeconds(30),
@@ -87,35 +75,20 @@ public sealed class SuccessCriteriaApiPathTimingTests : IdentityIntegrationTestB
     }
 
     /// <summary>
-    /// SC-002's API-path proxy: authenticate as the invited colleague -&gt;
-    /// POST /invitations/{token}/accept -&gt; GET /tenants/{tenantId} (reach tenant data). Budget
-    /// of 15s is deliberately generous relative to SC-002's 2-minute human budget.
+    /// SC-002's API-path proxy: the invited colleague -&gt;
+    /// <c>POST /invitations/{token}/accept</c> -&gt; <c>GET /me</c> (reach the organization as a
+    /// member). Budget of 15s is deliberately generous relative to SC-002's 2-minute human budget.
     /// </summary>
     [Fact]
-    public async Task ApiPath_AcceptInvitation_ThenGetTenant_CompletesWellUnderScTwoBudget()
+    public async Task ApiPath_AcceptInvitation_ThenGetMe_CompletesWellUnderScTwoBudget()
     {
-        await Factory.InitializeDatabaseAsync();
-
-        using var adminClient = Factory.CreateClient();
-        adminClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
-        adminClient.DefaultRequestHeaders.Add("X-Test-Oid", Guid.NewGuid().ToString());
-        adminClient.DefaultRequestHeaders.Add("X-Test-Tid", Guid.NewGuid().ToString());
+        var administrator = await Factory.SeedMemberAsync(Role.Administrator);
+        using var adminClient = Factory.CreateClientFor(administrator);
         adminClient.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
-
-        var createResponse = await adminClient.PostAsJsonAsync(
-            "/tenants",
-            new { displayName = "SC-002 Timing Tenant" },
-            TestContext.Current.CancellationToken);
-        createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
-        var createdTenant = await createResponse.Content.ReadFromJsonAsync<TenantResponse>(
-            TestContext.Current.CancellationToken);
-        createdTenant.Should().NotBeNull();
 
         const string invitedEmail = "invitee@sc002-timing.example.com";
-        adminClient.DefaultRequestHeaders.Remove("Idempotency-Key");
-        adminClient.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
         var inviteResponse = await adminClient.PostAsJsonAsync(
-            $"/tenants/{createdTenant!.Id}/invitations",
+            "/invitations",
             new { email = invitedEmail, role = "Member" },
             TestContext.Current.CancellationToken);
         inviteResponse.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -124,15 +97,12 @@ public sealed class SuccessCriteriaApiPathTimingTests : IdentityIntegrationTestB
         inviteBody.Should().NotBeNull();
         inviteBody!.Token.Should().NotBeNullOrWhiteSpace();
 
-        using var inviteeClient = Factory.CreateClient();
-        inviteeClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
-        inviteeClient.DefaultRequestHeaders.Add("X-Test-Oid", Guid.NewGuid().ToString());
-        inviteeClient.DefaultRequestHeaders.Add("X-Test-Tid", Guid.NewGuid().ToString());
+        using var inviteeClient = Factory.CreateClientForStranger();
         inviteeClient.DefaultRequestHeaders.Add("X-Test-Email", invitedEmail);
 
-        // Only the invitee's own sequence (accept -> reach tenant data) is timed, per SC-002's
-        // wording ("from opening the invitation") -- the admin's prior create+invite setup above
-        // is SC-001's concern, not SC-002's.
+        // Only the invitee's own sequence (accept -> reach the organization) is timed, per
+        // SC-002's wording ("from opening the invitation") -- the administrator's invite above is
+        // SC-001's concern, not SC-002's.
         var stopwatch = Stopwatch.StartNew();
 
         var acceptResponse = await inviteeClient.PostAsync(
@@ -141,15 +111,13 @@ public sealed class SuccessCriteriaApiPathTimingTests : IdentityIntegrationTestB
             TestContext.Current.CancellationToken);
         acceptResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var getTenantResponse = await inviteeClient.GetAsync(
-            $"/tenants/{createdTenant.Id}",
-            TestContext.Current.CancellationToken);
-        getTenantResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var me = await inviteeClient.GetFromJsonAsync<MeResponse>("/me", TestContext.Current.CancellationToken);
+        me!.Role.Should().Be("Member");
 
         stopwatch.Stop();
 
         TestContext.Current.SendDiagnosticMessage(
-            $"T094 SC-002 API-path timing (accept invitation + get tenant): {stopwatch.Elapsed.TotalSeconds:F3}s");
+            $"SC-002 API-path timing (accept invitation + GET /me): {stopwatch.Elapsed.TotalSeconds:F3}s");
 
         stopwatch.Elapsed.Should().BeLessThan(
             TimeSpan.FromSeconds(15),
@@ -157,7 +125,7 @@ public sealed class SuccessCriteriaApiPathTimingTests : IdentityIntegrationTestB
             "this is a regression guard, not a certification of the human/no-documentation dimension");
     }
 
-    private sealed record TenantResponse(Guid Id);
-
     private sealed record InvitationResponse(string Token);
+
+    private sealed record MeResponse(Guid UserId, string Email, string? Role);
 }

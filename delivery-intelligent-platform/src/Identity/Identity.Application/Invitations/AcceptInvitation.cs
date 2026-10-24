@@ -11,16 +11,13 @@ namespace Identity.Application.Invitations;
 /// <summary>
 /// Accepts a pending invitation by its raw token (FR-013), for
 /// <c>POST /invitations/{token}/accept</c> (the endpoint wiring is application-layer
-/// only, not part of this use case). The third ADR-017 exception, alongside <c>CreateTenant</c> and
-/// <see cref="ITenantRepository.GetManyByIdsAsync"/>: the caller has no ambient tenant
-/// context yet at entry — they are not a member of anything until acceptance succeeds.
+/// only, not part of this use case). The caller is not a member at entry — they become one only
+/// when acceptance succeeds — so this route does not use <c>RequireMembership()</c>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Lookup by token hash, across tenants:</b> the caller presents a bare raw token; this use
-/// case hashes it and looks the <see cref="Invitation"/> up via
-/// <see cref="IInvitationRepository.FindByTokenHashAsync"/>, which deliberately bypasses the
-/// tenant-scoping query filter (see that method's remarks for why this specific bypass is safe).
+/// <b>Lookup by token hash:</b> the caller presents a bare raw token; this use case hashes it and
+/// looks the <see cref="Invitation"/> up via <see cref="IInvitationRepository.FindByTokenHashAsync"/>.
 /// </para>
 /// <para>
 /// <b>Unknown token vs. found-but-not-acceptable, both map to 404, distinguished internally:</b>
@@ -36,7 +33,7 @@ namespace Identity.Application.Invitations;
 /// <para>
 /// <b>Wrong identity maps to 403, distinct from the 404 family:</b> per FR-013 and
 /// contracts/openapi.yaml, if the authenticated caller's (JIT-provisioned via
-/// <see cref="EnsureUserProvisioned"/> — the same mechanism <c>POST /tenants</c>'s endpoint wiring uses)
+/// <see cref="EnsureUserProvisioned"/> — the same mechanism every endpoint uses)
 /// <c>User.Email</c> does not match <see cref="Invitation.Email"/>, this is reported as
 /// <see cref="AcceptInvitationResultKind.WrongIdentity"/> (403), checked before
 /// <see cref="Invitation.Accept"/> is called — a caller who is not the invitee should not be able
@@ -49,16 +46,13 @@ namespace Identity.Application.Invitations;
 /// </para>
 /// <para>
 /// <b>One transaction, two aggregates:</b> once expiry/status (<see cref="Invitation.Accept"/>)
-/// and identity both pass, a new <see cref="Membership"/> is created for the caller in the
-/// invitation's tenant with the invitation's <see cref="Invitation.Role"/>, and both the
-/// <see cref="Invitation"/>'s status change and the new <see cref="Membership"/> are persisted in
-/// one <see cref="IInvitationRepository.SaveAcceptedAsync"/> call — mirroring
-/// <c>CreateTenant</c>'s "set <c>CurrentTenantId</c> before the save that includes the new
-/// aggregate, one <c>SaveChangesAsync</c> call" precedent for the same "no ambient tenant yet"
-/// shape.
+/// and identity both pass, a new <see cref="Membership"/> is created for the caller with the
+/// invitation's <see cref="Invitation.Role"/>, and both the <see cref="Invitation"/>'s status
+/// change and the new <see cref="Membership"/> are persisted in one
+/// <see cref="IInvitationRepository.SaveAcceptedAsync"/> call.
 /// </para>
 /// <para>
-/// <b>Logging (FR-025):</b> logs the tenant id, new user id, and granted role — never the raw
+/// <b>Logging (FR-025):</b> logs the new member's user id and granted role — never the raw
 /// token or its hash. A token hash is still credential-adjacent (it identifies exactly one
 /// invitation/invitee, the same reasoning <c>EnsureUserProvisioned</c> applies to bearer
 /// tokens), so it is deliberately omitted, not merely forgotten.
@@ -94,7 +88,7 @@ public class AcceptInvitation
     /// <param name="rawToken">The raw, base64url-encoded invitation token
     /// (<see cref="InvitationToken.Generate"/>) as presented by the caller. Hashed here before any
     /// lookup or logging — never persisted or logged in raw or hashed form.</param>
-    /// <param name="callerEntraTenantId">The authenticated caller's Entra tenant id, for JIT
+    /// <param name="callerEntraTenantId">The authenticated caller's Entra directory id, for JIT
     /// user provisioning.</param>
     /// <param name="callerEntraObjectId">The authenticated caller's Entra object id, for JIT
     /// user provisioning.</param>
@@ -123,6 +117,14 @@ public class AcceptInvitation
             return AcceptInvitationResult.WrongIdentity();
         }
 
+        // The invitee may have become a member since the invitation was sent (bootstrap, or a
+        // second invitation). Creating another active membership would break the unique
+        // active-membership-per-user index, so refuse it as a conflict before touching the invitation.
+        if (await _invitationRepository.IsActiveMemberAsync(invitation.Email, ct))
+        {
+            return AcceptInvitationResult.AlreadyMember();
+        }
+
         try
         {
             invitation.Accept(_clock);
@@ -134,14 +136,9 @@ public class AcceptInvitation
             return AcceptInvitationResult.NotAcceptable();
         }
 
-        var membership = Membership.Create(invitation.TenantId, caller.Id, invitation.Role);
+        var membership = Membership.Create(caller.Id, invitation.Role);
 
-        // TenantId is invitation.TenantId, NOT _tenantContext.TenantId — this use case runs with
-        // no ambient tenant context at all (the third ADR-017 exception), so there is no
-        // ITenantContext to read from; invitation.TenantId is known once the invitation row was
-        // found above.
         var auditEntry = AuditEntry.Create(
-            invitation.TenantId,
             caller.Id,
             "invitation.accepted",
             "Invitation",
@@ -155,12 +152,11 @@ public class AcceptInvitation
         await _invitationRepository.SaveAcceptedAsync(invitation, membership, ct);
 
         _logger.LogInformation(
-            "Invitation accepted for tenant {TenantId}, granting user {UserId} role {Role}",
-            invitation.TenantId,
+            "Invitation accepted, granting user {UserId} role {Role}",
             caller.Id,
             invitation.Role);
 
-        return AcceptInvitationResult.Success(invitation.TenantId, membership);
+        return AcceptInvitationResult.Success(membership);
     }
 }
 
@@ -170,26 +166,26 @@ public class AcceptInvitation
 /// kind to an HTTP status.
 /// </summary>
 /// <param name="Kind">Which outcome occurred.</param>
-/// <param name="TenantId">The tenant the caller just joined. Only set when
-/// <paramref name="Kind"/> is <see cref="AcceptInvitationResultKind.Success"/>.</param>
 /// <param name="Membership">The newly created membership. Only set when <paramref name="Kind"/>
 /// is <see cref="AcceptInvitationResultKind.Success"/>.</param>
 public record AcceptInvitationResult(
     AcceptInvitationResultKind Kind,
-    TenantId? TenantId,
     Membership? Membership)
 {
-    public static AcceptInvitationResult Success(TenantId tenantId, Membership membership) =>
-        new(AcceptInvitationResultKind.Success, tenantId, membership);
+    public static AcceptInvitationResult Success(Membership membership) =>
+        new(AcceptInvitationResultKind.Success, membership);
 
     public static AcceptInvitationResult NotFound() =>
-        new(AcceptInvitationResultKind.NotFound, null, null);
+        new(AcceptInvitationResultKind.NotFound, null);
 
     public static AcceptInvitationResult NotAcceptable() =>
-        new(AcceptInvitationResultKind.NotAcceptable, null, null);
+        new(AcceptInvitationResultKind.NotAcceptable, null);
 
     public static AcceptInvitationResult WrongIdentity() =>
-        new(AcceptInvitationResultKind.WrongIdentity, null, null);
+        new(AcceptInvitationResultKind.WrongIdentity, null);
+
+    public static AcceptInvitationResult AlreadyMember() =>
+        new(AcceptInvitationResultKind.AlreadyMember, null);
 }
 
 /// <summary>
@@ -218,4 +214,8 @@ public enum AcceptInvitationResultKind
     /// authenticated caller's email does not match <see cref="Invitation.Email"/>. Maps to
     /// <c>403 Forbidden</c>.</summary>
     WrongIdentity,
+
+    /// <summary>The caller already has an active <see cref="Membership"/>, so accepting would
+    /// create a second one. The invitation is left pending. Maps to <c>409 Conflict</c>.</summary>
+    AlreadyMember,
 }

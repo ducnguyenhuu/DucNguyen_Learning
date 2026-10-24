@@ -10,13 +10,10 @@ using Identity.Api.HealthChecks;
 using Identity.Api.Middleware;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Identity.Application.Abstractions;
-using Identity.Application.Tenants;
 using Identity.Application.Users;
 using Identity.Domain.Abstractions;
 using Identity.Infrastructure.Observability;
 using Identity.Infrastructure.Persistence;
-using Identity.Infrastructure.Persistence.Audited;
-using Identity.Infrastructure.Persistence.Interceptors;
 using Identity.Infrastructure.Security;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -24,7 +21,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Assumption 7's revocation-staleness trade-off, made an operationally checked
 // expectation rather than a design note nobody will find later (see RevocationWindowTests
 // and TokenLifetimeValidation's remarks): this API performs no per-request token
-// revocation check, so a member removed from a tenant retains access until their already-issued
+// revocation check, so a removed member retains access until their already-issued
 // token expires. The actual token lifetime is set on the Entra ID app registration (external to
 // this codebase) — TokenLifetime:ExpectedMaxLifetimeMinutes below just records this system's
 // operational expectation of that value. Fail fast at boot, before accepting any requests, if
@@ -49,7 +46,7 @@ builder.Services.AddExceptionHandler<ProblemDetailsHandler>();
 builder.Services.AddProblemDetails();
 
 // Entra ID (Azure AD) bearer-token authentication. The "AzureAd" configuration section
-// (tenant/client IDs, etc.) is populated via User Secrets; this only wires the scheme.
+// (Entra tenant/client IDs, etc.) is populated via User Secrets; this only wires the scheme.
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
 
@@ -68,28 +65,16 @@ builder.Services.Configure<JwtBearerOptions>(
 // is safe since SystemClock carries no state of its own.
 builder.Services.AddSingleton<IClock, SystemClock>();
 
-// Scoped (not singleton) in case it ever needs scoped dependencies later; a stateless class
-// registered as scoped costs nothing.
-builder.Services.AddScoped<TenantSaveChangesInterceptor>();
+// The caller context (ADR-025). Scoped, not singleton/transient: it must live exactly as long as
+// the request scope that MembershipResolutionFilter populates it for, and every resolution
+// within that scope must see the same instance.
+builder.Services.AddScoped<HttpContextCallerContext>();
+builder.Services.AddScoped<ICallerContext>(sp => sp.GetRequiredService<HttpContextCallerContext>());
 
-// The ADR-017 tenant context. Scoped, not singleton/transient: it must live exactly as long as
-// the request scope that TenantContextResolutionMiddleware populates it for, and every
-// resolution within that scope (including inside IdentityDbContext) must see the same instance.
-builder.Services.AddScoped<HttpContextTenantContext>();
-builder.Services.AddScoped<ITenantContext>(sp => sp.GetRequiredService<HttpContextTenantContext>());
-
-// AddDbContext (scoped), not AddDbContextPool: IdentityDbContext.CurrentTenantId is set once per
-// request (by the tenant context resolution middleware) and must not leak across requests via a
-// pooled instance.
-builder.Services.AddDbContext<IdentityDbContext>((sp, options) =>
-{
-    var interceptor = sp.GetRequiredService<TenantSaveChangesInterceptor>();
-    var connectionString = builder.Configuration.GetConnectionString("IdentityDb");
-
-    options
-        .UseSqlServer(connectionString)
-        .AddInterceptors(interceptor);
-});
+// AddDbContext (scoped), not AddDbContextPool: the repositories and the audit writer must share
+// one request-scoped instance (see IdentityDbContext's remarks).
+builder.Services.AddDbContext<IdentityDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("IdentityDb")));
 
 // The first repository port in the codebase — Application depends on IUserRepository,
 // never on IdentityDbContext directly; this is the Infrastructure-side implementation, wired
@@ -97,27 +82,9 @@ builder.Services.AddDbContext<IdentityDbContext>((sp, options) =>
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<EnsureUserProvisioned>();
 
-// The one sanctioned cross-tenant bypass in the codebase (ADR-017) — scoped to match
-// IdentityDbContext's own scoped lifetime, following the established registration pattern.
-builder.Services.AddScoped<IMembershipDirectory, MembershipDirectory>();
-
-// The second repository port in the codebase, following the established minimal per-use-case
-// pattern — scoped to match IdentityDbContext's own scoped lifetime.
-builder.Services.AddScoped<ICreateTenantRepository, CreateTenantRepository>();
-builder.Services.AddScoped<CreateTenant>();
-
-// The third repository port in the codebase — one shared port for the read/rename-shaped
-// GetTenant/RenameTenant/ListTenants use cases, scoped to match IdentityDbContext's own scoped
-// lifetime.
-builder.Services.AddScoped<ITenantRepository, TenantRepository>();
-builder.Services.AddScoped<GetTenant>();
-builder.Services.AddScoped<RenameTenant>();
-builder.Services.AddScoped<ListTenants>();
-
-// The fourth repository port in the codebase — landed ahead of the RemoveMember/role-change
-// use cases that will consume it, following the established minimal per-use-case pattern. Guards
-// the last-administrator invariant against genuine concurrent removals via a tenant row lock (see
-// MembershipRepository's remarks) — scoped to match IdentityDbContext's own scoped lifetime.
+// Guards the last-administrator invariant and the first-administrator bootstrap against genuine
+// concurrent callers via an application lock (see MembershipRepository's remarks) — scoped to
+// match IdentityDbContext's own scoped lifetime.
 builder.Services.AddScoped<IMembershipRepository, MembershipRepository>();
 
 // The audit writer port — used by domain use cases to record audit entries during entity
@@ -130,9 +97,9 @@ builder.Services.AddScoped<IAuditWriter, AuditWriter>();
 builder.Services.AddScoped<Identity.Application.Members.ListMembers>();
 builder.Services.AddScoped<Identity.Application.Members.RemoveMember>();
 builder.Services.AddScoped<Identity.Application.Members.ChangeMemberRole>();
+builder.Services.AddScoped<Identity.Application.Members.BootstrapAdministrator>();
 
-// The fifth repository port in the codebase, wired here per the same deferral note as above —
-// one shared port for the invite/accept/list/revoke invitation use cases, scoped to match
+// One shared port for the invite/accept/list/revoke invitation use cases, scoped to match
 // IdentityDbContext's own scoped lifetime.
 builder.Services.AddScoped<IInvitationRepository, InvitationRepository>();
 
@@ -147,10 +114,9 @@ builder.Services.AddScoped<Identity.Application.Invitations.AcceptInvitation>();
 builder.Services.AddScoped<Identity.Application.Invitations.ListInvitations>();
 builder.Services.AddScoped<Identity.Application.Invitations.RevokeInvitation>();
 
-// The "TenantAdministrator" policy mechanism, evaluated against the membership resolved by
-// TenantContextResolutionMiddleware (ADR-017 step 5) via ITenantContext.Role, never against
-// a token claim. Registered here only — no endpoint applies this policy yet; wiring it onto real
-// routes (e.g. the role-change/removal endpoints) is deferred until those routes exist.
+// The "Administrator" policy mechanism, evaluated against the membership resolved by
+// MembershipResolutionFilter via ICallerContext.Role, never against a token claim. Applied to
+// routes by RequireAdministrator() (see RequireAdministratorFilter for why not [Authorize]).
 builder.Services.AddAuthorization(options =>
 {
     // Every endpoint that calls RequireAuthorization() without naming a policy gets this one
@@ -159,7 +125,7 @@ builder.Services.AddAuthorization(options =>
     options.DefaultPolicy = CallerAuthorizationPolicy.Build();
 
     options.AddPolicy(
-        "TenantAdministrator",
+        RequireAdministratorFilter.PolicyName,
         policy => policy.Requirements.Add(new AdministratorOnlyRequirement()));
 });
 builder.Services.AddScoped<IAuthorizationHandler, AdministratorOnlyAuthorizationHandler>();
@@ -304,8 +270,8 @@ app.Use((context, next) =>
 app.UseAuthentication();
 
 // The user-identity enrichment half of request tracing: tags Activity.Current and pushes a log scope
-// for every authenticated request, regardless of whether the endpoint ever resolves a tenant
-// context (the three ADR-017-exempt operations included). Registered after UseAuthentication()
+// for every authenticated request, regardless of whether the endpoint ever resolves a
+// membership. Registered after UseAuthentication()
 // so context.User is populated, and before UseAuthorization() so the enrichment covers 403s too.
 app.UseUserIdentityEnrichment();
 
@@ -330,13 +296,10 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
     ResponseWriter = HealthCheckResponseWriter.WriteResponse,
 }).AllowAnonymous();
 
-// The four /tenants endpoints.
-app.MapTenantEndpoints();
-
 // The invitation endpoints.
 app.MapInvitationEndpoints();
 
-// The member endpoints.
+// The member endpoints, including GET /me and POST /members/bootstrap.
 app.MapMemberEndpoints();
 
 app.Run();

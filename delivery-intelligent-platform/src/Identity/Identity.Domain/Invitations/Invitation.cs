@@ -3,7 +3,7 @@ using Identity.Domain.Abstractions;
 namespace Identity.Domain.Invitations;
 
 /// <summary>
-/// A pending invitation for a prospective member to join a tenant. Only the SHA-256 hash of the
+/// A pending invitation for a prospective member to join the organization. Only the SHA-256 hash of the
 /// invitation token is stored (<see cref="TokenHash"/>) — the raw token is a credential and is
 /// never persisted; hashing is the caller's responsibility.
 /// </summary>
@@ -15,11 +15,10 @@ namespace Identity.Domain.Invitations;
 /// derived, not swept" — the status column is a materialisation for listing, not the source of
 /// truth for expiry.
 /// </remarks>
-public class Invitation : ITenantOwned
+public class Invitation
 {
     private Invitation(
         InvitationId id,
-        TenantId tenantId,
         EmailAddress email,
         Role role,
         string tokenHash,
@@ -27,7 +26,6 @@ public class Invitation : ITenantOwned
         DateTimeOffset expiresAtUtc)
     {
         Id = id;
-        TenantId = tenantId;
         Email = email;
         Role = role;
         TokenHash = tokenHash;
@@ -39,11 +37,6 @@ public class Invitation : ITenantOwned
     /// The unique identifier of the invitation.
     /// </summary>
     public InvitationId Id { get; }
-
-    /// <summary>
-    /// The ID of the tenant the invitee is being invited to join.
-    /// </summary>
-    public TenantId TenantId { get; }
 
     /// <summary>
     /// The email address of the invitee.
@@ -78,17 +71,15 @@ public class Invitation : ITenantOwned
     public byte[] RowVersion { get; private set; } = [];
 
     /// <summary>
-    /// Creates a new, pending invitation for the given email address to join the given tenant
+    /// Creates a new, pending invitation for the given email address to join the organization
     /// with the given role.
     /// </summary>
-    /// <param name="tenantId">The ID of the tenant granting access.</param>
     /// <param name="email">The email address of the invitee.</param>
     /// <param name="role">The role to grant upon acceptance.</param>
     /// <param name="tokenHash">The SHA-256 hash of the invitation token.</param>
     /// <param name="expiresAtUtc">The timestamp after which the invitation can no longer be
     /// accepted.</param>
     public static Invitation Create(
-        TenantId tenantId,
         EmailAddress email,
         Role role,
         string tokenHash,
@@ -96,7 +87,6 @@ public class Invitation : ITenantOwned
     {
         return new Invitation(
             InvitationId.New(),
-            tenantId,
             email,
             role,
             tokenHash,

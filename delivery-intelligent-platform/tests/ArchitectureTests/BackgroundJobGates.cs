@@ -9,29 +9,31 @@ namespace ArchitectureTests;
 
 /// <summary>
 /// A background job (an <c>IHostedService</c> implementor or a <c>BackgroundService</c>
-/// subclass) is a singleton with no request scope to resolve tenant context from. ADR-013 names
-/// this as the most likely place for a global-filter bypass to happen, and its own Consequences
-/// section lists closing this as a known weakness deferred to this roadmap slice. This gate closes
-/// the most direct route: a job whose constructor takes <c>IdentityDbContext</c> or a
-/// persistence-port interface directly, bypassing whatever request-scoped tenant resolution would
-/// otherwise apply.
+/// subclass) is registered as a singleton and lives for the whole process. <c>IdentityDbContext</c>
+/// and every persistence port are registered <b>scoped</b>. A singleton that takes one of them in
+/// its constructor captures a single instance for its entire lifetime — a captive dependency.
+/// That one <c>DbContext</c> is then shared across every execution of the job: its change tracker
+/// keeps growing and keeps serving stale entities from earlier runs, a failed <c>SaveChanges</c>
+/// leaves it poisoned for every later run, and, because <c>DbContext</c> is not thread-safe, any
+/// overlap between executions (or with a request that somehow shares it) corrupts its state. This
+/// gate closes the most direct route to that bug: a job whose constructor names
+/// <c>IdentityDbContext</c> or a persistence-port interface.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>What this gate does not close.</b> A job that obtains a repository through service
-/// location (e.g. resolving an <c>IServiceScopeFactory</c> and pulling a repository out of a
-/// created scope inside <c>ExecuteAsync</c>) never names the dependency in its constructor, so
-/// this structural, source-scanning gate cannot see it. A separate runtime backstop exists
-/// precisely for that route; this gate and that one are complementary, not redundant.
+/// <b>What to do instead.</b> Take an <c>IServiceScopeFactory</c> in the constructor and create a
+/// fresh scope inside each execution, resolving the <c>DbContext</c> or repository from that
+/// scope and disposing it when the execution ends. That is the standard .NET pattern for scoped
+/// work inside a hosted service, and it is not what this gate forbids.
 /// </para>
 /// <para>
-/// <b>Honest limits of the ADR-013 citation in the failure message below.</b> ADR-013 states
-/// that background jobs are a likely leak vector and says a requirement that they "resolve
-/// tenant context explicitly" should be added in this roadmap slice — but it does not itself
-/// prescribe *how* a job should do that; it defers the mechanism as future work. The message
-/// below cites ADR-013 for the "why" only, and is explicit that no concrete "what to do
-/// instead" mechanism exists yet in this codebase, rather than citing the ADR as if it already
-/// answers that question.
+/// <b>What this gate does not close.</b> It reads constructors only. A job that creates a scope
+/// correctly but then stores the resolved repository in a field and reuses it across executions
+/// rebuilds the same captive dependency by hand, and this structural, source-scanning gate cannot
+/// see that. ASP.NET Core's scope validation (on by default in the Development environment) also
+/// rejects a scoped service injected into a singleton constructor at startup, but only in
+/// Development and only when the service is resolved; this gate fails in CI regardless of
+/// environment.
 /// </para>
 /// </remarks>
 public sealed class BackgroundJobGates
@@ -77,15 +79,12 @@ public sealed class BackgroundJobGates
 
         violations.Should().BeEmpty(
             "a background job's constructor must not depend on IdentityDbContext or a " +
-            "persistence port directly: it runs as a singleton with no request-scoped tenant " +
-            "context to rely on, and ADR-013 names this as the most likely route for a " +
-            "cross-tenant leak. ADR-013 explains why this matters but does not yet prescribe a " +
-            "concrete mechanism for a job to resolve tenant context (that is deferred future " +
-            "work) — today the fix is: don't take these dependencies directly in the " +
-            "constructor at all. Resolve what the job needs per invocation instead — e.g. an " +
-            "explicit tenant identifier passed into the job's execution method, or a " +
-            "scope/repository created fresh inside ExecuteAsync for that one invocation, not " +
-            "held as a singleton-scoped field. Offending job(s): " +
+            "persistence port directly: the job is a singleton and those are scoped, so it " +
+            "would capture one DbContext for the life of the process — shared across every " +
+            "execution, accumulating stale tracked entities, and not thread-safe. Take an " +
+            "IServiceScopeFactory instead and create a fresh scope (and resolve the DbContext " +
+            "or repository from it) inside each execution, not held as a field. " +
+            "Offending job(s): " +
             string.Join(", ", violations));
     }
 

@@ -8,7 +8,7 @@ namespace Identity.Infrastructure.Notifications;
 /// The development-time stand-in for <see cref="IInvitationDeliverySink"/> (T080, Assumption 8):
 /// a real email-sending implementation is out of scope for this slice, so this logs the
 /// recipient and confirms an invitation was issued — following FR-025's established
-/// templated-logging convention (T059's <c>TenantContextResolutionMiddleware</c>). Deliberately
+/// templated-logging convention. Deliberately
 /// never logs <paramref name="rawToken"/> — unlike a token *hash* (which T059/T072 already treat
 /// carefully), the raw token is the literal, unhashed credential handed to the invitee; logging it
 /// would put a live bearer-equivalent secret into log storage.

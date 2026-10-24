@@ -6,20 +6,19 @@ using Identity.Domain.Auditing;
 namespace Identity.Application.Members;
 
 /// <summary>
-/// Removes a member (by <c>userId</c>) from the current tenant, for
-/// <c>DELETE /tenants/{tenantId}/members/{userId}</c> (the endpoint wiring is application-layer
+/// Removes a member (by <c>userId</c>) from the organization, for
+/// <c>DELETE /members/{userId}</c> (the endpoint wiring is application-layer
 /// only, not part of this use case). Administrator-only per the contract; that authorization check, and
 /// all <c>If-Match</c>/<c>RowVersion</c> precondition handling, are deliberately not this use
 /// case's concern — see the remarks below.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Scope boundary — no <c>If-Match</c> here:</b> <c>contracts/openapi.yaml</c>'s
-/// <c>DELETE /tenants/{tenantId}/members/{userId}</c> requires an <c>If-Match</c> header and
-/// documents 412/428 (stale/missing precondition) alongside 409 (concurrency race or
-/// last-administrator conflict). That HTTP-level precondition disambiguation (mirroring the
-/// established 412-vs-409 pattern for <c>PATCH /tenants/{tenantId}</c>) is the endpoint layer's
-/// job, not this use case's. This use case is the business-logic layer beneath that: given a target
+/// <b>Scope boundary — no <c>If-Match</c> here:</b> <c>DELETE /members/{userId}</c> requires an
+/// <c>If-Match</c> header and documents 412/428 (stale/missing precondition) alongside 409
+/// (concurrency race or last-administrator conflict). That HTTP-level precondition
+/// disambiguation (the same 412-vs-409 pattern as <c>PATCH /members/{userId}</c>) is the endpoint
+/// layer's job, not this use case's. This use case is the business-logic layer beneath that: given a target
 /// <see cref="UserId"/>, resolve the active membership, remove it race-safely via
 /// <see cref="IMembershipRepository.RemoveMembershipAsync"/> (this use case does not
 /// re-implement any of its concurrency protection), and translate the last-administrator
@@ -29,11 +28,11 @@ namespace Identity.Application.Members;
 /// </para>
 /// <para>
 /// <b>404 vs. 409, mirroring <c>RevokeInvitation</c>'s precedent:</b> a <c>userId</c> with
-/// no active membership in the current tenant (never a member, already removed, or a member of a
-/// different tenant only) maps to <see cref="RemoveMemberResultKind.NotFound"/> (404) — resolved
-/// via <see cref="IMembershipRepository.GetActiveMembershipForUserAsync"/>, which is already
-/// scoped to the current tenant. A resolved membership that <see cref="IMembershipRepository.RemoveMembershipAsync"/>
-/// then refuses to remove because it is the tenant's last administrator throws
+/// no active membership (never a member, or already removed) maps to
+/// <see cref="RemoveMemberResultKind.NotFound"/> (404) — resolved via
+/// <see cref="IMembershipRepository.GetActiveMembershipForUserAsync"/>. A resolved membership that
+/// <see cref="IMembershipRepository.RemoveMembershipAsync"/> then refuses to remove because it is
+/// the organization's last administrator throws
 /// <see cref="DomainException"/>, caught here and translated to
 /// <see cref="RemoveMemberResultKind.Conflict"/> (409) — the same catch-and-translate shape
 /// <c>InviteMember</c> uses for its own <see cref="ConflictException"/> signal, though this
@@ -42,8 +41,8 @@ namespace Identity.Application.Members;
 /// the sole catcher.
 /// </para>
 /// <para>
-/// <b>Logging (FR-025):</b> logs the tenant id, the acting administrator's user id, and the
-/// removed member's user id — no email, unlike <c>InviteMember</c>/<c>RevokeInvitation</c>, since
+/// <b>Logging (FR-025):</b> logs the acting administrator's user id and the removed member's
+/// user id — no email, unlike <c>InviteMember</c>/<c>RevokeInvitation</c>, since
 /// (per this task's brief) removal is about an already-known member, not a not-yet-a-member
 /// address.
 /// </para>
@@ -51,28 +50,24 @@ namespace Identity.Application.Members;
 public class RemoveMember
 {
     private readonly IMembershipRepository _membershipRepository;
-    private readonly ITenantContext _tenantContext;
     private readonly IAuditWriter _auditWriter;
     private readonly IClock _clock;
     private readonly ILogger<RemoveMember> _logger;
 
     public RemoveMember(
         IMembershipRepository membershipRepository,
-        ITenantContext tenantContext,
         IAuditWriter auditWriter,
         IClock clock,
         ILogger<RemoveMember> logger)
     {
         _membershipRepository = membershipRepository;
-        _tenantContext = tenantContext;
         _auditWriter = auditWriter;
         _clock = clock;
         _logger = logger;
     }
 
     /// <summary>
-    /// Removes the active membership for <paramref name="targetUserId"/> in the current tenant,
-    /// on behalf of <paramref name="removedByUserId"/>.
+    /// Removes the active membership for <paramref name="targetUserId"/>, on behalf of <paramref name="removedByUserId"/>.
     /// </summary>
     public async Task<RemoveMemberResult> ExecuteAsync(
         UserId targetUserId, UserId removedByUserId, CancellationToken ct)
@@ -84,7 +79,6 @@ public class RemoveMember
         }
 
         var auditEntry = AuditEntry.Create(
-            membership.TenantId,
             removedByUserId,
             "membership.removed",
             "Membership",
@@ -109,9 +103,8 @@ public class RemoveMember
         }
 
         _logger.LogInformation(
-            "Member {RemovedUserId} removed from tenant {TenantId} by user {RemovedByUserId}",
+            "Member {RemovedUserId} removed by user {RemovedByUserId}",
             targetUserId,
-            _tenantContext.TenantId,
             removedByUserId);
 
         return RemoveMemberResult.Success();
@@ -140,11 +133,11 @@ public enum RemoveMemberResultKind
     /// <summary>The membership was found and removed. Maps to <c>204 No Content</c>.</summary>
     Success,
 
-    /// <summary>No active membership for the target user exists in the current tenant. Maps to
+    /// <summary>No active membership exists for the target user. Maps to
     /// <c>404 Not Found</c>.</summary>
     NotFound,
 
-    /// <summary>Removing this membership would leave the tenant with zero active administrators.
+    /// <summary>Removing this membership would leave the organization with zero active administrators.
     /// Maps to <c>409 Conflict</c>.</summary>
     Conflict,
 }

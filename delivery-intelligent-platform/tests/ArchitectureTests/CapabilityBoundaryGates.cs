@@ -7,13 +7,13 @@ using Xunit;
 namespace ArchitectureTests;
 
 /// <summary>
-/// Structural (project-reference-graph) evidence that the tenancy capability owns its data
+/// Structural (project-reference-graph) evidence that the identity capability owns its data
 /// exclusively and that the domain layer has no dependency on infrastructure.
 /// </summary>
 /// <remarks>
 /// <para>
 /// <b>Why a structural test rather than a runtime one.</b> "No other capability may read or
-/// write tenancy's data other than through its published interface" and "the domain layer must
+/// write the identity capability's data other than through its published interface" and "the domain layer must
 /// not depend on infrastructure concerns" are both properties of the <em>dependency graph</em>,
 /// not of any runtime behavior — there is nothing to invoke that would distinguish a compliant
 /// graph from a non-compliant one at runtime. General automated enforcement of architectural
@@ -28,7 +28,7 @@ namespace ArchitectureTests;
 /// </para>
 /// <para>
 /// The exclusive-ownership property above also depends on there being no *second* capability yet
-/// that could read/write tenancy's data directly — today <c>src/</c> contains only the
+/// that could read/write the identity capability's data directly — today <c>src/</c> contains only the
 /// <c>Identity.*</c> projects, so the strongest available proof is that nothing outside the
 /// <c>Identity.*</c> project set exists at all, and that within it, only <c>Identity.Api</c> (the
 /// composition root / published interface) references <c>Identity.Infrastructure</c> directly.
@@ -73,7 +73,7 @@ public sealed class CapabilityBoundaryGates
     [Fact]
     public void OnlyIdentityApi_ReferencesInfrastructureDirectly()
     {
-        // The composition root (Identity.Api) is the tenancy capability's published interface
+        // The composition root (Identity.Api) is the identity capability's published interface
         // boundary. If any project other than Identity.Api referenced Identity.Infrastructure
         // directly, that project would be reaching straight past the published interface into
         // the capability's own persistence internals.

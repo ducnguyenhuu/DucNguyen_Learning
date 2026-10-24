@@ -76,7 +76,7 @@ public sealed class SignedTokenHarness : IDisposable
     /// production pipeline and this harness must agree on claim names, or a
     /// bug that passes tests here would still 403 in production).
     /// </summary>
-    /// <param name="tid">Tenant id, emitted as claim <c>"tid"</c>.</param>
+    /// <param name="tid">Entra directory (tenant) id, emitted as claim <c>"tid"</c>.</param>
     /// <param name="oid">Object (user) id, emitted as claim <c>"oid"</c>.</param>
     /// <param name="audience">Token audience.</param>
     /// <param name="issuer">Token issuer.</param>

@@ -12,15 +12,17 @@ using Identity.Infrastructure.Persistence;
 namespace Identity.Api.Endpoints;
 
 /// <summary>
-/// T079 — the two <c>/tenants/{tenantId}/members</c> endpoints, wiring T076's <see cref="ListMembers"/>
-/// and <see cref="RemoveMember"/> use cases onto HTTP, mirroring T058's <see cref="TenantEndpoints"/>
-/// and T078's <see cref="InvitationEndpoints"/> in structure and conventions.
+/// The member endpoints: <c>GET /me</c>, <c>POST /members/bootstrap</c> (ADR-025), and the
+/// administrator-only <c>/members</c> list/remove/role-change routes wiring
+/// <see cref="ListMembers"/>, <see cref="RemoveMember"/> and <see cref="ChangeMemberRole"/> onto
+/// HTTP. <see cref="InvitationEndpoints"/> follows the same structure and conventions.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>No administrator-only check anywhere in this file:</b> FR-014 says list/remove are
-/// administrator-only, but role-based authorization is Phase 5's job — same deliberate phasing as
-/// every prior endpoint task.
+/// <b>Administrator-only routes</b> (FR-014): the <c>/members</c> group opts into
+/// <c>RequireMembership()</c> and each route into <c>RequireAdministrator()</c>, in that order.
+/// <c>GET /me</c> and <c>POST /members/bootstrap</c> sit outside that group, because their caller
+/// may not be a member yet.
 /// </para>
 /// <para>
 /// <b><c>displayName</c> not populated</b> on <see cref="MemberDto"/>: <see cref="ListedMember"/>
@@ -29,8 +31,7 @@ namespace Identity.Api.Endpoints;
 /// rather than invented.
 /// </para>
 /// <para>
-/// <b>412 vs 428 vs 409 on <c>DELETE</c>, following T058's established pattern for
-/// <c>PATCH /tenants/{tenantId}</c>:</b>
+/// <b>412 vs 428 vs 409 on <c>DELETE</c>, the same pattern as <c>PATCH /members/{userId}</c>:</b>
 /// </para>
 /// <list type="bullet">
 /// <item>Missing <c>If-Match</c> entirely: <c>428 Precondition Required</c> — the caller supplied
@@ -50,12 +51,11 @@ namespace Identity.Api.Endpoints;
 /// <see cref="RemoveMemberResultKind.Conflict"/> — either <see cref="IMembershipRepository.RemoveMembershipAsync"/>'s
 /// (T075) last-administrator invariant refused the removal, or a genuine, narrower race landed a
 /// second write between this endpoint's fresh read and that call's own save — both collapse to
-/// <c>409 Conflict</c> here. Unlike <c>PATCH /tenants/{tenantId}</c>'s 412-vs-409 split (which
-/// distinguishes a <b>stale caller</b> from a <b>genuine save-time race</b>), a stale caller was
-/// already caught above as 412; anything still reaching <see cref="RemoveMember"/>'s conflict
-/// result is either the last-administrator invariant or a race that slipped past the pre-check —
-/// and <c>contracts/openapi.yaml</c>'s own text for this route ("Concurrency race, or would leave
-/// the tenant with no Administrator") treats both as one 409, not two separate codes.
+/// <c>409 Conflict</c> here. A stale caller was already caught above as 412; anything still
+/// reaching <see cref="RemoveMember"/>'s conflict result is either the last-administrator
+/// invariant or a race that slipped past the pre-check — and <c>contracts/openapi.yaml</c>'s own
+/// text for this route ("Concurrency race, or would leave the organization with no
+/// Administrator") treats both as one 409, not two separate codes.
 /// </item>
 /// <item>Success: <c>204 No Content</c>.</item>
 /// <item><see cref="RemoveMember.ExecuteAsync"/> reporting
@@ -68,22 +68,104 @@ public static class MemberEndpoints
 {
     public static IEndpointRouteBuilder MapMemberEndpoints(this IEndpointRouteBuilder app)
     {
-        // Tenant-scoped: opts into T035's resolution filter, same group shape as
-        // TenantEndpoints.scopedTenant / InvitationEndpoints.scopedInvitations.
-        var scopedMembers = app.MapGroup("/tenants/{tenantId}/members")
+        // Not member-only: any authenticated caller may ask who they are, and the first caller
+        // ever needs to reach bootstrap before any membership exists.
+        app.MapGet("/me", GetMeAsync)
+            .RequireAuthorization();
+
+        app.MapPost("/members/bootstrap", BootstrapAsync)
+            .RequireAuthorization();
+
+        // Member-only: opts into the membership resolution filter, same group shape as
+        // InvitationEndpoints.invitations.
+        var members = app.MapGroup("/members")
             .RequireAuthorization()
-            .WithTenantContextResolution();
+            .RequireMembership();
 
-        scopedMembers.MapGet("/", ListMembersAsync)
-            .RequireTenantAdministrator();
+        members.MapGet("/", ListMembersAsync)
+            .RequireAdministrator();
 
-        scopedMembers.MapDelete("/{userId}", RemoveMemberAsync)
-            .RequireTenantAdministrator();
+        members.MapDelete("/{userId}", RemoveMemberAsync)
+            .RequireAdministrator();
 
-        scopedMembers.MapPatch("/{userId}", PatchMemberRoleAsync)
-            .RequireTenantAdministrator();
+        members.MapPatch("/{userId}", PatchMemberRoleAsync)
+            .RequireAdministrator();
 
         return app;
+    }
+
+    /// <summary>
+    /// <c>GET /me</c> (ADR-025) — the caller's own user id, email and role. <c>role</c> is
+    /// <c>null</c> when the caller is not a member, which is a normal answer, not an error.
+    /// </summary>
+    private static async Task<IResult> GetMeAsync(
+        HttpContext httpContext,
+        EnsureUserProvisioned ensureUserProvisioned,
+        IMembershipRepository membershipRepository,
+        CancellationToken ct)
+    {
+        var caller = await ProvisionCallerAsync(httpContext, ensureUserProvisioned, ct);
+        if (caller is null)
+        {
+            return Results.Problem(
+                title: "Caller could not be resolved",
+                detail: "No usable identity claims were present on the token.",
+                statusCode: StatusCodes.Status401Unauthorized);
+        }
+
+        var membership = await membershipRepository.GetActiveMembershipForUserAsync(caller.Id, ct);
+
+        return Results.Ok(new MeDto(caller.Id.Value, caller.Email.Value, membership?.Role.ToString()));
+    }
+
+    /// <summary>
+    /// <c>POST /members/bootstrap</c> (ADR-025) — makes the caller the first Administrator while
+    /// the organization has no members: <c>201</c>, or <c>409</c> once anyone is a member. Only a
+    /// delegated user token may call it (<c>403</c> otherwise): an application identity must never
+    /// become the first administrator.
+    /// </summary>
+    private static async Task<IResult> BootstrapAsync(
+        HttpContext httpContext,
+        EnsureUserProvisioned ensureUserProvisioned,
+        BootstrapAdministrator bootstrapAdministrator,
+        CancellationToken ct)
+    {
+        if (!CallerAuthorizationPolicy.IsDelegatedUser(httpContext.User))
+        {
+            return Results.Problem(
+                title: "Delegated user required",
+                detail: "Only a signed-in user can bootstrap the first administrator.",
+                statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        var caller = await ProvisionCallerAsync(httpContext, ensureUserProvisioned, ct);
+        if (caller is null)
+        {
+            return Results.Problem(
+                title: "Caller could not be resolved",
+                detail: "No usable identity claims were present on the token.",
+                statusCode: StatusCodes.Status401Unauthorized);
+        }
+
+        var result = await bootstrapAdministrator.ExecuteAsync(caller.Id, ct);
+        if (result.Kind == BootstrapAdministratorResultKind.Conflict)
+        {
+            return Results.Problem(
+                title: "Already bootstrapped",
+                detail: "The organization already has members; new members join by invitation.",
+                statusCode: StatusCodes.Status409Conflict);
+        }
+
+        var membership = result.Membership!;
+        var dto = new MemberDto(
+            caller.Id.Value,
+            caller.Email.Value,
+            DisplayName: string.Empty,
+            membership.Role.ToString(),
+            membership.Status.ToString());
+
+        return Results.Created($"/members/{caller.Id.Value}", dto)
+            .WithHeader("ETag", RowVersionETag.ToETag(membership.RowVersion));
     }
 
     private static async Task<IResult> ListMembersAsync(
@@ -175,7 +257,7 @@ public static class MemberEndpoints
             RemoveMemberResultKind.NotFound => Results.NotFound(),
             RemoveMemberResultKind.Conflict => Results.Problem(
                 title: "Member conflict",
-                detail: "Removing this member would leave the tenant with no Administrator, " +
+                detail: "Removing this member would leave the organization with no Administrator, " +
                     "or the membership was concurrently modified.",
                 statusCode: StatusCodes.Status409Conflict),
             _ => Results.Problem(statusCode: StatusCodes.Status500InternalServerError),
@@ -183,9 +265,8 @@ public static class MemberEndpoints
     }
 
     /// <summary>
-    /// <c>PATCH /tenants/{tenantId}/members/{userId}</c> (T087) — changes the target member's
-    /// role, wiring T086's <see cref="ChangeMemberRole"/> use case. Mirrors
-    /// <c>TenantEndpoints.PatchTenantAsync</c>'s (T058) exact 428/400/412/409 <c>If-Match</c>
+    /// <c>PATCH /members/{userId}</c> (T087) — changes the target member's role, wiring T086's
+    /// <see cref="ChangeMemberRole"/> use case, with this 428/400/412/409 <c>If-Match</c>
     /// disambiguation shape:
     /// </summary>
     /// <remarks>
@@ -193,7 +274,7 @@ public static class MemberEndpoints
     /// <item>Missing <c>If-Match</c>: <c>428</c>.</item>
     /// <item>Malformed <c>If-Match</c>: <c>400</c>.</item>
     /// <item>Malformed/unknown <c>role</c> in the request body: <c>400</c>.</item>
-    /// <item>No active membership for <c>userId</c> in the current tenant: <c>404</c>, checked
+    /// <item>No active membership for <c>userId</c>: <c>404</c>, checked
     /// before the precondition logic (nothing to condition a role change on when the target
     /// doesn't exist).</item>
     /// <item>
@@ -204,8 +285,7 @@ public static class MemberEndpoints
     /// </item>
     /// <item>
     /// If they matched at read time, the tracked entity's original <c>RowVersion</c> is pinned to
-    /// the decoded <c>If-Match</c> bytes (mirroring <c>RenameWithOriginalRowVersionAsync</c>)
-    /// before calling <see cref="ChangeMemberRole.ExecuteAsync"/>. If that save still throws
+    /// the decoded <c>If-Match</c> bytes (ADR-020) before calling <see cref="ChangeMemberRole.ExecuteAsync"/>. If that save still throws
     /// <see cref="DbUpdateConcurrencyException"/>, a second, unrelated write landed between the
     /// fresh read and the update — a genuine race at save time: <c>409</c>.
     /// </item>
@@ -289,8 +369,7 @@ public static class MemberEndpoints
         }
 
         // Pin the tracked entity's original RowVersion to the caller's decoded If-Match bytes
-        // (EF's concurrency-check baseline) before ChangeMemberRole mutates and saves it, mirroring
-        // TenantEndpoints.RenameWithOriginalRowVersionAsync (T058).
+        // (EF's concurrency-check baseline) before ChangeMemberRole mutates and saves it (ADR-020).
         var tracked = await dbContext.Memberships
             .SingleOrDefaultAsync(m => m.UserId == targetUserId && m.Status == MembershipStatus.Active, ct);
         if (tracked is null)
@@ -344,7 +423,7 @@ public static class MemberEndpoints
             ChangeMemberRoleResultKind.NotFound => Results.NotFound(),
             ChangeMemberRoleResultKind.Conflict => Results.Problem(
                 title: "Member conflict",
-                detail: "Changing this member's role would leave the tenant with no Administrator, " +
+                detail: "Changing this member's role would leave the organization with no Administrator, " +
                     "or the membership was concurrently modified.",
                 statusCode: StatusCodes.Status409Conflict),
             _ => Results.Problem(statusCode: StatusCodes.Status500InternalServerError),
@@ -355,9 +434,9 @@ public static class MemberEndpoints
         new HeaderDecoratedResult(result, name, value);
 
     /// <summary>
-    /// Wraps an inner <see cref="IResult"/> to add one response header when executed — a private
-    /// duplicate of <c>TenantEndpoints.HeaderDecoratedResult</c> (T058), same precedent this file
-    /// already follows for <c>ProvisionCallerAsync</c>.
+    /// Wraps an inner <see cref="IResult"/> to add one response header when executed — used so
+    /// <c>ETag</c> can be attached to <see cref="Results.Created"/>/<see cref="Results.Ok"/>
+    /// without hand-rolling the whole response.
     /// </summary>
     private sealed class HeaderDecoratedResult : IResult
     {
@@ -380,9 +459,13 @@ public static class MemberEndpoints
     }
 
     /// <summary>
-    /// Same JIT-provisioning shape as <c>TenantEndpoints.ProvisionCallerAsync</c> (T058) and
-    /// <c>InvitationEndpoints.ProvisionCallerAsync</c> (T078) — kept as a private duplicate here
-    /// rather than a shared helper, following the same precedent those two files already set.
+    /// JIT-provisions the caller from the validated token's <c>(tid, oid)</c> claims, with a
+    /// best-effort email claim lookup. Test tokens (Tier 1 <c>TestAuthHandler</c> and Tier 2
+    /// <c>SignedTokenHarness</c>) carry no email claim at all, so a deterministic placeholder is
+    /// synthesized from the caller's <c>oid</c> when none is present — display/invitation-matching
+    /// only (research.md R2), never an authorization input, so this placeholder is harmless.
+    /// <c>InvitationEndpoints.ProvisionCallerAsync</c> is a private duplicate of this, the
+    /// precedent both files follow.
     /// </summary>
     private static async Task<Domain.Users.User?> ProvisionCallerAsync(
         HttpContext httpContext, EnsureUserProvisioned ensureUserProvisioned, CancellationToken ct)
@@ -406,8 +489,7 @@ public static class MemberEndpoints
     }
 }
 
-/// <summary>The <c>Member</c> response schema per openapi.yaml, for <c>GET
-/// /tenants/{tenantId}/members</c>. <see cref="DisplayName"/> is always empty —
+/// <summary>The <c>Member</c> response schema per openapi.yaml, for <c>GET /members</c>. <see cref="DisplayName"/> is always empty —
 /// <see cref="Domain.Users.User"/> has no display-name property to source it from (same honest
 /// omission T076's <see cref="ListedMember"/> documents).</summary>
 public sealed record MemberDto(
@@ -426,5 +508,9 @@ public sealed record MemberDto(
             member.Status.ToString());
 }
 
-/// <summary>Request body for <c>PATCH /tenants/{tenantId}/members/{userId}</c>, per openapi.yaml.</summary>
+/// <summary>Request body for <c>PATCH /members/{userId}</c>, per openapi.yaml.</summary>
 public sealed record ChangeMemberRoleRequest(string Role);
+
+/// <summary>The <c>Me</c> response schema for <c>GET /me</c> (ADR-025). <see cref="Role"/> is
+/// <c>null</c> when the caller has no active membership.</summary>
+public sealed record MeDto(Guid UserId, string Email, string? Role);

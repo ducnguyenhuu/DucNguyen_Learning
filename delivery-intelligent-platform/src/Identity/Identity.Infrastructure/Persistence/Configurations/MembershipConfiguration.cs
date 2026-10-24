@@ -28,21 +28,22 @@ public class MembershipConfiguration : IEntityTypeConfiguration<Membership>
             .HasConversion<string>()
             .IsRequired();
 
-        // Enforces "one active membership per user per tenant" at the database level. A user
-        // re-invited after removal gets a new membership row, not a reactivated old one, since
-        // Membership.Remove never transitions back to Active.
-        builder.HasIndex(m => new { m.TenantId, m.UserId })
+        // Enforces "at most one active membership per user" at the database level (ADR-025). A
+        // user re-invited after removal gets a new membership row, not a reactivated old one,
+        // since Membership.Remove never transitions back to Active.
+        builder.HasIndex(m => m.UserId)
             .IsUnique()
             .HasFilter("[Status] = 'Active'")
-            .HasDatabaseName("IX_Memberships_TenantId_UserId_Active");
+            .HasDatabaseName("IX_Memberships_UserId_Active");
 
-        // Covering index for membership lookup on the hot path (ADR-017: tenant context resolution).
-        // Key columns (TenantId, UserId, Status) satisfy the most common query filter, and including
-        // Role lets the lookup complete without touching the base table. Not filtered (applies to all
-        // statuses) and not unique (distinct purpose from the filtered unique constraint above).
-        builder.HasIndex(m => new { m.TenantId, m.UserId, m.Status })
+        // Covering index for membership lookup on the hot path (MembershipResolutionFilter runs it
+        // on every member-only request). Key columns (UserId, Status) satisfy the lookup, and
+        // including Role lets it complete without touching the base table. Not filtered (applies
+        // to all statuses) and not unique (distinct purpose from the filtered unique constraint
+        // above).
+        builder.HasIndex(m => new { m.UserId, m.Status })
             .IncludeProperties(m => m.Role)
-            .HasDatabaseName("IX_Memberships_TenantId_UserId_Status_Covering");
+            .HasDatabaseName("IX_Memberships_UserId_Status_Covering");
 
         builder.Property(m => m.RowVersion)
             .IsRowVersion();

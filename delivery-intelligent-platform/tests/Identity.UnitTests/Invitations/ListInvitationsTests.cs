@@ -16,19 +16,11 @@ namespace Identity.UnitTests.Invitations;
 /// </summary>
 public class ListInvitationsTests
 {
-    private static readonly TenantId TestTenantId = new(Guid.CreateVersion7());
     private static readonly DateTimeOffset FixedNow = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
     private sealed class FakeClock : IClock
     {
         public DateTimeOffset UtcNow { get; set; } = FixedNow;
-    }
-
-    private sealed class FakeTenantContext : ITenantContext
-    {
-        public TenantId TenantId { get; set; } = TestTenantId;
-
-        public Role Role { get; set; } = Role.Administrator;
     }
 
     private sealed class FakeInvitationRepository : IInvitationRepository
@@ -50,10 +42,10 @@ public class ListInvitationsTests
         public Task SaveAcceptedAsync(Invitation invitation, Membership membership, CancellationToken ct) =>
             throw new NotSupportedException("Not used by ListInvitationsTests.");
 
-        public Task<IReadOnlyList<Invitation>> GetAllForCurrentTenantAsync(CancellationToken ct) =>
+        public Task<IReadOnlyList<Invitation>> GetAllPendingAsync(CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<Invitation>>(Invitations);
 
-        public Task<Invitation?> GetByIdForCurrentTenantAsync(InvitationId id, CancellationToken ct) =>
+        public Task<Invitation?> GetByIdAsync(InvitationId id, CancellationToken ct) =>
             throw new NotSupportedException("Not used by ListInvitationsTests.");
 
         public Task SaveAsync(Invitation invitation, CancellationToken ct) =>
@@ -64,12 +56,11 @@ public class ListInvitationsTests
         FakeInvitationRepository repository, FakeClock? clock = null) =>
         new(
             repository,
-            new FakeTenantContext(),
             clock ?? new FakeClock(),
             NullLogger<ListInvitations>.Instance);
 
     private static Invitation CreatePendingInvitation(EmailAddress email, DateTimeOffset expiresAtUtc) =>
-        Invitation.Create(TestTenantId, email, Role.Member, "some-hash", expiresAtUtc);
+        Invitation.Create(email, Role.Member, "some-hash", expiresAtUtc);
 
     [CoversRequirement("FR-014")]
     [Fact]

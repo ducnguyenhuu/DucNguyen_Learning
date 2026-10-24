@@ -17,7 +17,7 @@ namespace Identity.IntegrationTests.Infrastructure;
 /// call site (see that method's remarks). All test classes also share the single SQL Server
 /// Testcontainer started by the assembly-level <see cref="SqlServerFixture"/>. Combined with
 /// xUnit v3 on Microsoft.Testing.Platform not guaranteeing ordering (or isolation) between test
-/// classes/methods, tests that seed fixed, predictable data (specific emails, tokens, tenant
+/// classes/methods, tests that seed fixed, predictable data (specific emails, tokens,
 /// names) can collide with leftover rows a different test left behind earlier in the same
 /// process run — a genuine source of non-deterministic failures, not a flaw in the tests
 /// themselves.

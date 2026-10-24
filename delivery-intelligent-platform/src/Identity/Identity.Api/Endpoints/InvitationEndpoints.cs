@@ -10,53 +10,48 @@ namespace Identity.Api.Endpoints;
 
 /// <summary>
 /// T078 — the invitation endpoints, wiring T071-T073's use cases (InviteMember, AcceptInvitation,
-/// ListInvitations, RevokeInvitation) onto HTTP, mirroring T058's <see cref="TenantEndpoints"/> in
+/// ListInvitations, RevokeInvitation) onto HTTP, mirroring <see cref="MemberEndpoints"/> in
 /// structure and conventions.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>No administrator-only check anywhere in this file:</b> FR-011/FR-014 say invite/list/revoke
-/// are administrator-only, but role-based authorization is Phase 5's (T085/T088) job — same
-/// deliberate phasing as <c>TenantEndpoints.PatchTenantAsync</c> (T058). Do not add one here.
+/// <b>Invite/list/revoke are administrator-only</b> (FR-011/FR-014): the group opts into
+/// <c>RequireMembership()</c> and each route into <c>RequireAdministrator()</c>, in that order.
 /// </para>
 /// <para>
-/// <b><c>Location</c> header on <c>POST /tenants/{tenantId}/invitations</c>:</b> the contract's
-/// <c>Location</c> header schema is a bare <c>{ type: string, format: uri }</c> with no further
-/// specification, and there is no <c>GET /invitations/{id}</c> single-resource route in
-/// <c>contracts/openapi.yaml</c> to point at. This endpoint therefore points <c>Location</c> at the
-/// list route (<c>GET /tenants/{tenantId}/invitations</c>) — the closest existing resource that
-/// contains the created invitation — following the same judgment call precedent as
-/// <c>TenantEndpoints.CreateTenantAsync</c> pointing at the single-resource route it does have.
+/// <b><c>Location</c> header on <c>POST /invitations</c>:</b> the contract's <c>Location</c> header
+/// schema is a bare <c>{ type: string, format: uri }</c> with no further specification, and there
+/// is no <c>GET /invitations/{id}</c> single-resource route in <c>contracts/openapi.yaml</c> to
+/// point at. This endpoint therefore points <c>Location</c> at the list route
+/// (<c>GET /invitations</c>) — the closest existing resource that contains the created invitation.
 /// </para>
 /// <para>
-/// <b><c>POST /invitations/{token}/accept</c> is not tenant-scoped</b> (ADR-017 exception 3): no
-/// <see cref="TenantContextResolutionMiddlewareExtensions.WithTenantContextResolution(RouteHandlerBuilder)"/>,
-/// just <c>RequireAuthorization()</c>. No <see cref="JitProvisionCallerFilter"/> either —
-/// <see cref="AcceptInvitation"/> already calls <see cref="EnsureUserProvisioned"/> internally, so
-/// adding the filter here would double-provision the same caller on every request.
+/// <b><c>POST /invitations/{token}/accept</c> does not require membership</b> — the caller becomes
+/// a member only by accepting — so it gets just <c>RequireAuthorization()</c>.
+/// <see cref="AcceptInvitation"/> calls <see cref="EnsureUserProvisioned"/> internally.
 /// </para>
 /// </remarks>
 public static class InvitationEndpoints
 {
     public static IEndpointRouteBuilder MapInvitationEndpoints(this IEndpointRouteBuilder app)
     {
-        // Tenant-scoped: opts into T035's resolution filter, same group shape as
-        // TenantEndpoints.scopedTenant.
-        var scopedInvitations = app.MapGroup("/tenants/{tenantId}/invitations")
+        // Member-only: opts into the membership resolution filter, same group shape as
+        // MemberEndpoints.members.
+        var invitations = app.MapGroup("/invitations")
             .RequireAuthorization()
-            .WithTenantContextResolution();
+            .RequireMembership();
 
-        scopedInvitations.MapPost("/", CreateInvitationAsync)
-            .RequireTenantAdministrator()
+        invitations.MapPost("/", CreateInvitationAsync)
+            .RequireAdministrator()
             .WithIdempotency();
 
-        scopedInvitations.MapGet("/", ListInvitationsAsync)
-            .RequireTenantAdministrator();
+        invitations.MapGet("/", ListInvitationsAsync)
+            .RequireAdministrator();
 
-        scopedInvitations.MapDelete("/{invitationId}", RevokeInvitationAsync)
-            .RequireTenantAdministrator();
+        invitations.MapDelete("/{invitationId}", RevokeInvitationAsync)
+            .RequireAdministrator();
 
-        // Not tenant-scoped (ADR-017 exception 3) — the caller has no membership yet.
+        // Not member-only — the caller has no membership until this succeeds.
         app.MapPost("/invitations/{token}/accept", AcceptInvitationAsync)
             .RequireAuthorization();
 
@@ -65,7 +60,6 @@ public static class InvitationEndpoints
 
     private static async Task<IResult> CreateInvitationAsync(
         HttpContext httpContext,
-        Guid tenantId,
         CreateInvitationRequest request,
         InviteMember inviteMember,
         EnsureUserProvisioned ensureUserProvisioned,
@@ -119,7 +113,7 @@ public static class InvitationEndpoints
 
         // Location points at the list route: there is no single-resource GET /invitations/{id}
         // route in the contract (see this class's remarks).
-        return Results.Created($"/tenants/{tenantId}/invitations", dto);
+        return Results.Created("/invitations", dto);
     }
 
     private static async Task<IResult> ListInvitationsAsync(
@@ -224,15 +218,20 @@ public static class InvitationEndpoints
                     detail: "The authenticated caller does not match the invited address.",
                     statusCode: StatusCodes.Status403Forbidden);
 
+            case AcceptInvitationResultKind.AlreadyMember:
+                return Results.Problem(
+                    title: "Already a member",
+                    detail: "The authenticated caller is already a member of the organization.",
+                    statusCode: StatusCodes.Status409Conflict);
+
             default:
                 return Results.Problem(statusCode: StatusCodes.Status500InternalServerError);
         }
     }
 
     /// <summary>
-    /// Same JIT-provisioning shape as <c>TenantEndpoints.ProvisionCallerAsync</c> (T058) — kept as
-    /// a private duplicate here rather than a shared helper, mirroring how T058 itself did not
-    /// extract one when it was the only endpoint file.
+    /// Same JIT-provisioning shape as <c>MemberEndpoints.ProvisionCallerAsync</c> — kept as a
+    /// private duplicate here rather than a shared helper, the precedent both files follow.
     /// </summary>
     private static async Task<Domain.Users.User?> ProvisionCallerAsync(
         HttpContext httpContext, EnsureUserProvisioned ensureUserProvisioned, CancellationToken ct)
@@ -256,12 +255,12 @@ public static class InvitationEndpoints
     }
 }
 
-/// <summary>Request body for <c>POST /tenants/{tenantId}/invitations</c>, per openapi.yaml.</summary>
+/// <summary>Request body for <c>POST /invitations</c>, per openapi.yaml.</summary>
 public sealed record CreateInvitationRequest(string Email, string Role);
 
 /// <summary>
 /// The <c>Invitation</c> response schema (<c>allOf</c> base fields + <c>token</c>) per
-/// openapi.yaml, for <c>POST /tenants/{tenantId}/invitations</c>'s 201 response.
+/// openapi.yaml, for <c>POST /invitations</c>'s 201 response.
 /// </summary>
 public sealed record InvitationDto(
     Guid Id,

@@ -14,9 +14,7 @@ namespace Identity.Infrastructure.Persistence;
 /// task) is responsible for calling <c>SaveChangesAsync()</c> itself once on its own
 /// <c>IdentityDbContext</c> instance, ensuring that both its own entity changes and this
 /// staged audit entry are persisted atomically in a single transaction. This design avoids
-/// nested transactions and keeps the unit of work under the caller's control, much like
-/// how <see cref="CreateTenantRepository"/> adds entities to the tracker and leaves
-/// <c>SaveChangesAsync</c> to its caller.
+/// nested transactions and keeps the unit of work under the caller's control.
 /// </para>
 /// <para>
 /// <c>Add()</c> is synchronous in EF Core — it only changes the tracker state, not I/O —

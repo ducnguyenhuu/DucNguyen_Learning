@@ -5,10 +5,10 @@ using Microsoft.Extensions.Logging;
 namespace Identity.Api.Middleware;
 
 /// <summary>
-/// FR-004's user-identity enrichment half. User identity (the token's <c>"oid"</c> claim — see
-/// <see cref="TenantContextResolutionMiddleware"/>'s own read of it) is known as soon as
-/// <c>app.UseAuthentication()</c> has run, for every authenticated request — including the three
-/// ADR-017-exempt operations that never resolve a tenant context at all. This middleware is
+/// FR-004's user-identity enrichment. User identity (the token's <c>"oid"</c> claim — see
+/// <see cref="MembershipResolutionFilter"/>'s own read of it) is known as soon as
+/// <c>app.UseAuthentication()</c> has run, for every authenticated request — including the routes
+/// that never resolve a membership at all. This middleware is
 /// registered immediately after <c>app.UseAuthentication()</c> (before
 /// <c>app.UseAuthorization()</c>) so it enriches every authenticated request uniformly,
 /// regardless of route shape, the same way <see cref="TraceCorrelationLoggingMiddleware"/> does

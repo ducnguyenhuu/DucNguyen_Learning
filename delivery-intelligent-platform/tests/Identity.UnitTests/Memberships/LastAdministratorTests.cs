@@ -2,17 +2,15 @@ using ArchitectureTests.Support;
 using AwesomeAssertions;
 using Identity.Domain.Abstractions;
 using Identity.Domain.Memberships;
-using Identity.Domain.Tenants;
 using Xunit;
 
 namespace Identity.UnitTests.Memberships;
 
 /// <summary>
-/// Failing (red) tests for the last-administrator invariant (FR-015), written as the target spec
-/// for <see cref="TenantAdministration"/> (T074). <see cref="TenantAdministration"/> is currently
-/// a minimal stub (T067) whose methods throw <see cref="NotImplementedException"/> — every test
-/// here is therefore expected to fail at runtime with that exception until T074 implements the
-/// real invariant.
+/// Tests for the last-administrator invariant (FR-015), enforced by
+/// <see cref="OrganizationAdministration"/>: the organization must always keep at least one active
+/// administrator, so removing or demoting the sole administrator is refused, while removing or
+/// demoting one of several administrators is allowed.
 /// </summary>
 public class LastAdministratorTests
 {
@@ -20,11 +18,10 @@ public class LastAdministratorTests
     [Fact]
     public void EnsureRemovalAllowed_SoleAdministrator_ThrowsDomainException()
     {
-        var tenantId = TenantId.New();
-        var soleAdministrator = Membership.Create(tenantId, UserId.New(), Role.Administrator);
+        var soleAdministrator = Membership.Create(UserId.New(), Role.Administrator);
         var activeMemberships = new[] { soleAdministrator };
 
-        var act = () => TenantAdministration.EnsureRemovalAllowed(activeMemberships, soleAdministrator);
+        var act = () => OrganizationAdministration.EnsureRemovalAllowed(activeMemberships, soleAdministrator);
 
         act.Should().Throw<DomainException>();
     }
@@ -33,11 +30,10 @@ public class LastAdministratorTests
     [Fact]
     public void EnsureRoleChangeAllowed_SoleAdministratorDemotedToMember_ThrowsDomainException()
     {
-        var tenantId = TenantId.New();
-        var soleAdministrator = Membership.Create(tenantId, UserId.New(), Role.Administrator);
+        var soleAdministrator = Membership.Create(UserId.New(), Role.Administrator);
         var activeMemberships = new[] { soleAdministrator };
 
-        var act = () => TenantAdministration.EnsureRoleChangeAllowed(
+        var act = () => OrganizationAdministration.EnsureRoleChangeAllowed(
             activeMemberships, soleAdministrator, Role.Member);
 
         act.Should().Throw<DomainException>();
@@ -47,11 +43,10 @@ public class LastAdministratorTests
     [Fact]
     public void EnsureRoleChangeAllowed_SoleAdministratorDemotedToReader_ThrowsDomainException()
     {
-        var tenantId = TenantId.New();
-        var soleAdministrator = Membership.Create(tenantId, UserId.New(), Role.Administrator);
+        var soleAdministrator = Membership.Create(UserId.New(), Role.Administrator);
         var activeMemberships = new[] { soleAdministrator };
 
-        var act = () => TenantAdministration.EnsureRoleChangeAllowed(
+        var act = () => OrganizationAdministration.EnsureRoleChangeAllowed(
             activeMemberships, soleAdministrator, Role.Reader);
 
         act.Should().Throw<DomainException>();
@@ -61,12 +56,11 @@ public class LastAdministratorTests
     [Fact]
     public void EnsureRemovalAllowed_TwoAdministrators_RemovingOneSucceeds()
     {
-        var tenantId = TenantId.New();
-        var firstAdministrator = Membership.Create(tenantId, UserId.New(), Role.Administrator);
-        var secondAdministrator = Membership.Create(tenantId, UserId.New(), Role.Administrator);
+        var firstAdministrator = Membership.Create(UserId.New(), Role.Administrator);
+        var secondAdministrator = Membership.Create(UserId.New(), Role.Administrator);
         var activeMemberships = new[] { firstAdministrator, secondAdministrator };
 
-        var act = () => TenantAdministration.EnsureRemovalAllowed(activeMemberships, firstAdministrator);
+        var act = () => OrganizationAdministration.EnsureRemovalAllowed(activeMemberships, firstAdministrator);
 
         act.Should().NotThrow();
     }
@@ -75,12 +69,11 @@ public class LastAdministratorTests
     [Fact]
     public void EnsureRoleChangeAllowed_TwoAdministrators_DemotingOneSucceeds()
     {
-        var tenantId = TenantId.New();
-        var firstAdministrator = Membership.Create(tenantId, UserId.New(), Role.Administrator);
-        var secondAdministrator = Membership.Create(tenantId, UserId.New(), Role.Administrator);
+        var firstAdministrator = Membership.Create(UserId.New(), Role.Administrator);
+        var secondAdministrator = Membership.Create(UserId.New(), Role.Administrator);
         var activeMemberships = new[] { firstAdministrator, secondAdministrator };
 
-        var act = () => TenantAdministration.EnsureRoleChangeAllowed(
+        var act = () => OrganizationAdministration.EnsureRoleChangeAllowed(
             activeMemberships, firstAdministrator, Role.Member);
 
         act.Should().NotThrow();

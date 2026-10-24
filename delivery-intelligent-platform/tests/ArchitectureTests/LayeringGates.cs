@@ -6,7 +6,7 @@ using Xunit;
 namespace ArchitectureTests;
 
 /// <summary>
-/// Enforces that the innermost layers of the tenancy capability — <c>Identity.Domain</c> and
+/// Enforces that the innermost layers of the identity capability — <c>Identity.Domain</c> and
 /// <c>Identity.Application</c> — never take on a dependency on a specific infrastructure
 /// technology (an ORM, a cloud SDK, or a web framework), regardless of whether that dependency
 /// arrives as a NuGet package or as a reference to another project that itself carries the

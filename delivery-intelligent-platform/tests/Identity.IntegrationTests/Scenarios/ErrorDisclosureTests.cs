@@ -1,27 +1,21 @@
-using System.Net.Http.Headers;
 using ArchitectureTests.Support;
 using AwesomeAssertions;
+using Identity.Domain.Abstractions;
 using Identity.IntegrationTests.Infrastructure;
 using Xunit;
 
 namespace Identity.IntegrationTests.Scenarios;
 
 /// <summary>
-/// Failing error non-disclosure tests (T052) — black-box verification of T038's global
-/// <c>ProblemDetailsHandler</c> (RFC 9457, zero exception detail) across a variety of
-/// error-triggering scenarios (FR-022).
+/// Error non-disclosure tests — black-box verification of the global <c>ProblemDetailsHandler</c>
+/// (RFC 9457, zero exception detail) and the endpoints' own error responses across a variety of
+/// error-triggering requests (FR-022).
 /// </summary>
 /// <remarks>
-/// This file does not add production code; T038 already implemented the handler this exercises.
-/// Each test below provokes a different class of would-be-error (malformed route parameter,
-/// malformed request body, cross-tenant read) and asserts the response body — whatever its
-/// status code turns out to be — never contains a stack trace, exception type name, connection
-/// string fragment, raw SQL statement, or another tenant's identifying information. As with the
-/// other Isolation-adjacent scaffolding (T043/T044), several of the endpoints under test
-/// (<c>/tenants/{tenantId}</c>, <c>POST /tenants</c>) do not exist yet in <c>Program.cs</c>'s
-/// route table — this test intentionally records whatever ASP.NET Core actually returns today
-/// (a routing-table 404, or a framework-level 400 for malformed JSON) rather than forcing an
-/// assumption about which layer produces the response.
+/// Each test provokes a different class of error (malformed route parameter, malformed request
+/// body, a non-member probing the organization) and asserts the response body — whatever its
+/// status code turns out to be — never contains a stack trace, exception type name,
+/// connection-string fragment, raw SQL statement, or another member's identifying information.
 /// </remarks>
 public sealed class ErrorDisclosureTests : IdentityIntegrationTestBase
 {
@@ -31,19 +25,18 @@ public sealed class ErrorDisclosureTests : IdentityIntegrationTestBase
     {
     }
 
-    [CoversRequirement("FR-007")]
     [CoversRequirement("FR-022")]
     [Fact]
-    public async Task Get_TenantById_WithMalformedRouteId_DoesNotDiscloseSensitiveDetail()
+    public async Task Delete_Member_WithMalformedRouteId_DoesNotDiscloseSensitiveDetail()
     {
-        await Factory.InitializeDatabaseAsync();
+        var administrator = await Factory.SeedMemberAsync(Role.Administrator);
 
-        using var client = CreateAuthenticatedClient(Guid.NewGuid(), Guid.NewGuid());
+        using var client = Factory.CreateClientFor(administrator);
 
-        // "not-a-guid" is a genuinely malformed tenant id — not a syntactically valid GUID at
+        // "not-a-guid" is a genuinely malformed user id — not a syntactically valid GUID at
         // all — so this exercises route-model-binding failure, whatever status it produces.
-        var response = await client.GetAsync(
-            "/tenants/not-a-guid",
+        var response = await client.DeleteAsync(
+            "/members/not-a-guid",
             TestContext.Current.CancellationToken);
 
         var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
@@ -53,11 +46,12 @@ public sealed class ErrorDisclosureTests : IdentityIntegrationTestBase
 
     [CoversRequirement("FR-022")]
     [Fact]
-    public async Task Post_Tenants_WithMalformedJsonBody_DoesNotDiscloseSensitiveDetail()
+    public async Task Post_Invitations_WithMalformedJsonBody_DoesNotDiscloseSensitiveDetail()
     {
-        await Factory.InitializeDatabaseAsync();
+        var administrator = await Factory.SeedMemberAsync(Role.Administrator);
 
-        using var client = CreateAuthenticatedClient(Guid.NewGuid(), Guid.NewGuid());
+        using var client = Factory.CreateClientFor(administrator);
+        client.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
 
         using var malformedContent = new StringContent(
             "{ this is not valid json ",
@@ -65,7 +59,7 @@ public sealed class ErrorDisclosureTests : IdentityIntegrationTestBase
             "application/json");
 
         var response = await client.PostAsync(
-            "/tenants",
+            "/invitations",
             malformedContent,
             TestContext.Current.CancellationToken);
 
@@ -74,44 +68,31 @@ public sealed class ErrorDisclosureTests : IdentityIntegrationTestBase
         AssertNoSensitiveDisclosure(body);
     }
 
+    /// <summary>
+    /// A non-member probing the member list is refused, and the refusal body leaks nothing about
+    /// who the members are.
+    /// </summary>
     [CoversRequirement("FR-022")]
     [Fact]
-    public async Task Get_TenantById_ForOtherTenant_DoesNotDiscloseOtherTenantIdentity()
+    public async Task Get_Members_AsNonMember_DoesNotDiscloseMemberIdentity()
     {
-        await Factory.InitializeDatabaseAsync();
-        var seed = await Factory.SeedTwoTenantsAsync();
+        var administrator = await Factory.SeedMemberAsync(Role.Administrator, "secret-admin@example.com");
 
-        using var client = CreateAuthenticatedClient(
-            seed.TenantA.EntraTenantId,
-            seed.TenantA.EntraObjectId);
+        using var client = Factory.CreateClientForStranger();
 
-        // T044's scenario, viewed from a different angle: not "is this indistinguishable from a
-        // never-seeded tenant" (T044's concern) but "does the body itself leak anything sensitive
-        // at all" — including Tenant B's own identifiers/display name.
-        var response = await client.GetAsync(
-            $"/tenants/{seed.TenantB.TenantId.Value}",
-            TestContext.Current.CancellationToken);
+        var response = await client.GetAsync("/members", TestContext.Current.CancellationToken);
 
         var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
         AssertNoSensitiveDisclosure(body);
-        body.Should().NotContain(seed.TenantB.TenantId.Value.ToString());
-        body.Should().NotContain("Tenant B");
-    }
-
-    private HttpClient CreateAuthenticatedClient(Guid entraTenantId, Guid entraObjectId)
-    {
-        var client = Factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
-        client.DefaultRequestHeaders.Add("X-Test-Oid", entraObjectId.ToString());
-        client.DefaultRequestHeaders.Add("X-Test-Tid", entraTenantId.ToString());
-        return client;
+        body.Should().NotContain(administrator.UserId.Value.ToString());
+        body.Should().NotContain(administrator.Email);
     }
 
     /// <summary>
     /// Shared assertion helper (per task brief): a response body must never contain a stack
     /// trace, exception type name, connection-string fragment, or raw SQL statement fragment.
-    /// Tenant-identifier disclosure is checked per-test (the sensitive value differs by
+    /// Member-identifier disclosure is checked per-test (the sensitive value differs by
     /// scenario), not here.
     /// </summary>
     private static void AssertNoSensitiveDisclosure(string body)

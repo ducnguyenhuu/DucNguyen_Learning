@@ -5,14 +5,14 @@ namespace Identity.Domain.Abstractions;
 /// — the caller's request is well-formed and would otherwise be valid, but cannot proceed
 /// because of something that already exists (e.g. a duplicate, an already-active membership, an
 /// already-pending invitation). Intended to map to HTTP <c>409 Conflict</c>, distinct from the
-/// generic <see cref="DomainException"/>-to-<c>400 Bad Request</c> mapping already established by
-/// <c>TenantEndpoints</c> (T054/T055) for invalid-input-shaped invariant violations.
+/// generic <see cref="DomainException"/>-to-<c>400 Bad Request</c> mapping the endpoints use for
+/// invalid-input-shaped invariant violations.
 /// </summary>
 /// <remarks>
 /// This is the first use of a <see cref="DomainException"/> subtype for HTTP-status
-/// discrimination in this codebase (T071 — <c>InviteMember</c>). Earlier 409s
-/// (<c>TenantEndpoints.PatchTenantAsync</c>'s optimistic-concurrency conflict) were signalled by
-/// catching a framework type (<c>DbUpdateConcurrencyException</c>) directly, which works for a
+/// discrimination in this codebase (T071 — <c>InviteMember</c>). Optimistic-concurrency 409s
+/// (e.g. <c>MemberEndpoints.PatchMemberRoleAsync</c>) are signalled by catching a framework type
+/// (<c>DbUpdateConcurrencyException</c>) directly, which works for a
 /// concurrency race but not for a use case that wants to raise "this specific business conflict"
 /// deliberately, before ever touching the database. Endpoint code (T078+) is expected to catch
 /// <see cref="ConflictException"/> <b>before</b> the broader <see cref="DomainException"/> catch

@@ -16,12 +16,10 @@ namespace Identity.UnitTests.Invitations;
 /// <summary>
 /// Unit tests for <see cref="AcceptInvitation"/>, using hand-rolled in-memory fakes of
 /// <see cref="IInvitationRepository"/>/<see cref="IUserRepository"/>/<see cref="IClock"/> —
-/// following the established convention from <c>InviteMemberTests</c> and
-/// <c>CreateTenantTests</c>.
+/// following the established convention from <c>InviteMemberTests</c>.
 /// </summary>
 public class AcceptInvitationTests
 {
-    private static readonly TenantId TestTenantId = new(Guid.CreateVersion7());
     private static readonly DateTimeOffset FixedNow = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
     private static readonly EmailAddress InviteeEmail = new("invitee@example.com");
     private const string RawToken = "some-raw-token-value";
@@ -39,8 +37,10 @@ public class AcceptInvitationTests
 
         public Membership? SavedMembership { get; private set; }
 
+        public bool IsActiveMember { get; set; }
+
         public Task<bool> IsActiveMemberAsync(EmailAddress email, CancellationToken ct) =>
-            Task.FromResult(false);
+            Task.FromResult(IsActiveMember);
 
         public Task<bool> HasPendingInvitationAsync(EmailAddress email, CancellationToken ct) =>
             Task.FromResult(false);
@@ -65,10 +65,10 @@ public class AcceptInvitationTests
             return Task.CompletedTask;
         }
 
-        public Task<IReadOnlyList<Invitation>> GetAllForCurrentTenantAsync(CancellationToken ct) =>
+        public Task<IReadOnlyList<Invitation>> GetAllPendingAsync(CancellationToken ct) =>
             throw new NotSupportedException("Not used by AcceptInvitationTests.");
 
-        public Task<Invitation?> GetByIdForCurrentTenantAsync(InvitationId id, CancellationToken ct) =>
+        public Task<Invitation?> GetByIdAsync(InvitationId id, CancellationToken ct) =>
             throw new NotSupportedException("Not used by AcceptInvitationTests.");
 
         public Task SaveAsync(Invitation invitation, CancellationToken ct) =>
@@ -96,7 +96,7 @@ public class AcceptInvitationTests
         EmailAddress email, DateTimeOffset expiresAtUtc, string rawToken = RawToken)
     {
         var tokenHash = Convert.ToBase64String(InvitationToken.Hash(rawToken));
-        return Invitation.Create(TestTenantId, email, Role.Member, tokenHash, expiresAtUtc);
+        return Invitation.Create(email, Role.Member, tokenHash, expiresAtUtc);
     }
 
     private sealed class FakeAuditWriter : IAuditWriter
@@ -139,10 +139,8 @@ public class AcceptInvitationTests
             RawToken, Guid.NewGuid(), Guid.NewGuid(), InviteeEmail, CancellationToken.None);
 
         result.Kind.Should().Be(AcceptInvitationResultKind.Success);
-        result.TenantId.Should().Be(TestTenantId);
         result.Membership.Should().NotBeNull();
-        result.Membership!.TenantId.Should().Be(TestTenantId);
-        result.Membership.Role.Should().Be(Role.Member);
+        result.Membership!.Role.Should().Be(Role.Member);
 
         invitationRepository.SavedInvitation.Should().NotBeNull();
         invitationRepository.SavedInvitation!.Status.Should().Be(InvitationStatus.Accepted);
@@ -209,5 +207,25 @@ public class AcceptInvitationTests
         result.Kind.Should().Be(AcceptInvitationResultKind.WrongIdentity);
         invitation.Status.Should().Be(InvitationStatus.Pending);
         invitationRepository.SavedInvitation.Should().BeNull();
+    }
+
+    [CoversRequirement("FR-012")]
+    [Fact]
+    public async Task ExecuteAsync_CallerAlreadyActiveMember_ReturnsAlreadyMember_AndLeavesInvitationPending()
+    {
+        var invitation = CreatePendingInvitation(InviteeEmail, FixedNow + TimeSpan.FromDays(1));
+        var invitationRepository = new FakeInvitationRepository
+        {
+            StoredInvitation = invitation,
+            IsActiveMember = true,
+        };
+        var useCase = CreateUseCase(invitationRepository);
+
+        var result = await useCase.ExecuteAsync(
+            RawToken, Guid.NewGuid(), Guid.NewGuid(), InviteeEmail, CancellationToken.None);
+
+        result.Kind.Should().Be(AcceptInvitationResultKind.AlreadyMember);
+        invitation.Status.Should().Be(InvitationStatus.Pending);
+        invitationRepository.SavedMembership.Should().BeNull();
     }
 }

@@ -6,20 +6,11 @@ using Identity.Domain.Memberships;
 namespace Identity.Application.Members;
 
 /// <summary>
-/// Lists active members of the current tenant, for <c>GET /tenants/{tenantId}/members</c> (T079
-/// wires the endpoint — this is application-layer only). "Any active member, any role", same
-/// authorization shape as <see cref="Tenants.GetTenant"/> — no extra check here, per that use
-/// case's remarks on the division of responsibility.
+/// Lists the organization's active members, for <c>GET /members</c> (T079 wires the endpoint —
+/// this is application-layer only). The administrator-only check is the endpoint's
+/// (<c>RequireAdministrator()</c>), not this use case's.
 /// </summary>
 /// <remarks>
-/// <para>
-/// <b>No <c>TenantId</c> parameter:</b> mirrors <see cref="Tenants.GetTenant"/>/
-/// <see cref="Tenants.ListTenants"/>'s established shape — the ambient
-/// <c>IdentityDbContext.CurrentTenantId</c>, already resolved by upstream tenant-resolution
-/// middleware (ADR-017), is the tenant this reads from;
-/// <see cref="IMembershipRepository.GetActiveMembersAsync"/> relies on the same global
-/// query-filter scoping.
-/// </para>
 /// <para>
 /// <b>Email resolution:</b> <see cref="Domain.Memberships.Membership"/> only carries
 /// <see cref="Domain.Memberships.Membership.UserId"/>, not a display email — <c>contracts/openapi.yaml</c>'s
@@ -38,7 +29,7 @@ namespace Identity.Application.Members;
 /// </para>
 /// <para>
 /// <b>No <c>membershipId</c> field:</b> deliberately excluded — <c>contracts/openapi.yaml</c>'s
-/// <c>PATCH</c>/<c>DELETE /tenants/{tenantId}/members/{userId}</c> routes address members by
+/// <c>PATCH</c>/<c>DELETE /members/{userId}</c> routes address members by
 /// <c>userId</c>, not membership id, so nothing downstream needs it surfaced here.
 /// </para>
 /// </remarks>
@@ -46,23 +37,20 @@ public class ListMembers
 {
     private readonly IMembershipRepository _membershipRepository;
     private readonly IUserRepository _userRepository;
-    private readonly ITenantContext _tenantContext;
     private readonly ILogger<ListMembers> _logger;
 
     public ListMembers(
         IMembershipRepository membershipRepository,
         IUserRepository userRepository,
-        ITenantContext tenantContext,
         ILogger<ListMembers> logger)
     {
         _membershipRepository = membershipRepository;
         _userRepository = userRepository;
-        _tenantContext = tenantContext;
         _logger = logger;
     }
 
     /// <summary>
-    /// Returns every active member of the current tenant, for the acting
+    /// Returns every active member of the organization, for the acting
     /// <paramref name="requestedByUserId"/> (logged only, not used to filter).
     /// </summary>
     public async Task<IReadOnlyList<ListedMember>> ExecuteAsync(
@@ -83,9 +71,8 @@ public class ListMembers
             .ToList();
 
         _logger.LogInformation(
-            "Listed {Count} active members for tenant {TenantId}, requested by user {RequestedByUserId}",
+            "Listed {Count} active members, requested by user {RequestedByUserId}",
             result.Count,
-            _tenantContext.TenantId,
             requestedByUserId);
 
         return result;
@@ -101,7 +88,7 @@ public class ListMembers
 /// <param name="UserId">The member's user id.</param>
 /// <param name="Email">The member's email address, or <c>null</c> if the owning user could not be
 /// resolved.</param>
-/// <param name="Role">The member's role in the current tenant.</param>
+/// <param name="Role">The member's role in the organization.</param>
 /// <param name="Status">The membership's lifecycle status (always
 /// <see cref="MembershipStatus.Active"/> for rows returned by this use case).</param>
 public record ListedMember(UserId UserId, EmailAddress? Email, Role Role, MembershipStatus Status);

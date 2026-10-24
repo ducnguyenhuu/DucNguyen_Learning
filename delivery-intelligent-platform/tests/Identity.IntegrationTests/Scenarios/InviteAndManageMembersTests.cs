@@ -1,38 +1,27 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using ArchitectureTests.Support;
 using AwesomeAssertions;
-using Microsoft.Extensions.DependencyInjection;
-using Identity.Api.ETags;
 using Identity.Domain.Abstractions;
-using Identity.Domain.Invitations;
-using Identity.Domain.Memberships;
-using Identity.Domain.Tenants;
-using Identity.Domain.Users;
-using Identity.Infrastructure.Persistence;
 using Identity.IntegrationTests.Infrastructure;
 using Xunit;
 
 namespace Identity.IntegrationTests.Scenarios;
 
 /// <summary>
-/// Failing acceptance-scenario tests (T063) for US2's six acceptance scenarios (spec.md).
+/// Acceptance-scenario tests for US2's six acceptance scenarios (spec.md): inviting, accepting,
+/// refusing a bad acceptance, removing a member, and protecting the last administrator.
 /// </summary>
 /// <remarks>
-/// <b>What this file proves right now, and what it doesn't.</b> Same caveat as
-/// <see cref="EstablishTenantTests"/> (T045) and
-/// <see cref="Isolation.MembershipEndpointIsolationTests"/> (T062): none of the invitation/member
-/// endpoints exist yet (T070-T080 add them), so every request below hits a route absent from
-/// <c>Program.cs</c>'s route table and gets ASP.NET Core's own "no matching endpoint" 404/405 —
-/// not any real business rule. These tests encode the eventual-correct behavior per spec.md's
-/// User Story 2 so they go genuinely green once the endpoints land. Scenarios 3 and 4 overlap
-/// T064/T065's deeper edge-case coverage by design (see task-63-brief.md's scope note); scenario 6
-/// is deliberately kept to a simple integration-level acknowledgement, with the real invariant
-/// tested at unit level by T067 and its concurrent variant by T068.
+/// Scenarios 3 and 4 overlap <see cref="InvitationRefusalTests"/>' deeper edge-case coverage by
+/// design. Scenario 6 is deliberately a simple integration-level acknowledgement: the invariant
+/// itself is tested at unit level, and its concurrent variant by
+/// <see cref="ConcurrentAdminRemovalTests"/>.
 /// </remarks>
 public sealed class InviteAndManageMembersTests : IdentityIntegrationTestBase
 {
+    private const string SeededToken = "some-valid-token-for-seeded-invitee";
+    private const string SeededInviteeEmail = "invitee@example.com";
 
     public InviteAndManageMembersTests(SqlServerFixture sqlServerFixture, ApiFactory factory)
         : base(sqlServerFixture, factory)
@@ -40,25 +29,24 @@ public sealed class InviteAndManageMembersTests : IdentityIntegrationTestBase
     }
 
     /// <summary>
-    /// Scenario 1: an authenticated tenant administrator invites an email address with a
-    /// specified role; an invitation is recorded as pending against that tenant with that role
-    /// and an expiry. Asserted against the response shape <c>contracts/openapi.yaml</c> documents
-    /// for <c>POST /tenants/{tenantId}/invitations</c>: 201 Created, a <c>Location</c> header, and
-    /// a body containing the invitation's token (returned once, never stored raw).
+    /// Scenario 1: an administrator invites an email address with a specified role; an
+    /// invitation is recorded as pending with that role and an expiry. Asserted against the
+    /// response shape <c>contracts/openapi.yaml</c> documents for <c>POST /invitations</c>: 201
+    /// Created, a <c>Location</c> header, and a body containing the invitation's token (returned
+    /// once, never stored raw).
     /// </summary>
     [CoversRequirement("FR-011")]
     [Fact]
     public async Task Post_Invitation_WithEmailAndRole_RecordsPendingInvitation()
     {
-        await Factory.InitializeDatabaseAsync();
-        var seed = await Factory.SeedTwoTenantsAsync();
+        var administrator = await Factory.SeedMemberAsync(Role.Administrator);
 
-        using var client = CreateAuthenticatedClient(seed.TenantA);
+        using var client = Factory.CreateClientFor(administrator);
         client.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
 
         var response = await client.PostAsJsonAsync(
-            $"/tenants/{seed.TenantA.TenantId.Value}/invitations",
-            new { email = "new-invitee@tenant-a.example.com", role = "Member" },
+            "/invitations",
+            new { email = "new-invitee@example.com", role = "Member" },
             TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -70,24 +58,21 @@ public sealed class InviteAndManageMembersTests : IdentityIntegrationTestBase
 
     /// <summary>
     /// Scenario 2: a pending invitation, once accepted by the invited person, makes them an
-    /// active member with the invited role, and the invitation is marked accepted and cannot be
-    /// reused. This spans invite + accept + a subsequent read proving membership — since none of
-    /// this exists yet, it's expected to fail at the invite step rather than exercise the full
-    /// flow; that's the accepted state for this tests-first sub-phase (see task-63-brief.md).
+    /// active member with the invited role. Spans invite, accept, and a subsequent member list
+    /// proving the membership exists.
     /// </summary>
     [CoversRequirement("FR-012")]
     [Fact]
     public async Task Post_Invitation_ThenAccept_ThenListMembers_ShowsNewActiveMemberWithInvitedRole()
     {
-        await Factory.InitializeDatabaseAsync();
-        var seed = await Factory.SeedTwoTenantsAsync();
+        var administrator = await Factory.SeedMemberAsync(Role.Administrator);
 
-        using var adminClient = CreateAuthenticatedClient(seed.TenantA);
+        using var adminClient = Factory.CreateClientFor(administrator);
         adminClient.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
 
-        const string invitedEmail = "invited-member@tenant-a.example.com";
+        const string invitedEmail = "invited-member@example.com";
         var inviteResponse = await adminClient.PostAsJsonAsync(
-            $"/tenants/{seed.TenantA.TenantId.Value}/invitations",
+            "/invitations",
             new { email = invitedEmail, role = "Member" },
             TestContext.Current.CancellationToken);
 
@@ -98,10 +83,7 @@ public sealed class InviteAndManageMembersTests : IdentityIntegrationTestBase
         inviteBody.Should().NotBeNull();
         inviteBody!.Token.Should().NotBeNullOrWhiteSpace();
 
-        using var inviteeClient = Factory.CreateClient();
-        inviteeClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
-        inviteeClient.DefaultRequestHeaders.Add("X-Test-Oid", Guid.NewGuid().ToString());
-        inviteeClient.DefaultRequestHeaders.Add("X-Test-Tid", Guid.NewGuid().ToString());
+        using var inviteeClient = Factory.CreateClientForStranger();
         inviteeClient.DefaultRequestHeaders.Add("X-Test-Email", invitedEmail);
 
         var acceptResponse = await inviteeClient.PostAsync(
@@ -111,14 +93,67 @@ public sealed class InviteAndManageMembersTests : IdentityIntegrationTestBase
 
         acceptResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var membersResponse = await adminClient.GetAsync(
-            $"/tenants/{seed.TenantA.TenantId.Value}/members",
-            TestContext.Current.CancellationToken);
+        var membersResponse = await adminClient.GetAsync("/members", TestContext.Current.CancellationToken);
 
         membersResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var membersBody = await membersResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         membersBody.Should().Contain(invitedEmail);
         membersBody.Should().Contain("Member");
+    }
+
+    /// <summary>
+    /// The invitation's addressee, authenticated with the matching email and holding the valid
+    /// token, can accept it despite having no membership and never having been seen by this API —
+    /// which is why the accept route is not member-only. Anchored to a directly persisted
+    /// invitation rather than one created over HTTP.
+    /// </summary>
+    [CoversRequirement("FR-012")]
+    [Fact]
+    public async Task Post_AcceptInvitation_AsInvitedAddressee_WithNoPriorMembership_Succeeds()
+    {
+        await Factory.SeedMemberAsync(Role.Administrator);
+        await Factory.SeedInvitationAsync(
+            SeededInviteeEmail, Role.Member, SeededToken, DateTimeOffset.UtcNow.AddDays(7));
+
+        using var client = Factory.CreateClientForStranger();
+        client.DefaultRequestHeaders.Add("X-Test-Email", SeededInviteeEmail);
+
+        var response = await client.PostAsync(
+            $"/invitations/{SeededToken}/accept",
+            content: null,
+            TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var me = await client.GetFromJsonAsync<MeResponse>("/me", TestContext.Current.CancellationToken);
+        me!.Role.Should().Be("Member");
+    }
+
+    /// <summary>
+    /// An invitee who became a member after the invitation was sent (here, an existing member
+    /// holding a second invitation) cannot accept it: that would create a second active
+    /// membership. The attempt is a 409, not a server error, and the role is unchanged.
+    /// </summary>
+    [CoversRequirement("FR-012")]
+    [Fact]
+    public async Task Post_AcceptInvitation_AsExistingMember_IsConflict_AndChangesNothing()
+    {
+        var member = await Factory.SeedMemberAsync(Role.Administrator, SeededInviteeEmail);
+        await Factory.SeedInvitationAsync(
+            SeededInviteeEmail, Role.Reader, SeededToken, DateTimeOffset.UtcNow.AddDays(7));
+
+        using var client = Factory.CreateClientFor(member);
+        client.DefaultRequestHeaders.Add("X-Test-Email", SeededInviteeEmail);
+
+        var response = await client.PostAsync(
+            $"/invitations/{SeededToken}/accept",
+            content: null,
+            TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        var me = await client.GetFromJsonAsync<MeResponse>("/me", TestContext.Current.CancellationToken);
+        me!.Role.Should().Be("Administrator");
     }
 
     /// <summary>
@@ -129,20 +164,18 @@ public sealed class InviteAndManageMembersTests : IdentityIntegrationTestBase
     [Fact]
     public async Task Post_AcceptExpiredInvitation_IsRefused()
     {
-        await Factory.InitializeDatabaseAsync();
-        var seed = await Factory.SeedTwoTenantsAsync();
+        await Factory.SeedMemberAsync(Role.Administrator);
 
-        const string invitedEmail = "expired-invitee@tenant-a.example.com";
-        await SeedExpiredInvitationAsync(seed.TenantA.TenantId, invitedEmail);
+        const string invitedEmail = "expired-invitee@example.com";
+        const string expiredToken = "some-expired-token";
+        await Factory.SeedInvitationAsync(
+            invitedEmail, Role.Member, expiredToken, DateTimeOffset.UtcNow.AddDays(-1));
 
-        using var client = Factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
-        client.DefaultRequestHeaders.Add("X-Test-Oid", Guid.NewGuid().ToString());
-        client.DefaultRequestHeaders.Add("X-Test-Tid", Guid.NewGuid().ToString());
+        using var client = Factory.CreateClientForStranger();
         client.DefaultRequestHeaders.Add("X-Test-Email", invitedEmail);
 
         var response = await client.PostAsync(
-            "/invitations/some-expired-token/accept",
+            $"/invitations/{expiredToken}/accept",
             content: null,
             TestContext.Current.CancellationToken);
 
@@ -153,25 +186,23 @@ public sealed class InviteAndManageMembersTests : IdentityIntegrationTestBase
     /// Scenario 4: an invitation issued to one email address cannot be accepted by a person
     /// authenticated as a different email address. Per <c>contracts/openapi.yaml</c> this is a
     /// distinct 403 (the token is valid, the caller simply isn't its subject) — not a 404. This
-    /// requires a genuinely valid, pending invitation token: an unrecognized/never-issued token
-    /// always resolves to 404 first (lookup precedes identity comparison, per FR-013 — 404 for
-    /// unknown tokens so token validity can't be probed), so the test seeds a real invitation via
-    /// the invite endpoint (mirroring <see cref="Post_Invitation_ThenAccept_ThenListMembers_ShowsNewActiveMemberWithInvitedRole"/>)
-    /// and then attempts to accept that valid token while authenticated as a different email.
+    /// requires a genuinely valid, pending invitation token: an unrecognized token always
+    /// resolves to 404 first (lookup precedes identity comparison, per FR-013), so the test
+    /// creates a real invitation via the invite endpoint and then attempts to accept it while
+    /// authenticated as a different email.
     /// </summary>
     [CoversRequirement("FR-013")]
     [Fact]
     public async Task Post_AcceptInvitation_AsDifferentEmailThanInvited_IsRefused()
     {
-        await Factory.InitializeDatabaseAsync();
-        var seed = await Factory.SeedTwoTenantsAsync();
+        var administrator = await Factory.SeedMemberAsync(Role.Administrator);
 
-        using var adminClient = CreateAuthenticatedClient(seed.TenantA);
+        using var adminClient = Factory.CreateClientFor(administrator);
         adminClient.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
 
-        const string invitedEmail = "invited-member@tenant-a.example.com";
+        const string invitedEmail = "invited-member@example.com";
         var inviteResponse = await adminClient.PostAsJsonAsync(
-            $"/tenants/{seed.TenantA.TenantId.Value}/invitations",
+            "/invitations",
             new { email = invitedEmail, role = "Member" },
             TestContext.Current.CancellationToken);
 
@@ -182,13 +213,8 @@ public sealed class InviteAndManageMembersTests : IdentityIntegrationTestBase
         inviteBody.Should().NotBeNull();
         inviteBody!.Token.Should().NotBeNullOrWhiteSpace();
 
-        // The invitation above targets invitedEmail; here the caller authenticates as a
-        // different identity entirely and attempts to accept that same, genuinely valid token.
-        using var client = Factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
-        client.DefaultRequestHeaders.Add("X-Test-Oid", Guid.NewGuid().ToString());
-        client.DefaultRequestHeaders.Add("X-Test-Tid", Guid.NewGuid().ToString());
-        client.DefaultRequestHeaders.Add("X-Test-Email", "different-person@tenant-a.example.com");
+        using var client = Factory.CreateClientForStranger();
+        client.DefaultRequestHeaders.Add("X-Test-Email", "different-person@example.com");
 
         var response = await client.PostAsync(
             $"/invitations/{inviteBody.Token}/accept",
@@ -199,197 +225,87 @@ public sealed class InviteAndManageMembersTests : IdentityIntegrationTestBase
     }
 
     /// <summary>
-    /// Scenario 5: an authenticated tenant administrator removes an active member; that member
-    /// immediately loses the ability to read or modify any of the tenant's data. The caller here
-    /// is a genuine Administrator removing a *different* person's membership — not self-removal
-    /// by a non-admin — per spec.md's Scenario 5 wording. Exercised as remove-then-attempt-read,
-    /// both against the same tenant.
+    /// FR-013's core rule, with an existing member as the wrong caller: holding a valid,
+    /// unexpired token for an invitation issued to someone else's email does not let a different
+    /// identity accept it — the token alone is not enough — and the caller's own membership is
+    /// left exactly as it was.
     /// </summary>
+    [CoversRequirement("FR-013")]
     [Fact]
-    public async Task Delete_ActiveMember_ThenMemberAttemptsToReadTenantData_IsRefused()
+    public async Task Post_AcceptInvitation_WithValidTokenForSomeoneElse_ByExistingMember_IsRefused()
     {
-        await Factory.InitializeDatabaseAsync();
-        var seed = await SeedAdministratorAndMemberAsync();
+        var existingMember = await Factory.SeedMemberAsync(Role.Reader);
+        await Factory.SeedInvitationAsync(
+            SeededInviteeEmail, Role.Administrator, SeededToken, DateTimeOffset.UtcNow.AddDays(7));
 
-        using var adminClient = Factory.CreateClient();
-        adminClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
-        adminClient.DefaultRequestHeaders.Add("X-Test-Oid", seed.Administrator.EntraObjectId.ToString());
-        adminClient.DefaultRequestHeaders.Add("X-Test-Tid", seed.Administrator.EntraTenantId.ToString());
+        using var client = Factory.CreateClientFor(existingMember);
+        client.DefaultRequestHeaders.Add("X-Test-Email", existingMember.Email);
 
-        var ifMatch = await GetMembershipIfMatchAsync(seed.Administrator.TenantId, seed.Member.MembershipId);
-        adminClient.DefaultRequestHeaders.Add("If-Match", ifMatch);
+        var response = await client.PostAsync(
+            $"/invitations/{SeededToken}/accept",
+            content: null,
+            TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        var me = await client.GetFromJsonAsync<MeResponse>("/me", TestContext.Current.CancellationToken);
+        me!.Role.Should().Be("Reader", "a refused acceptance must not upgrade the caller to the invited role");
+    }
+
+    /// <summary>
+    /// Scenario 5: an administrator removes an active member; that member immediately loses the
+    /// ability to read or modify the organization's data. The caller is a genuine Administrator
+    /// removing a <em>different</em> person's membership, per spec.md's Scenario 5 wording.
+    /// Exercised as remove-then-attempt-read: the removed member is now a non-member, so the
+    /// member-only read is refused with 403.
+    /// </summary>
+    [CoversRequirement("FR-014")]
+    [Fact]
+    public async Task Delete_ActiveMember_ThenMemberAttemptsToReadOrganizationData_IsRefused()
+    {
+        var administrator = await Factory.SeedMemberAsync(Role.Administrator);
+        var member = await Factory.SeedMemberAsync(Role.Administrator);
+
+        using var adminClient = Factory.CreateClientFor(administrator);
+        adminClient.DefaultRequestHeaders.Add("If-Match", await Factory.GetMembershipIfMatchAsync(member.MembershipId));
 
         var deleteResponse = await adminClient.DeleteAsync(
-            $"/tenants/{seed.Administrator.TenantId.Value}/members/{seed.Member.UserId.Value}",
+            $"/members/{member.UserId.Value}",
             TestContext.Current.CancellationToken);
 
         deleteResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        // Read-side check: the just-removed member attempts to read tenant data and is refused.
-        // Since no auth/authorization middleware distinguishes an ex-member from a stranger yet
-        // (that's what T075+ implements), this currently proves nothing beyond the absent-route
-        // 404 the whole file already discloses — kept anyway so the assertion goes meaningfully
-        // green (403/404 from real authorization, not ASP.NET Core's routing) once those
-        // endpoints land.
-        using var removedMemberClient = Factory.CreateClient();
-        removedMemberClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
-        removedMemberClient.DefaultRequestHeaders.Add("X-Test-Oid", seed.Member.EntraObjectId.ToString());
-        removedMemberClient.DefaultRequestHeaders.Add("X-Test-Tid", seed.Member.EntraTenantId.ToString());
+        // The target was seeded as an Administrator so the read below would succeed if the
+        // removal had not taken effect; after it, the membership filter refuses them.
+        using var removedMemberClient = Factory.CreateClientFor(member);
 
-        var readResponse = await removedMemberClient.GetAsync(
-            $"/tenants/{seed.Administrator.TenantId.Value}",
-            TestContext.Current.CancellationToken);
+        var readResponse = await removedMemberClient.GetAsync("/members", TestContext.Current.CancellationToken);
 
-        readResponse.StatusCode.Should().NotBe(HttpStatusCode.OK);
+        readResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     /// <summary>
-    /// Scenario 6: a tenant with exactly one administrator refuses an attempt to remove that
-    /// administrator, so the tenant cannot become unadministrable. Kept to a simple
-    /// integration-level acknowledgement per task-63-brief.md's scope note — the deep unit-level
-    /// invariant is T067's job, and the concurrent-race variant is T068's.
+    /// Scenario 6: an organization with exactly one administrator refuses an attempt to remove
+    /// that administrator, so it cannot become unadministrable.
     /// </summary>
     [CoversRequirement("FR-015")]
     [Fact]
     public async Task Delete_SoleAdministrator_IsRefused()
     {
-        await Factory.InitializeDatabaseAsync();
-        var seed = await SeedSoleAdministratorTenantAsync();
+        var soleAdministrator = await Factory.SeedMemberAsync(Role.Administrator);
 
-        using var client = Factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
-        client.DefaultRequestHeaders.Add("X-Test-Oid", seed.EntraObjectId.ToString());
-        client.DefaultRequestHeaders.Add("X-Test-Tid", seed.EntraTenantId.ToString());
-
-        var ifMatch = await GetMembershipIfMatchAsync(seed.TenantId, seed.MembershipId);
-        client.DefaultRequestHeaders.Add("If-Match", ifMatch);
+        using var client = Factory.CreateClientFor(soleAdministrator);
+        client.DefaultRequestHeaders.Add(
+            "If-Match", await Factory.GetMembershipIfMatchAsync(soleAdministrator.MembershipId));
 
         var response = await client.DeleteAsync(
-            $"/tenants/{seed.TenantId.Value}/members/{seed.UserId.Value}",
+            $"/members/{soleAdministrator.UserId.Value}",
             TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
 
-    /// <summary>
-    /// Builds a valid <c>If-Match</c> value directly from the membership's current, persisted
-    /// <c>RowVersion</c> — mirrors <c>RolePermissionMatrixTests.GetMembershipIfMatchAsync</c>,
-    /// since <c>DELETE /tenants/{tenantId}/members/{userId}</c> requires a genuine If-Match
-    /// precondition (contracts/openapi.yaml, FR-021) and there is no per-member ETag exposed via
-    /// <c>GET /tenants/{tenantId}/members</c> to round-trip through HTTP instead.
-    /// </summary>
-    private async Task<string> GetMembershipIfMatchAsync(TenantId tenantId, MembershipId membershipId)
-    {
-        using var scope = Factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-        db.CurrentTenantId = tenantId;
-        var membership = await db.Memberships.FindAsync(
-            [membershipId], TestContext.Current.CancellationToken);
-        return RowVersionETag.ToETag(membership!.RowVersion);
-    }
-
-    private HttpClient CreateAuthenticatedClient(SeededTenant seededTenant)
-    {
-        var client = Factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("TestScheme", "test");
-        client.DefaultRequestHeaders.Add("X-Test-Oid", seededTenant.EntraObjectId.ToString());
-        client.DefaultRequestHeaders.Add("X-Test-Tid", seededTenant.EntraTenantId.ToString());
-        return client;
-    }
-
-    /// <summary>
-    /// Seeds a genuinely-persisted, already-expired <see cref="Invitation"/> in the given tenant —
-    /// scenario 3 needs the accept attempt to target an invitation that legitimately exists (and
-    /// is legitimately expired), not merely a token that fails to resolve to anything.
-    /// </summary>
-    private async Task SeedExpiredInvitationAsync(TenantId tenantId, string invitedEmail)
-    {
-        using var scope = Factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-
-        db.CurrentTenantId = tenantId;
-        var invitation = Invitation.Create(
-            tenantId,
-            new EmailAddress(invitedEmail),
-            Role.Member,
-            tokenHash: "expired-token-hash",
-            expiresAtUtc: DateTimeOffset.UtcNow.AddDays(-1));
-        db.Invitations.Add(invitation);
-        await db.SaveChangesAsync();
-    }
-
-    /// <summary>
-    /// Seeds a single tenant with exactly one active <see cref="Role.Administrator"/> member —
-    /// the fixture scenario 6 needs to attempt removing the last administrator.
-    /// </summary>
-    private async Task<SeededTenant> SeedSoleAdministratorTenantAsync()
-    {
-        using var scope = Factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-
-        var tenant = Tenant.Create("Sole Admin Tenant");
-        var admin = User.Create(
-            entraTenantId: Guid.CreateVersion7(),
-            entraObjectId: Guid.CreateVersion7(),
-            email: new EmailAddress("sole-admin@sole-admin-tenant.example.com"));
-
-        db.Tenants.Add(tenant);
-        db.Users.Add(admin);
-        await db.SaveChangesAsync();
-
-        db.CurrentTenantId = tenant.Id;
-        var membership = Membership.Create(tenant.Id, admin.Id, Role.Administrator);
-        db.Memberships.Add(membership);
-        await db.SaveChangesAsync();
-
-        return new SeededTenant(tenant.Id, admin.Id, membership.Id, admin.EntraTenantId, admin.EntraObjectId);
-    }
-
-    /// <summary>
-    /// Seeds a single tenant with two distinct active members: a <see cref="Role.Administrator"/>
-    /// (the caller) and a separate <see cref="Role.Member"/> (the target being removed). Scenario 5
-    /// needs a genuine admin-removes-someone-else narrative, not self-removal by a non-admin, which
-    /// is why this doesn't reuse <see cref="ApiFactory.SeedTwoTenantsAsync"/> (its two tenants each
-    /// have only one <see cref="Role.Member"/>, no administrator to act as caller).
-    /// </summary>
-    private async Task<AdministratorAndMemberSeed> SeedAdministratorAndMemberAsync()
-    {
-        using var scope = Factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-
-        var tenant = Tenant.Create("Admin And Member Tenant");
-        var admin = User.Create(
-            entraTenantId: Guid.CreateVersion7(),
-            entraObjectId: Guid.CreateVersion7(),
-            email: new EmailAddress("admin@admin-and-member-tenant.example.com"));
-        var member = User.Create(
-            entraTenantId: Guid.CreateVersion7(),
-            entraObjectId: Guid.CreateVersion7(),
-            email: new EmailAddress("member@admin-and-member-tenant.example.com"));
-
-        db.Tenants.Add(tenant);
-        db.Users.Add(admin);
-        db.Users.Add(member);
-        await db.SaveChangesAsync();
-
-        db.CurrentTenantId = tenant.Id;
-        var adminMembership = Membership.Create(tenant.Id, admin.Id, Role.Administrator);
-        var memberMembership = Membership.Create(tenant.Id, member.Id, Role.Member);
-        db.Memberships.Add(adminMembership);
-        db.Memberships.Add(memberMembership);
-        await db.SaveChangesAsync();
-
-        return new AdministratorAndMemberSeed(
-            new SeededTenant(tenant.Id, admin.Id, adminMembership.Id, admin.EntraTenantId, admin.EntraObjectId),
-            new SeededTenant(tenant.Id, member.Id, memberMembership.Id, member.EntraTenantId, member.EntraObjectId));
-    }
-
     private sealed record InvitationResponse(string Token);
 
-    /// <summary>
-    /// A single tenant seeded with two distinct active members: an Administrator (the caller) and
-    /// a separate Member (the target). Both <see cref="SeededTenant"/> values share the same
-    /// <c>TenantId</c>; only the user/membership/Entra identity fields differ.
-    /// </summary>
-    private sealed record AdministratorAndMemberSeed(SeededTenant Administrator, SeededTenant Member);
+    private sealed record MeResponse(Guid UserId, string Email, string? Role);
 }

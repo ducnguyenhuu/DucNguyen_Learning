@@ -13,7 +13,7 @@ namespace Identity.IntegrationTests.Infrastructure;
 /// those exception types.
 /// </summary>
 /// <remarks>
-/// Every real production endpoint (<c>TenantEndpoints</c>, <c>InvitationEndpoints</c>,
+/// Every real production endpoint (<c>InvitationEndpoints</c>,
 /// <c>MemberEndpoints</c>) already catches <see cref="DomainException"/>/<see cref="ConflictException"/>
 /// locally and translates it to a specific status code before it can ever reach the global
 /// handler — so there is no existing real route whose unhandled-exception path can be used to

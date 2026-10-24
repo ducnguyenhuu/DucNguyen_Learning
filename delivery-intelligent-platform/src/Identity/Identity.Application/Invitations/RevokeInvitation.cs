@@ -7,24 +7,21 @@ using Identity.Domain.Invitations;
 namespace Identity.Application.Invitations;
 
 /// <summary>
-/// Revokes a pending invitation by id, in the current tenant (FR-014), for
-/// <c>DELETE /tenants/{tenantId}/invitations/{invitationId}</c> (the endpoint wiring is
+/// Revokes a pending invitation by id (FR-014), for <c>DELETE /invitations/{invitationId}</c>
+/// (the endpoint wiring is
 /// application-layer only, not part of this use case). Administrator-only per the contract; that authorization check is not
-/// this use case's concern (same division of responsibility as <c>RenameTenant</c>'s remarks).
+/// this use case's concern (the endpoint applies <c>RequireAdministrator()</c>).
 /// </summary>
 /// <remarks>
 /// <para>
 /// <b>404 vs. 409, per contracts/openapi.yaml:</b> an invitation id that doesn't resolve to a row
-/// in the current tenant (either it doesn't exist at all, or it belongs to a different tenant —
-/// both indistinguishable, per
-/// <see cref="IInvitationRepository.GetByIdForCurrentTenantAsync"/>'s remarks) maps to
-/// <see cref="RevokeInvitationResultKind.NotFound"/> (404). A row that exists but is no longer
+/// maps to <see cref="RevokeInvitationResultKind.NotFound"/> (404). A row that exists but is no longer
 /// <see cref="InvitationStatus.Pending"/> (already accepted or revoked) maps to
 /// <see cref="RevokeInvitationResultKind.Conflict"/> (409 — "Already accepted, so no longer
 /// revocable."), signalled by <see cref="Invitation.Revoke"/> throwing <see cref="DomainException"/>.
 /// Unlike <see cref="AcceptInvitation"/>'s NotFound/NotAcceptable-both-404 collapse (which exists
 /// specifically to avoid leaking token validity to an unauthenticated caller), this is an
-/// authenticated, already-tenant-scoped Administrator operating on a known id, and the contract
+/// authenticated Administrator operating on a known id, and the contract
 /// gives the two outcomes genuinely different status codes — no reason to collapse them here.
 /// </para>
 /// <para>
@@ -39,7 +36,7 @@ namespace Identity.Application.Invitations;
 /// duplicating <see cref="ListInvitations"/>'s clock logic here.
 /// </para>
 /// <para>
-/// <b>Logging (FR-025):</b> logs the tenant id, invitation id, invited email, and the acting
+/// <b>Logging (FR-025):</b> logs the invitation id, invited email, and the acting
 /// (revoking) user id — never the token or its hash, same reasoning as <c>InviteMember</c>/
 /// <c>AcceptInvitation</c>.
 /// </para>
@@ -47,33 +44,29 @@ namespace Identity.Application.Invitations;
 public class RevokeInvitation
 {
     private readonly IInvitationRepository _invitationRepository;
-    private readonly ITenantContext _tenantContext;
     private readonly IAuditWriter _auditWriter;
     private readonly IClock _clock;
     private readonly ILogger<RevokeInvitation> _logger;
 
     public RevokeInvitation(
         IInvitationRepository invitationRepository,
-        ITenantContext tenantContext,
         IAuditWriter auditWriter,
         IClock clock,
         ILogger<RevokeInvitation> logger)
     {
         _invitationRepository = invitationRepository;
-        _tenantContext = tenantContext;
         _auditWriter = auditWriter;
         _clock = clock;
         _logger = logger;
     }
 
     /// <summary>
-    /// Revokes the invitation identified by <paramref name="invitationId"/> in the current
-    /// tenant, on behalf of <paramref name="revokedByUserId"/>.
+    /// Revokes the invitation identified by <paramref name="invitationId"/>, on behalf of <paramref name="revokedByUserId"/>.
     /// </summary>
     public async Task<RevokeInvitationResult> ExecuteAsync(
         InvitationId invitationId, UserId revokedByUserId, CancellationToken ct)
     {
-        var invitation = await _invitationRepository.GetByIdForCurrentTenantAsync(invitationId, ct);
+        var invitation = await _invitationRepository.GetByIdAsync(invitationId, ct);
         if (invitation is null)
         {
             return RevokeInvitationResult.NotFound();
@@ -89,7 +82,6 @@ public class RevokeInvitation
         }
 
         var auditEntry = AuditEntry.Create(
-            _tenantContext.TenantId,
             revokedByUserId,
             "invitation.revoked",
             "Invitation",
@@ -103,10 +95,9 @@ public class RevokeInvitation
         await _invitationRepository.SaveAsync(invitation, ct);
 
         _logger.LogInformation(
-            "Invitation {InvitationId} for {Email} revoked in tenant {TenantId} by user {RevokedByUserId}",
+            "Invitation {InvitationId} for {Email} revoked by user {RevokedByUserId}",
             invitation.Id,
             invitation.Email,
-            _tenantContext.TenantId,
             revokedByUserId);
 
         return RevokeInvitationResult.Success();
@@ -136,7 +127,7 @@ public enum RevokeInvitationResultKind
     /// <see cref="InvitationStatus.Revoked"/>. Maps to <c>204 No Content</c>.</summary>
     Success,
 
-    /// <summary>No invitation with the given id exists in the current tenant. Maps to
+    /// <summary>No invitation with the given id exists. Maps to
     /// <c>404 Not Found</c>.</summary>
     NotFound,
 

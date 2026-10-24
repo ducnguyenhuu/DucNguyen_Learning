@@ -17,15 +17,7 @@ namespace Identity.UnitTests.Invitations;
 /// </summary>
 public class RevokeInvitationTests
 {
-    private static readonly TenantId TestTenantId = new(Guid.CreateVersion7());
     private static readonly DateTimeOffset FixedNow = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
-
-    private sealed class FakeTenantContext : ITenantContext
-    {
-        public TenantId TenantId { get; set; } = TestTenantId;
-
-        public Role Role { get; set; } = Role.Administrator;
-    }
 
     private sealed class FakeInvitationRepository : IInvitationRepository
     {
@@ -48,10 +40,10 @@ public class RevokeInvitationTests
         public Task SaveAcceptedAsync(Invitation invitation, Membership membership, CancellationToken ct) =>
             throw new NotSupportedException("Not used by RevokeInvitationTests.");
 
-        public Task<IReadOnlyList<Invitation>> GetAllForCurrentTenantAsync(CancellationToken ct) =>
+        public Task<IReadOnlyList<Invitation>> GetAllPendingAsync(CancellationToken ct) =>
             throw new NotSupportedException("Not used by RevokeInvitationTests.");
 
-        public Task<Invitation?> GetByIdForCurrentTenantAsync(InvitationId id, CancellationToken ct) =>
+        public Task<Invitation?> GetByIdAsync(InvitationId id, CancellationToken ct) =>
             Task.FromResult(StoredInvitation is not null && StoredInvitation.Id == id ? StoredInvitation : null);
 
         public Task SaveAsync(Invitation invitation, CancellationToken ct)
@@ -79,14 +71,12 @@ public class RevokeInvitationTests
         FakeInvitationRepository repository, FakeAuditWriter? auditWriter = null) =>
         new(
             repository,
-            new FakeTenantContext(),
             auditWriter ?? new FakeAuditWriter(),
             new FixedClock(),
             NullLogger<RevokeInvitation>.Instance);
 
     private static Invitation CreatePendingInvitation() =>
         Invitation.Create(
-            TestTenantId,
             new EmailAddress("invitee@example.com"),
             Role.Member,
             "some-hash",

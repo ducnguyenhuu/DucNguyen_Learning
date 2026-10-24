@@ -11,8 +11,8 @@ namespace Identity.Application.Abstractions;
 /// <see cref="RecordAsync"/> does <b>not</b> call <c>SaveChangesAsync</c> itself; it only stages
 /// the entry. The caller is responsible for calling <c>SaveChangesAsync</c> on the same
 /// <c>IdentityDbContext</c> instance where the entry was staged, ensuring that the audit record is
-/// persisted atomically with the caller's own domain changes (e.g., membership removal, tenant
-/// rename). This design avoids nested transactions and keeps the unit of work in the caller's hands.
+/// persisted atomically with the caller's own domain changes (e.g., membership removal, role
+/// change). This design avoids nested transactions and keeps the unit of work in the caller's hands.
 /// </para>
 /// </remarks>
 public interface IAuditWriter
@@ -43,18 +43,19 @@ public interface IAuditWriter
     /// persisted for an action that did not actually happen.</item>
     /// </list>
     /// Prefer staging as the very last thing before the call that triggers the save, after every
-    /// fallible step has already succeeded (see <c>RenameTenant</c>, <c>ChangeMemberRole</c>,
-    /// <c>RevokeInvitation</c>, <c>AcceptInvitation</c> for this shape). <c>RemoveMember</c> and
-    /// <c>InviteMember</c> currently stage before a call that is itself both the last fallible
-    /// step and the one that saves (<c>RemoveMembershipAsync</c>, <c>AddAsync</c>) — reordering
-    /// those specific call sites would require splitting that repository call into a separate
-    /// "attempt" step and "save" step, which is a larger repository-contract change than staging
-    /// order alone; both are currently safe only because the underlying repository call rolls
-    /// back its own transaction (or, for <c>RemoveMember</c>, never reaches
+    /// fallible step has already succeeded (see <c>ChangeMemberRole</c>,
+    /// <c>RevokeInvitation</c>, <c>AcceptInvitation</c> for this shape). <c>RemoveMember</c>,
+    /// <c>InviteMember</c> and <c>BootstrapAdministrator</c> currently stage before a call that is
+    /// itself both the last fallible step and the one that saves (<c>RemoveMembershipAsync</c>,
+    /// <c>AddAsync</c>, <c>TryAddFirstAdministratorAsync</c>) — reordering those specific call
+    /// sites would require splitting that repository call into a separate "attempt" step and
+    /// "save" step, which is a larger repository-contract change than staging order alone; all
+    /// three are currently safe only because the underlying repository call rolls back its own
+    /// transaction (or, for <c>RemoveMember</c> and <c>BootstrapAdministrator</c>, never reaches
     /// <c>SaveChangesAsync</c> at all) on the failure path, so the staged-but-unflushed entry
     /// never reaches the database. That safety is incidental to those methods' own transaction
-    /// handling, not guaranteed by this interface — re-verify it explicitly if either call site's
-    /// repository implementation changes.
+    /// handling, not guaranteed by this interface — re-verify it explicitly if any of these call
+    /// sites' repository implementation changes.
     /// </remarks>
     Task RecordAsync(AuditEntry entry, CancellationToken ct);
 

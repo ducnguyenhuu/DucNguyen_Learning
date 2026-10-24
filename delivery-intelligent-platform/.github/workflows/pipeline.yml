@@ -263,30 +263,28 @@ jobs:
           echo "TOKEN=${token}" >>"${GITHUB_ENV}"
         env:
           TENANCY_API_APP_ID_URI: ${{ vars.TENANCY_API_APP_ID_URI }}
+      # No seeding step: GET /me needs no data to exist (ADR-025), so the load test can run
+      # against an empty organization.
       - uses: grafana/setup-k6-action@v1
-      - name: Seed the 20 load-test tenants
-        run: tests/load/seed.sh tenants.json
-        env:
-          BASE_URL: https://${{ vars.FRONTDOOR_ENDPOINT }}
       - name: Run k6 (no automatic retry)
         run: |
           k6 run --summary-export=k6-summary.json \
-            -e BASE_URL="https://${FRONTDOOR_ENDPOINT}" -e TOKEN="${TOKEN}" -e TENANTS_FILE=tenants.json \
-            tests/load/tenant-reads.js
+            -e BASE_URL="https://${FRONTDOOR_ENDPOINT}" -e TOKEN="${TOKEN}" \
+            tests/load/me-reads.js
         env:
           FRONTDOOR_ENDPOINT: ${{ vars.FRONTDOOR_ENDPOINT }}
       - name: Report the result
         if: always()
         run: |
           [ -f k6-summary.json ] || exit 0
-          dur='.metrics["http_req_duration{phase:steady,kind:tenant-read}"]'
+          dur='.metrics["http_req_duration{phase:steady,kind:me-read}"]'
           {
             echo "| Field | Value |"
             echo "|---|---|"
             echo "| p50 / p95 / p99 (ms) | $(jq -r "[${dur}.med, ${dur}[\"p(95)\"], ${dur}[\"p(99)\"]] | map(. * 100 | round / 100) | join(\" / \")" k6-summary.json) (gate: p95 < 1000) |"
             echo "| error rate | $(jq -r '.metrics["http_req_failed{phase:steady}"].value // "n/a"' k6-summary.json) (gate: < 0.01) |"
             echo "| requests (steady) | $(jq -r '.metrics["http_reqs{phase:steady}"].count // "n/a"' k6-summary.json) |"
-            echo "| virtual users / tenants | 50 / 20 |"
+            echo "| virtual users / read path | 50 / GET /me |"
             echo "| distinct caller identities | 1 — all load comes from one identity (research R7) |"
             echo "| commit | ${GITHUB_SHA} |"
             echo "| timestamp (UTC) | $(date -u +%FT%TZ) |"

@@ -12,8 +12,7 @@ namespace Identity.UnitTests.Invitations;
 
 /// <summary>
 /// Unit tests for <see cref="InviteMember"/>, using hand-rolled in-memory fakes of
-/// <see cref="IInvitationRepository"/>/<see cref="ITenantContext"/>/<see cref="IClock"/> —
-/// following the established convention from <c>CreateTenantTests</c>. No real database is needed
+/// <see cref="IInvitationRepository"/>/<see cref="IClock"/>. No real database is needed
 /// to verify this use case's own logic (the two 409 pre-checks, the 7-day expiry math, and the
 /// raw-token-returned-once contract); whether the persistence layer actually enforces the
 /// database-level unique-constraint race backstop is an Infrastructure-level concern, not this
@@ -21,19 +20,11 @@ namespace Identity.UnitTests.Invitations;
 /// </summary>
 public class InviteMemberTests
 {
-    private static readonly TenantId TestTenantId = new(Guid.CreateVersion7());
     private static readonly DateTimeOffset FixedNow = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
     private sealed class FakeClock : IClock
     {
         public DateTimeOffset UtcNow { get; set; } = FixedNow;
-    }
-
-    private sealed class FakeTenantContext : ITenantContext
-    {
-        public TenantId TenantId { get; set; } = TestTenantId;
-
-        public Role Role { get; set; } = Role.Administrator;
     }
 
     private sealed class FakeInvitationRepository : IInvitationRepository
@@ -72,10 +63,10 @@ public class InviteMemberTests
         public Task SaveAcceptedAsync(Invitation invitation, Identity.Domain.Memberships.Membership membership, CancellationToken ct) =>
             throw new NotSupportedException("Not used by InviteMemberTests.");
 
-        public Task<IReadOnlyList<Invitation>> GetAllForCurrentTenantAsync(CancellationToken ct) =>
+        public Task<IReadOnlyList<Invitation>> GetAllPendingAsync(CancellationToken ct) =>
             throw new NotSupportedException("Not used by InviteMemberTests.");
 
-        public Task<Invitation?> GetByIdForCurrentTenantAsync(InvitationId id, CancellationToken ct) =>
+        public Task<Invitation?> GetByIdAsync(InvitationId id, CancellationToken ct) =>
             throw new NotSupportedException("Not used by InviteMemberTests.");
 
         public Task SaveAsync(Invitation invitation, CancellationToken ct) =>
@@ -115,13 +106,11 @@ public class InviteMemberTests
 
     private static InviteMember CreateUseCase(
         FakeInvitationRepository repository,
-        FakeTenantContext? tenantContext = null,
         FakeClock? clock = null,
         FakeInvitationDeliverySink? deliverySink = null,
         FakeAuditWriter? auditWriter = null) =>
         new(
             repository,
-            tenantContext ?? new FakeTenantContext(),
             clock ?? new FakeClock(),
             deliverySink ?? new FakeInvitationDeliverySink(),
             auditWriter ?? new FakeAuditWriter(),
@@ -141,7 +130,6 @@ public class InviteMemberTests
         var result = await useCase.ExecuteAsync(email, Role.Member, invitedByUserId, CancellationToken.None);
 
         result.Invitation.Should().BeSameAs(repository.SavedInvitation);
-        result.Invitation.TenantId.Should().Be(TestTenantId);
         result.Invitation.Email.Should().Be(email);
         result.Invitation.Role.Should().Be(Role.Member);
         result.Invitation.Status.Should().Be(InvitationStatus.Pending);

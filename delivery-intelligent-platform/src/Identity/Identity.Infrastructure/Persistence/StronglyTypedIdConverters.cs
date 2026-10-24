@@ -12,15 +12,6 @@ namespace Identity.Infrastructure.Persistence;
 /// entity (primary keys and foreign-key-shaped properties alike), rather than repeating
 /// per-property <c>HasConversion</c> calls in each entity's configuration.
 /// </summary>
-public sealed class TenantIdConverter : ValueConverter<TenantId, Guid>
-{
-    public TenantIdConverter()
-        : base(id => id.Value, value => new TenantId(value))
-    {
-    }
-}
-
-/// <inheritdoc cref="TenantIdConverter"/>
 public sealed class UserIdConverter : ValueConverter<UserId, Guid>
 {
     public UserIdConverter()
@@ -29,7 +20,7 @@ public sealed class UserIdConverter : ValueConverter<UserId, Guid>
     }
 }
 
-/// <inheritdoc cref="TenantIdConverter"/>
+/// <inheritdoc cref="UserIdConverter"/>
 public sealed class MembershipIdConverter : ValueConverter<MembershipId, Guid>
 {
     public MembershipIdConverter()
@@ -38,7 +29,7 @@ public sealed class MembershipIdConverter : ValueConverter<MembershipId, Guid>
     }
 }
 
-/// <inheritdoc cref="TenantIdConverter"/>
+/// <inheritdoc cref="UserIdConverter"/>
 public sealed class InvitationIdConverter : ValueConverter<InvitationId, Guid>
 {
     public InvitationIdConverter()
@@ -47,7 +38,7 @@ public sealed class InvitationIdConverter : ValueConverter<InvitationId, Guid>
     }
 }
 
-/// <inheritdoc cref="TenantIdConverter"/>
+/// <inheritdoc cref="UserIdConverter"/>
 public sealed class AuditEntryIdConverter : ValueConverter<AuditEntryId, Guid>
 {
     public AuditEntryIdConverter()

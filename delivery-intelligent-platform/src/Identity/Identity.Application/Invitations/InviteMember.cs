@@ -7,8 +7,8 @@ using Identity.Domain.Invitations;
 namespace Identity.Application.Invitations;
 
 /// <summary>
-/// Invites a prospective member to join the current tenant by email (FR-020), for
-/// <c>POST /tenants/{tenantId}/invitations</c> (the endpoint wiring is application-layer only,
+/// Invites a prospective member to join the organization by email (FR-020), for
+/// <c>POST /invitations</c> (the endpoint wiring is application-layer only,
 /// not part of this use case). The first use case operating on the <see cref="Invitation"/>
 /// aggregate.
 /// </summary>
@@ -18,9 +18,9 @@ namespace Identity.Application.Invitations;
 /// — "already an active member" and "already has a pending invitation" — both signalled by
 /// throwing <see cref="ConflictException"/> (a dedicated <see cref="DomainException"/>
 /// subtype so the API layer can map it to <c>409 Conflict</c> rather than the
-/// generic <see cref="DomainException"/>-to-<c>400</c> mapping <c>TenantEndpoints</c> already
-/// uses). The "already pending" check is also backed by the database's own
-/// <c>UNIQUE (TenantId, Email) WHERE Status = 'Pending'</c> constraint per data-model.md — see
+/// generic <see cref="DomainException"/>-to-<c>400</c> mapping the endpoints use for invalid
+/// input). The "already pending" check is also backed by the database's own
+/// <c>UNIQUE (Email) WHERE Status = 'Pending'</c> constraint per data-model.md — see
 /// <see cref="ExecuteAsync"/>'s handling of <see cref="ConcurrencyConflictException"/> from
 /// <see cref="IInvitationRepository.AddAsync"/> for the race backstop, following the
 /// established insert-and-catch-duplicate pattern also used by <c>EnsureUserProvisioned</c>
@@ -64,7 +64,6 @@ namespace Identity.Application.Invitations;
 public class InviteMember
 {
     private readonly IInvitationRepository _invitationRepository;
-    private readonly ITenantContext _tenantContext;
     private readonly IClock _clock;
     private readonly IInvitationDeliverySink _deliverySink;
     private readonly IAuditWriter _auditWriter;
@@ -72,14 +71,12 @@ public class InviteMember
 
     public InviteMember(
         IInvitationRepository invitationRepository,
-        ITenantContext tenantContext,
         IClock clock,
         IInvitationDeliverySink deliverySink,
         IAuditWriter auditWriter,
         ILogger<InviteMember> logger)
     {
         _invitationRepository = invitationRepository;
-        _tenantContext = tenantContext;
         _clock = clock;
         _deliverySink = deliverySink;
         _auditWriter = auditWriter;
@@ -87,7 +84,7 @@ public class InviteMember
     }
 
     /// <summary>
-    /// Invites <paramref name="email"/> to join the current tenant with <paramref name="role"/>.
+    /// Invites <paramref name="email"/> to join the organization with <paramref name="role"/>.
     /// Returns the created, pending <see cref="Invitation"/> together with the raw token — the
     /// caller must surface the raw token to the invitee now; it cannot be recovered later.
     /// </summary>
@@ -95,10 +92,10 @@ public class InviteMember
     /// <param name="role">The role to grant upon acceptance.</param>
     /// <param name="invitedByUserId">The id of the already-provisioned, already-authorized caller
     /// extending the invitation, for the audit log entry. Authorization (only an Administrator
-    /// may invite) is not this use case's concern — same division of responsibility as
-    /// <c>RenameTenant</c>'s remarks.</param>
+    /// may invite) is not this use case's concern — the endpoint applies
+    /// <c>RequireAdministrator()</c>.</param>
     /// <exception cref="ConflictException">
-    /// Thrown if <paramref name="email"/> is already an active member of the current tenant, or
+    /// Thrown if <paramref name="email"/> is already an active member of the organization, or
     /// already has a pending invitation to it (checked application-side, and backed by a database
     /// unique-constraint race backstop for the latter).
     /// </exception>
@@ -110,12 +107,12 @@ public class InviteMember
     {
         if (await _invitationRepository.IsActiveMemberAsync(email, ct))
         {
-            throw new ConflictException($"'{email}' is already an active member of this tenant.");
+            throw new ConflictException($"'{email}' is already an active member of the organization.");
         }
 
         if (await _invitationRepository.HasPendingInvitationAsync(email, ct))
         {
-            throw new ConflictException($"'{email}' already has a pending invitation to this tenant.");
+            throw new ConflictException($"'{email}' already has a pending invitation.");
         }
 
         var rawToken = InvitationToken.Generate();
@@ -123,10 +120,9 @@ public class InviteMember
         var tokenHashBase64 = Convert.ToBase64String(tokenHash);
 
         var expiresAtUtc = _clock.UtcNow + TimeSpan.FromDays(7);
-        var invitation = Invitation.Create(_tenantContext.TenantId, email, role, tokenHashBase64, expiresAtUtc);
+        var invitation = Invitation.Create(email, role, tokenHashBase64, expiresAtUtc);
 
         var auditEntry = AuditEntry.Create(
-            _tenantContext.TenantId,
             invitedByUserId,
             "invitation.issued",
             "Invitation",
@@ -149,17 +145,16 @@ public class InviteMember
         catch (ConcurrencyConflictException)
         {
             // Lost the insert race against a near-simultaneous invite to the same address —
-            // the database's unique constraint on (TenantId, Email) WHERE Status = 'Pending' is
-            // the actual correctness backstop here (see IInvitationRepository.AddAsync's
-            // remarks). Translate it into the same 409 signal as the pre-check.
-            throw new ConflictException($"'{email}' already has a pending invitation to this tenant.");
+            // the database's unique constraint on (Email) WHERE Status = 'Pending' is the actual
+            // correctness backstop here (see IInvitationRepository.AddAsync's remarks).
+            // Translate it into the same 409 signal as the pre-check.
+            throw new ConflictException($"'{email}' already has a pending invitation.");
         }
 
         _logger.LogInformation(
-            "Invitation {InvitationId} created for {Email} in tenant {TenantId} by user {InvitedByUserId}",
+            "Invitation {InvitationId} created for {Email} by user {InvitedByUserId}",
             invitation.Id,
             email,
-            invitation.TenantId,
             invitedByUserId);
 
         // Assumption 8's "delivery" seam — a dev-time stand-in today, a real email send

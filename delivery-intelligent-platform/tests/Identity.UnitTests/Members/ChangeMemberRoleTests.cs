@@ -16,15 +16,6 @@ namespace Identity.UnitTests.Members;
 /// </summary>
 public class ChangeMemberRoleTests
 {
-    private static readonly TenantId TestTenantId = new(Guid.CreateVersion7());
-
-    private sealed class FakeTenantContext : ITenantContext
-    {
-        public TenantId TenantId { get; set; } = TestTenantId;
-
-        public Role Role { get; set; } = Role.Administrator;
-    }
-
     private sealed class FakeMembershipRepository : IMembershipRepository
     {
         public Membership? ActiveMembership { get; set; }
@@ -42,6 +33,9 @@ public class ChangeMemberRoleTests
                 : null);
 
         public Task RemoveMembershipAsync(MembershipId membershipId, CancellationToken ct) =>
+            throw new NotSupportedException("Not used by ChangeMemberRoleTests.");
+
+        public Task<bool> TryAddFirstAdministratorAsync(Membership administratorMembership, CancellationToken ct) =>
             throw new NotSupportedException("Not used by ChangeMemberRoleTests.");
 
         public Task SaveAsync(Membership membership, CancellationToken ct)
@@ -71,15 +65,15 @@ public class ChangeMemberRoleTests
     }
 
     private static ChangeMemberRole CreateUseCase(FakeMembershipRepository repository) =>
-        new(repository, new FakeTenantContext(), new FakeAuditWriter(), new FakeClock(), NullLogger<ChangeMemberRole>.Instance);
+        new(repository, new FakeAuditWriter(), new FakeClock(), NullLogger<ChangeMemberRole>.Instance);
 
     [CoversRequirement("FR-014")]
     [Fact]
     public async Task ExecuteAsync_HappyPath_ChangesRoleAndSaves()
     {
         var targetUserId = UserId.New();
-        var membership = Membership.Create(TestTenantId, targetUserId, Role.Member);
-        var otherAdministrator = Membership.Create(TestTenantId, UserId.New(), Role.Administrator);
+        var membership = Membership.Create(targetUserId, Role.Member);
+        var otherAdministrator = Membership.Create(UserId.New(), Role.Administrator);
         var repository = new FakeMembershipRepository
         {
             ActiveMembership = membership,
@@ -113,7 +107,7 @@ public class ChangeMemberRoleTests
     public async Task ExecuteAsync_LastAdministrator_ReturnsConflict_AndNeverSaves()
     {
         var targetUserId = UserId.New();
-        var membership = Membership.Create(TestTenantId, targetUserId, Role.Administrator);
+        var membership = Membership.Create(targetUserId, Role.Administrator);
         var repository = new FakeMembershipRepository
         {
             ActiveMembership = membership,

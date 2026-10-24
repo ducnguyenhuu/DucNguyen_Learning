@@ -1,41 +1,25 @@
 using System.Net.Http.Headers;
 using ArchitectureTests.Support;
 using AwesomeAssertions;
+using Identity.Domain.Abstractions;
 using Identity.IntegrationTests.Infrastructure;
 using Xunit;
 
 namespace Identity.IntegrationTests.Scenarios;
 
 /// <summary>
-/// Failing test (T053, FR-025) proving whatever logging <em>already</em> happens for an
-/// authenticated request — ASP.NET Core's own request/hosting diagnostics,
-/// Microsoft.Identity.Web's own logging, etc. — never leaks the bearer token, the raw
-/// <c>Authorization</c> header value, or an obviously secret-shaped header value into a
-/// formatted log line. Uses the new <see cref="ApiFactory.CapturedLogMessages"/> /
-/// <see cref="ApiFactory.ClearCapturedLogs"/> logging-capture mechanism added to
-/// <c>ApiFactory</c> as part of this task.
+/// FR-025's hygiene half: whatever logging happens for an authenticated request — ASP.NET Core's
+/// own request/hosting diagnostics, Microsoft.Identity.Web's logging, and this service's own
+/// structured events — never leaks the bearer token, the raw <c>Authorization</c> header value,
+/// or an obviously secret-shaped header value into a formatted log line. Uses
+/// <see cref="ApiFactory.CapturedLogMessages"/> / <see cref="ApiFactory.ClearCapturedLogs"/>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>What this test does <em>not</em> cover.</b> This is hygiene of logging that already
-/// exists today, not a check of the structured authentication-outcome / tenant-mutation
-/// logging events T059 will add. There is no production code yet that logs "user X
-/// authenticated" or "tenant Y mutated" as a structured event, so this test cannot (and does
-/// not attempt to) assert anything about that not-yet-built logging. If T059 introduces a new
-/// logging call that happens to dump a claim or header verbatim, catching that regression is
-/// this test's job going forward — but right now it is only exercising the framework-level
-/// logging ASP.NET Core and Microsoft.Identity.Web produce for every request regardless of
-/// outcome.
-/// </para>
-/// <para>
-/// <b>What this test proves right now, and what it doesn't.</b> Same caveat as the other
-/// Scenarios files in this project: no tenant-scoped GET endpoint exists yet distinct from the
-/// ones already wired in <c>Program.cs</c>, so the request below is sent against
-/// <c>/tenants/{tenantId}</c> without first knowing whether a matching route exists. Per this
-/// task's brief, that is fine — ASP.NET Core's hosting/routing pipeline logs <em>something</em>
-/// (at minimum, request-started/request-finished diagnostics) for every request it receives,
-/// regardless of whether it resolves to a 2xx, a 404, or anything else, so the log-capture
-/// mechanism itself is still meaningfully exercised even if the endpoint 404s.
+/// <b>What this test does <em>not</em> cover.</b> Whether the structured business events FR-025
+/// requires (membership changes, authorisation refusals) actually fire is
+/// <see cref="LoggingCoverageTests"/>' job. This test is the tripwire for any logging call —
+/// framework or ours — that dumps a credential or header verbatim.
 /// </para>
 /// <para>
 /// <b>The secret-marker header check is a known limitation.</b> The custom
@@ -59,7 +43,7 @@ public sealed class LogHygieneTests : IdentityIntegrationTestBase
     }
 
     /// <summary>
-    /// Sends one authenticated, tenant-scoped request carrying a distinctive fake bearer token
+    /// Sends one authenticated, member-only request carrying a distinctive fake bearer token
     /// and a distinctive fake secret-shaped header, then asserts none of the captured log
     /// messages contain the token, the raw <c>Authorization</c> header value, or the fake
     /// secret marker.
@@ -69,7 +53,7 @@ public sealed class LogHygieneTests : IdentityIntegrationTestBase
     public async Task AuthenticatedRequest_NeverLogsBearerTokenOrSecretHeaderValues()
     {
         await Factory.InitializeDatabaseAsync();
-        var seed = await Factory.SeedTwoTenantsAsync();
+        var seed = await Factory.SeedMemberAsync(Role.Administrator);
 
         // Deliberately distinctive, greppable fake values so a false negative (the assertion
         // passing only because the marker happens to collide with unrelated log text) is
@@ -84,19 +68,19 @@ public sealed class LogHygieneTests : IdentityIntegrationTestBase
         using var client = Factory.CreateClient();
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
-            $"/tenants/{seed.TenantA.TenantId.Value}");
+            "/members");
 
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", fakeBearerToken);
         request.Headers.Add("X-Test-Fake-Secret", fakeSecretHeaderValue);
 
-        // Same request also authenticates as Tenant A's member via TestAuthHandler's headers
+        // Same request also authenticates as a seeded member via TestAuthHandler's headers
         // (T040) so the request completes a full authentication attempt rather than merely
         // hitting an anonymous 401 short-circuit — the Bearer-prefixed Authorization header
         // above routes to the real JwtBearer scheme per ApiFactory's PolicyScheme forwarding
         // rule (see ApiFactory's type-level remarks), which will fail signature validation
         // against this fake token; that failure path is exactly what must not log the token.
-        request.Headers.Add("X-Test-Oid", seed.TenantA.EntraObjectId.ToString());
-        request.Headers.Add("X-Test-Tid", seed.TenantA.EntraTenantId.ToString());
+        request.Headers.Add("X-Test-Oid", seed.EntraObjectId.ToString());
+        request.Headers.Add("X-Test-Tid", seed.EntraTenantId.ToString());
 
         await client.SendAsync(request, TestContext.Current.CancellationToken);
 
