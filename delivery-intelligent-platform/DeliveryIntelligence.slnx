@@ -1,15 +1,15 @@
 <Solution>
   <Folder Name="/src/" />
-  <Folder Name="/src/Tenancy/">
-    <Project Path="src/Tenancy/Tenancy.Api/Tenancy.Api.csproj" />
-    <Project Path="src/Tenancy/Tenancy.Application/Tenancy.Application.csproj" />
-    <Project Path="src/Tenancy/Tenancy.Domain/Tenancy.Domain.csproj" />
-    <Project Path="src/Tenancy/Tenancy.HealthProbe/Tenancy.HealthProbe.csproj" />
-    <Project Path="src/Tenancy/Tenancy.Infrastructure/Tenancy.Infrastructure.csproj" />
+  <Folder Name="/src/Identity/">
+    <Project Path="src/Identity/Identity.Api/Identity.Api.csproj" />
+    <Project Path="src/Identity/Identity.Application/Identity.Application.csproj" />
+    <Project Path="src/Identity/Identity.Domain/Identity.Domain.csproj" />
+    <Project Path="src/Identity/Identity.HealthProbe/Identity.HealthProbe.csproj" />
+    <Project Path="src/Identity/Identity.Infrastructure/Identity.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ArchitectureTests/ArchitectureTests.csproj" />
-    <Project Path="tests/Tenancy.IntegrationTests/Tenancy.IntegrationTests.csproj" />
-    <Project Path="tests/Tenancy.UnitTests/Tenancy.UnitTests.csproj" />
+    <Project Path="tests/Identity.IntegrationTests/Identity.IntegrationTests.csproj" />
+    <Project Path="tests/Identity.UnitTests/Identity.UnitTests.csproj" />
   </Folder>
 </Solution>

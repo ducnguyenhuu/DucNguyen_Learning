@@ -1,5 +1,5 @@
 [allowlist]
 # SHA-256 hash of an empty string (e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b85) used as a test fixture constant in InvitationTests — not a real credential, confirmed false positive
 commits = ["0ecc91076efc6c45039441f556e73d075d4119fb"]
-paths = ["tests/Tenancy.UnitTests/Invitations/InvitationTests.cs"]
+paths = ["tests/Identity.UnitTests/Invitations/InvitationTests.cs"]
 regexes = ["e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b85"]

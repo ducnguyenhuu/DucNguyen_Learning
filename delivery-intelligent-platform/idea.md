@@ -2,8 +2,9 @@
 
 ## Master Architecture, Product Strategy & AI-Assisted Development Blueprint
 
-**Version:** 0.6
+**Version:** 0.7
 **Status:** Foundational / First Slice Specified / Constitution Ratified
+**Changes in 0.7:** Multi-tenancy removed — one deployment serves one organization (§19, ADR-025). Gate 1's tenant-isolation criterion is replaced by an authorization criterion (§46); the Track B "tenant-isolated indexes" item is dropped; `TenantCreated` becomes `MemberInvited` in §16; "multi-tenant" and "Tenant Isolation" leave §13 and §18. Elsewhere in this document "tenant" now reads as "the organization", and the remaining tenancy prose (§30, §32, §45, §55, §57–§59) is kept as history.
 **Changes in 0.6:** Eight phases replaced by three horizons separated by gates (§46); orientation declared research-first with a mandatory safeguard (§59); MVP cut line restated as Horizons 1–2 (§46a); committed plan reduced from ~52 slices to 15 (§46). See §59 for the reasoning.
 **Changes in 0.5:** Roadmap resequenced to integration-first (§57.2); MVP cut line and product non-goals added (§46a); AI Gateway scope reduced and deferred (§9a); review of v0.4's weaknesses recorded (§57).
 **Primary Technology:** .NET / Azure / Containers / AI
@@ -421,7 +422,6 @@ The platform will be:
 * event-driven where appropriate
 * observable
 * secure
-* multi-tenant
 * infrastructure-as-code driven
 
 Primary stack:
@@ -507,7 +507,7 @@ Azure Service Bus is the default asynchronous messaging mechanism.
 Potential events:
 
 ```text
-TenantCreated
+MemberInvited
 ProjectCreated
 ProjectUpdated
 SprintCompleted
@@ -581,32 +581,28 @@ Principles:
 * Least Privilege
 * Key Vault
 * Private Networking
-* Tenant Isolation
 * Encryption
 * Audit Logging
 * API Security
 
 ---
 
-# 19. Multi-Tenancy
+# 19. Tenancy *(changed in v0.7)*
 
-The SaaS architecture must support tenant isolation across:
+**One deployment serves one organization.** Multi-tenancy was removed in v0.7
+([ADR-025](docs/adr/ADR-025-single-organization.md)): the cost of carrying a tenant
+boundary through every later slice (events, credentials, AI cost, vector indexes)
+outweighed its value for a single-owner research project with no second organization.
 
-* APIs
-* data
-* documents
-* vector indexes
-* AI context
-* events
-* logs
-* authorization
+Serving a second organization means a second deployment, or reintroducing tenancy by
+reinstating Constitution Principle IV **before** the first tenant-scoped change.
 
 Conceptually:
 
 ```text
-Tenant
+Organization (implicit, one per deployment)
 │
-├── Users
+├── Users and memberships (one role each)
 ├── Teams
 ├── Projects
 ├── Policies
@@ -1557,7 +1553,7 @@ through a pipeline, and you can explain its behaviour from telemetry alone.*
 
 ```text
 S1  Constitution + ADRs                        (in progress)
-S2  Auth + tenant + persistence                (local, tested)
+S2  Auth + membership + persistence            (local, tested)
 S3  Architecture tests + test pyramid
 S4  Observability — OTel, correlated traces
 S5  Containerization
@@ -1566,8 +1562,8 @@ S7  CI/CD with all gates
 S8  Service Bus — one real event, idempotency, retry, DLQ
 ```
 
-**Research targets:** .NET clean architecture, DDD, Entra ID, multi-tenant
-isolation, OpenTelemetry, Terraform, AKS, private networking, architecture
+**Research targets:** .NET clean architecture, DDD, Entra ID, membership-based
+authorization, OpenTelemetry, Terraform, AKS, private networking, architecture
 governance, distributed-systems failure handling.
 
 ### Gate 1 — must pass before Horizon 2
@@ -1576,8 +1572,8 @@ governance, distributed-systems failure handling.
       manual step.
 - [ ] A deliberately induced failure is diagnosed from telemetry alone, without
       local reproduction, in under 10 minutes.
-- [ ] Cross-tenant access is refused for every tenant-scoped operation, proven by
-      automated tests.
+- [ ] Every member-only operation refuses non-members, and every administrator-only
+      operation refuses non-administrators, proven by automated tests.
 - [ ] A duplicated Service Bus message is demonstrably handled idempotently, and
       a dead-lettered message can be replayed.
 - [ ] An architectural boundary violation fails the build.
@@ -1646,7 +1642,6 @@ Track A — Model Economics
 Track B — Knowledge & RAG
   Knowledge ingestion · document processing · embeddings
   Hybrid + vector search · grounded responses
-  Tenant-isolated vector indexes (Principle IV)
 
 Track C — Agentic Platform
   Tool calling · agent orchestration · human approval workflows
@@ -2444,8 +2439,8 @@ The safeguard is therefore binding, and Gate 1 enforces it:
 
 Concretely — Service Bus is not learned until a duplicate message has been handled
 idempotently and a dead-lettered message replayed. AKS is not learned until a
-rollout has failed and been recovered. Multi-tenancy is not learned until an
-automated test has caught an attempted cross-tenant read. This is why Gate 1's
+rollout has failed and been recovered. Authorization is not learned until an
+automated test has caught a non-member and a non-administrator. This is why Gate 1's
 checklist names failure scenarios rather than deployments.
 
 ## 59.3 — Spec 001 is currently a phase, not a slice

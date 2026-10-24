@@ -1,5 +1,7 @@
 # Feature Specification: Architecture Tests
 
+> **Historical — multi-tenancy was removed on 2026-10-23** ([ADR-025](../../docs/adr/ADR-025-single-organization.md)). This spec describes the system as built at the time and is not rewritten. Where it says tenant, the current code has one organization per deployment, and the service is `src/Identity`. The tenant-isolation gates (`TenantIsolationGates`, the background-job tenant-context rationale) were removed or reworded with it.
+
 **Feature Branch**: `002-architecture-tests`
 **Created**: 2026-08-15
 **Revised**: 2026-08-15 (pre-plan review — see [Revision Notes](#revision-notes))

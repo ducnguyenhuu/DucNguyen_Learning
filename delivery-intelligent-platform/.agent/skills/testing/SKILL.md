@@ -44,12 +44,12 @@ Types.InAssembly(DomainAssembly)
 // No model name string outside AI Platform configuration (ADR-009)
 ```
 
-Also required in slice 3, and currently missing
+Also enforced since slice 3
 ([U12](../../../docs/traceability.md#u12--enforcement-gaps-acknowledged-in-the-adrs)):
 
-- Raw SQL execution restricted to audited helpers — closes the likeliest cross-tenant
-  leak path under ADR-013
-- Background jobs must establish tenant context explicitly
+- Raw SQL execution restricted to audited helpers (`RawSqlGates`)
+- Background jobs must not hold a `DbContext` or persistence port captive
+  (`BackgroundJobGates`)
 
 **Verify an architecture test can fail.** Introduce the violation, watch the build break,
 revert. An architecture test that never could have failed is decoration.
@@ -59,23 +59,25 @@ revert. An architecture test that never could have failed is decoration.
 | Level | Test | Do not test |
 |-------|------|-------------|
 | Unit | Domain invariants, business rules, calculations | Framework behaviour, mapping |
-| Integration | Queries, migrations, **tenant isolation**, transactions | Third-party internals |
+| Integration | Queries, migrations, **authorization**, transactions, locks | Third-party internals |
 | Contract | Published API and event shapes | Implementation |
 | Architecture | Boundaries, dependency direction | Behaviour |
 | E2E | One critical path per slice | Everything |
 
 **Integration tests use a real database in a container.** An in-memory provider will not
-catch a broken global query filter — which is precisely the bug that matters most.
+enforce filtered unique indexes, application locks, or the audit trigger — which is
+precisely where the concurrency and audit bugs live.
 
-## Tenant isolation tests are not ordinary tests
+## Authorization tests are not ordinary tests
 
-Every tenant-scoped operation needs one. Spec 001 SC-004 permits **zero** exceptions, and
-Gate 1 blocks Horizon 2 until this holds across the board.
+Every member-only route needs a test proving an authenticated non-member gets 403
+(`MembershipResolutionTests`), and every administrator-only route needs one proving Member
+and Reader get 403 (`RolePermissionMatrixTests`). No exceptions.
 
-Pattern: seed two tenants, authenticate as tenant A, attempt every operation against
-tenant B's data, assert refusal *and* that the response does not disclose existence.
+Pattern: seed a caller with the wrong standing, call the route, assert refusal *and* that
+nothing changed in the database.
 
-Write it to fail first (`idea.md` §59.2). A green isolation test that was never red
+Write it to fail first (`idea.md` §59.2). A green authorization test that was never red
 proves nothing.
 
 ## TDD
@@ -101,7 +103,7 @@ has been driven under failure conditions.**
 - Service Bus: a duplicate handled idempotently, a dead letter replayed
 - Sync engine: a rate limit survived, a mid-sync kill resumed
 - Container Apps: a revision broken and recovered
-- Multi-tenancy: a test that actually caught a cross-tenant read
+- Authorization: a test that actually caught a non-member and a non-administrator
 
 Demonstrating the happy path proves nothing worth knowing.
 
@@ -116,8 +118,8 @@ requirement is a badly written one.
 | Thought | Reality |
 |---------|---------|
 | "I wrote the test after, but I ran it and it passes" | A test written after the code, passing on the first run, has never been proven capable of failing. That's the one thing a test must do. |
-| "It's a simple isolation test, I don't need to watch it fail first" | Isolation tests are exactly where this matters most — spec 001 SC-004 permits zero exceptions, and a green isolation test that was never red has caught nothing. |
-| "The in-memory provider is faster and tests the same logic" | It doesn't enforce the global query filter the same way a real database does — which is precisely the bug class that matters most here. |
+| "It's a simple authorization test, I don't need to watch it fail first" | Authorization tests are exactly where this matters most, and a green one that was never red has caught nothing. |
+| "The in-memory provider is faster and tests the same logic" | It doesn't enforce filtered unique indexes, locks or triggers the way a real database does — which is precisely the bug class that matters most here. |
 | "I'll add the architecture test later, the rule is documented anyway" | Documentation is not enforcement. Principle VII exists because human review doesn't scale and doesn't remember; an undocumented-but-enforced rule beats a documented-but-unenforced one. |
 | "This covers three behaviors, splitting it into three tests is overkill" | One assertion-heavy test that fails tells you nothing about which of the three broke. Split it before it fails, not after. |
 | "It worked when I tried it manually, that's good enough for this slice" | "Compiles" and "worked once" are not the definition of done — the slice's Proof checklist in roadmap.md is. |
@@ -125,7 +127,7 @@ requirement is a badly written one.
 ## Red flags — stop and re-check
 
 - A test that passed the first time it was ever run
-- A tenant-scoped operation with no isolation test in the same PR
+- A member-only or administrator-only route with no authorization test in the same PR
 - An integration test running against an in-memory provider instead of a real database
 - An architecture test nobody has verified can actually fail
 - A functional requirement in the spec with no test mapped to it

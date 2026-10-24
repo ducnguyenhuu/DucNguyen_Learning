@@ -1,0 +1,350 @@
+name: pipeline
+
+# Contract: specs/006-ci-cd/contracts/pipeline.md. The job names below are listed as required
+# status checks by infrastructure/github/main.tf — renaming one without updating the ruleset
+# silently removes a gate.
+#
+# This repository is a monorepo and GitHub reads workflows only from its root, so this file lives
+# here while everything it runs lives in delivery-intelligent-platform/.
+on:
+  pull_request:
+    branches: [main]
+    paths: ["delivery-intelligent-platform/**", ".github/workflows/pipeline.yml"]
+  push:
+    branches: [main]
+    paths: ["delivery-intelligent-platform/**", ".github/workflows/pipeline.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read # job-summary.sh looks up the first failed step
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+
+# `run` steps only; paths under `with:` carry the prefix themselves.
+defaults:
+  run:
+    working-directory: delivery-intelligent-platform
+
+jobs:
+  # ---------------------------------------------------------------- gate jobs
+  commit-messages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - id: range
+        run: .github/scripts/commit-range.sh
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+      - run: infrastructure/scripts/validate-commit-messages.sh "${{ steps.range.outputs.base }}" "${{ steps.range.outputs.head }}"
+      - if: always()
+        run: .github/scripts/job-summary.sh commit-messages "${{ job.status }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - id: range
+        run: .github/scripts/commit-range.sh
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+      - name: Install gitleaks
+        run: |
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+      - name: Scan the commit range
+        run: gitleaks git --redact -v --log-opts="${{ steps.range.outputs.base }}..${{ steps.range.outputs.head }}"
+      - if: always()
+        run: .github/scripts/job-summary.sh secret-scan "${{ job.status }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: delivery-intelligent-platform/global.json
+      - name: Restore (NuGet Audit fails on a high or critical advisory)
+        run: dotnet restore DeliveryIntelligence.slnx
+      - run: dotnet build DeliveryIntelligence.slnx --no-restore --configuration Release
+      - name: Unit tests
+        run: dotnet test tests/Identity.UnitTests --no-build --configuration Release
+      - name: Architecture tests
+        # `dotnet run` rather than `dotnet test`: it prints each failing rule and file to the
+        # console, where `dotnet test` writes them only to a log file.
+        run: |
+          set -o pipefail
+          dotnet run --project tests/ArchitectureTests --no-build --configuration Release | tee architecture.log
+      - name: Surface the architecture rule that failed
+        if: failure()
+        run: |
+          rule=$(grep -m1 -E '^\s*Expected ' architecture.log || true)
+          [ -n "${rule}" ] && echo "::error title=Architecture rule::${rule}"
+          exit 0
+      - if: always()
+        run: .github/scripts/job-summary.sh build-test "${{ job.status }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  integration-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: delivery-intelligent-platform/global.json
+      - run: dotnet restore tests/Identity.IntegrationTests
+      - name: Integration tests (Testcontainers SQL Server, the runner's Docker daemon)
+        # `dotnet run` for the same reason as the architecture tests: it names each failing test
+        # on the console, where `dotnet test` writes it only to a log file.
+        run: dotnet run --project tests/Identity.IntegrationTests --no-restore --configuration Release
+      - if: always()
+        run: .github/scripts/job-summary.sh integration-test "${{ job.status }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  container-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aquasecurity/setup-trivy@v0.2.6
+        with:
+          version: v0.74.0
+      - name: Build the release candidate once
+        run: docker build -t "identity-api:${{ github.sha }}" .
+      - name: Vulnerability scan (HIGH and CRITICAL fail)
+        run: infrastructure/scripts/scan-image-vulnerabilities.sh "identity-api:${{ github.sha }}"
+      - name: Secret scan, including the bait-image negative proof
+        run: infrastructure/scripts/scan-image-secrets.sh "identity-api:${{ github.sha }}"
+      - name: Save the scanned image so the publish job pushes exactly these bytes
+        run: docker save "identity-api:${{ github.sha }}" | gzip >identity-api.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: identity-api-image
+          path: delivery-intelligent-platform/identity-api.tar.gz
+          retention-days: 1
+      - if: always()
+        run: .github/scripts/job-summary.sh container-scan "${{ job.status }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  # ------------------------------------------------------------ delivery jobs
+  container-publish:
+    if: github.event_name != 'pull_request'
+    needs: [commit-messages, secret-scan, build-test, integration-test, container-scan]
+    runs-on: ubuntu-latest
+    environment: dev
+    permissions:
+      contents: read
+      actions: write # the supersession guard cancels its own run
+      id-token: write # OIDC login, no stored credential
+    steps:
+      - uses: actions/checkout@v4
+      - name: Supersession guard
+        run: .github/scripts/supersession-guard.sh
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_DEPLOYER_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: identity-api-image
+          path: delivery-intelligent-platform
+      - name: Push the scanned image
+        run: |
+          docker load <identity-api.tar.gz
+          az acr login --name "${ACR_LOGIN_SERVER%%.*}"
+          docker tag "identity-api:${GITHUB_SHA}" "${ACR_LOGIN_SERVER}/identity-api:${GITHUB_SHA}"
+          docker push "${ACR_LOGIN_SERVER}/identity-api:${GITHUB_SHA}"
+        env:
+          ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+      - if: always()
+        run: .github/scripts/job-summary.sh container-publish "${{ job.status }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  deploy-dev:
+    needs: container-publish
+    runs-on: ubuntu-latest
+    environment: dev
+    concurrency:
+      group: dev-deploy
+      cancel-in-progress: false # a running deploy is never interrupted
+    permissions:
+      contents: read
+      actions: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Supersession guard
+        run: .github/scripts/supersession-guard.sh
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_DEPLOYER_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Preflight — the dev environment must exist
+        run: |
+          if ! az containerapp show --name "${CONTAINER_APP_NAME}" --resource-group "${RESOURCE_GROUP}" >/dev/null 2>&1; then
+            echo "::error title=Dev environment not found::Dev environment not found — it may have been destroyed per S6 cost discipline. Apply it with specs/005-terraform-azure/quickstart.md, then re-run."
+            exit 1
+          fi
+        env:
+          CONTAINER_APP_NAME: ${{ vars.CONTAINER_APP_NAME }}
+          RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
+      - name: Update the image
+        run: |
+          az containerapp update --name "${CONTAINER_APP_NAME}" --resource-group "${RESOURCE_GROUP}" \
+            --image "${ACR_LOGIN_SERVER}/identity-api:${GITHUB_SHA}" >/dev/null
+        env:
+          CONTAINER_APP_NAME: ${{ vars.CONTAINER_APP_NAME }}
+          RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
+          ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+      - name: Wait for the new revision to become healthy (5 minutes)
+        run: |
+          revision=$(az containerapp show --name "${CONTAINER_APP_NAME}" --resource-group "${RESOURCE_GROUP}" \
+            --query properties.latestRevisionName -o tsv)
+          echo "Waiting for revision ${revision}"
+          deadline=$((SECONDS + 300))
+          while [ "${SECONDS}" -lt "${deadline}" ]; do
+            read -r health running <<<"$(az containerapp revision show --name "${CONTAINER_APP_NAME}" \
+              --resource-group "${RESOURCE_GROUP}" --revision "${revision}" \
+              --query '[properties.healthState, properties.runningState]' -o tsv)"
+            echo "health=${health} running=${running}"
+            if [ "${health}" = "Healthy" ]; then
+              echo "Deployed ${GITHUB_SHA:0:7} as ${revision}" >>"${GITHUB_STEP_SUMMARY}"
+              exit 0
+            fi
+            case "${running}" in Failed|ActivationFailed) break ;; esac
+            sleep 10
+          done
+          echo "::error title=Revision unhealthy::${revision} did not become healthy; the previous revision keeps serving."
+          exit 1
+        env:
+          CONTAINER_APP_NAME: ${{ vars.CONTAINER_APP_NAME }}
+          RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
+      - if: always()
+        run: .github/scripts/job-summary.sh deploy-dev "${{ job.status }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  load-test:
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    environment: dev
+    permissions:
+      contents: read
+      actions: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Supersession guard
+        run: .github/scripts/supersession-guard.sh
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_LOADTEST_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          allow-no-subscriptions: true # this identity has no Azure RBAC by design
+      - name: Token for the API audience
+        run: |
+          token=$(az account get-access-token --resource "${TENANCY_API_APP_ID_URI}" --query accessToken -o tsv)
+          echo "::add-mask::${token}"
+          echo "TOKEN=${token}" >>"${GITHUB_ENV}"
+        env:
+          TENANCY_API_APP_ID_URI: ${{ vars.TENANCY_API_APP_ID_URI }}
+      # No seeding step: GET /me needs no data to exist (ADR-025), so the load test can run
+      # against an empty organization.
+      - uses: grafana/setup-k6-action@v1
+      - name: Run k6 (no automatic retry)
+        run: |
+          k6 run --summary-export=k6-summary.json \
+            -e BASE_URL="https://${FRONTDOOR_ENDPOINT}" -e TOKEN="${TOKEN}" \
+            tests/load/me-reads.js
+        env:
+          FRONTDOOR_ENDPOINT: ${{ vars.FRONTDOOR_ENDPOINT }}
+      - name: Report the result
+        if: always()
+        run: |
+          [ -f k6-summary.json ] || exit 0
+          dur='.metrics["http_req_duration{phase:steady,kind:me-read}"]'
+          {
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| p50 / p95 / p99 (ms) | $(jq -r "[${dur}.med, ${dur}[\"p(95)\"], ${dur}[\"p(99)\"]] | map(. * 100 | round / 100) | join(\" / \")" k6-summary.json) (gate: p95 < 1000) |"
+            echo "| error rate | $(jq -r '.metrics["http_req_failed{phase:steady}"].value // "n/a"' k6-summary.json) (gate: < 0.01) |"
+            echo "| requests (steady) | $(jq -r '.metrics["http_reqs{phase:steady}"].count // "n/a"' k6-summary.json) |"
+            echo "| virtual users / read path | 50 / GET /me |"
+            echo "| distinct caller identities | 1 — all load comes from one identity (research R7) |"
+            echo "| commit | ${GITHUB_SHA} |"
+            echo "| timestamp (UTC) | $(date -u +%FT%TZ) |"
+          } >>"${GITHUB_STEP_SUMMARY}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: load-test-result
+          path: delivery-intelligent-platform/k6-summary.json
+          if-no-files-found: ignore
+      - if: always()
+        run: .github/scripts/job-summary.sh load-test "${{ job.status }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  production:
+    needs: load-test
+    runs-on: ubuntu-latest
+    environment: production # required reviewer; the run pauses here until approved
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Supersession guard
+        run: .github/scripts/supersession-guard.sh
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Approval must not outlive the scan evidence (7 days)
+        run: |
+          age_days=$(( ($(date +%s) - $(git show -s --format=%ct "${GITHUB_SHA}")) / 86400 ))
+          if [ "${age_days}" -gt 7 ]; then
+            echo "::error title=Approval expired::Approval expired — re-run the pipeline for fresh scans"
+            exit 1
+          fi
+      - name: Record what would be deployed (no deployment happens in this slice)
+        run: |
+          {
+            echo "### Would deploy to production"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| change author | $(git show -s --format=%an "${GITHUB_SHA}") |"
+            echo "| commit | ${GITHUB_SHA} |"
+            echo "| target environment | production |"
+            echo "| run | ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID} |"
+          } >>"${GITHUB_STEP_SUMMARY}"
+      - if: always()
+        run: .github/scripts/job-summary.sh production "${{ job.status }}"
+        env:
+          GH_TOKEN: ${{ github.token }}

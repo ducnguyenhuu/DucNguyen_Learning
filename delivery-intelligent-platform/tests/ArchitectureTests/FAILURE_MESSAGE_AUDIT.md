@@ -2,7 +2,7 @@
 
 Resolves CHK006: FR-024 requires every gate's failure to name the specific offending
 project/package/call-site/type/requirement. This document is the structured, human-readable
-audit of every `[Fact]` across the eight gate files, confirming (by direct code reading of each
+audit of every `[Fact]` across the seven gate files, confirming (by direct code reading of each
 gate's `.Should().BeEmpty(...)` / `.Should().BeEquivalentTo(...)` call) whether its failure
 message genuinely interpolates dynamic, offender-specific content, or is a static/generic string.
 
@@ -15,13 +15,13 @@ closed below).
 
 | Fact | Interpolates offender? | What gets named |
 |---|---|---|
-| `TenancyDomain_HasNoProjectReferences` | No | Static reason string; no violating reference is named individually. AwesomeAssertions' own `BeEmpty` failure output prints the actual (non-empty) collection contents alongside the reason, so the offending reference name is visible in the assertion failure, just not composed into the custom reason text itself. |
-| `TenancyApplication_OnlyReferencesDomain` | No | Same pattern: static reason; actual/expected diff (which includes the extra/wrong reference) comes from AwesomeAssertions' `BeEquivalentTo` output, not the custom message. |
-| `TenancyInfrastructure_NeverReferencedByDomainOrApplication` | No | Uses bare `.Should().NotContain(...)` with no custom reason at all; relies entirely on AwesomeAssertions' default message, which does name the offending list. |
-| `OnlyTenancyApi_ReferencesInfrastructureDirectly` | No | Static reason; the actual offending project name(s) appear only via `BeEquivalentTo`'s automatic diff output. |
-| `NoProjectOutsideTenancyFamily_ReferencesTenancyInfrastructure` | No | Static reason; `outsideFamilyReferencingInfrastructure` collection is never joined into the message string itself. |
-| `NoSourceFileOutsideTenancyFamily_NamesTenancyDbContext` | No | Static reason; `offendingFiles` never interpolated into the message text. |
-| `NoCapabilityOtherThanTenancyExistsUnderSrc` | No | Static reason; the actual unexpected directory name(s) appear only via `BeEquivalentTo`'s diff. |
+| `IdentityDomain_HasNoProjectReferences` | No | Static reason string; no violating reference is named individually. AwesomeAssertions' own `BeEmpty` failure output prints the actual (non-empty) collection contents alongside the reason, so the offending reference name is visible in the assertion failure, just not composed into the custom reason text itself. |
+| `IdentityApplication_OnlyReferencesDomain` | No | Same pattern: static reason; actual/expected diff (which includes the extra/wrong reference) comes from AwesomeAssertions' `BeEquivalentTo` output, not the custom message. |
+| `IdentityInfrastructure_NeverReferencedByDomainOrApplication` | No | Uses bare `.Should().NotContain(...)` with no custom reason at all; relies entirely on AwesomeAssertions' default message, which does name the offending list. |
+| `OnlyIdentityApi_ReferencesInfrastructureDirectly` | No | Static reason; the actual offending project name(s) appear only via `BeEquivalentTo`'s automatic diff output. |
+| `NoProjectOutsideIdentityFamily_ReferencesIdentityInfrastructure` | No | Static reason; `outsideFamilyReferencingInfrastructure` collection is never joined into the message string itself. |
+| `NoSourceFileOutsideIdentityFamily_NamesIdentityDbContext` | No | Static reason; `offendingFiles` never interpolated into the message text. |
+| `NoCapabilityOtherThanIdentityExistsUnderSrc` | No | Static reason; the actual unexpected directory name(s) appear only via `BeEquivalentTo`'s diff. |
 
 **Finding**: none of the seven facts in this file build their *own* offender-naming string —
 they all lean on AwesomeAssertions' automatic failure output (which does print the actual
@@ -34,8 +34,8 @@ accepted — see "Findings" section below.
 
 | Fact | Interpolates offender? | What gets named |
 |---|---|---|
-| `TenancyDomain_DoesNotReferenceForbiddenTechnology` | **Yes** | Both assertions in the shared `AssertNoForbiddenReferences` helper interpolate the actual offending package name(s) (`string.Join(", ", offendingPackages)`) and offending project reference name(s) directly into the message text. |
-| `TenancyApplication_DoesNotReferenceForbiddenTechnology` | **Yes** | Same helper, same interpolation — confirmed for both call sites since the fact just calls the shared helper with a different `projectName`. |
+| `IdentityDomain_DoesNotReferenceForbiddenTechnology` | **Yes** | Both assertions in the shared `AssertNoForbiddenReferences` helper interpolate the actual offending package name(s) (`string.Join(", ", offendingPackages)`) and offending project reference name(s) directly into the message text. |
+| `IdentityApplication_DoesNotReferenceForbiddenTechnology` | **Yes** | Same helper, same interpolation — confirmed for both call sites since the fact just calls the shared helper with a different `projectName`. |
 
 ## RawSqlGates.cs (2 facts)
 
@@ -48,7 +48,7 @@ accepted — see "Findings" section below.
 
 | Fact | Interpolates offender? | What gets named |
 |---|---|---|
-| `BackgroundJobs_DoNotTakeTenancyDbContextOrAPersistencePortDirectly` | **Yes** | `string.Join(", ", violations)` where each violation string is `$"{job.TypeName} ({job.FilePath}) takes {parameterType}"` — names the offending job type, its file, and the specific offending parameter type. |
+| `BackgroundJobs_DoNotTakeIdentityDbContextOrAPersistencePortDirectly` | **Yes** | `string.Join(", ", violations)` where each violation string is `$"{job.TypeName} ({job.FilePath}) takes {parameterType}"` — names the offending job type, its file, and the specific offending parameter type. |
 | `NoBackgroundJobTypeExistsUnderSrc` | **Yes** | `string.Join(", ", jobs.Select(j => $"{j.TypeName} ({j.FilePath})"))` — names the specific job type and file that should not exist yet. |
 
 ## DependencyPinGates.cs (3 facts)
@@ -65,19 +65,15 @@ accepted — see "Findings" section below.
 |---|---|---|
 | `SourceCode_ContainsNoHardcodedModelIdentifierStrings` | **Yes** | `string.Join(", ", violations)` where each violation is `$"{relativePath}:{lineNumber}"` — names the specific file and line number containing the hardcoded model identifier. |
 
-## RequirementCoverageGates.cs (3 facts)
+## RequirementCoverageGates.cs (5 facts)
 
 | Fact | Interpolates offender? | What gets named |
 |---|---|---|
 | `EverySpec001Requirement_HasAtLeastOneDeclaringTest` | **Yes** | `string.Join(", ", missing)` — names the specific requirement id(s) (e.g. `FR-005`) that lost their declaring test. |
 | `NoDeclaration_NamesARequirementIdentifierAbsentFromSpec001` | **Yes** | For each bogus declaration: `$"\"{coverage.RequirementId}\" on {coverage.AssemblyName}!{coverage.DeclaringType}.{coverage.MethodName}"` — names the bogus requirement id, the assembly, declaring type, and method that made the bad declaration. This is the most specific message in the whole suite. |
+| `NoDeclaration_ClaimsARetiredRequirement` | **Yes** | Same per-declaration format as above — names the retired requirement id (ADR-025) and the assembly, declaring type and method still claiming it. |
+| `RetiredRequirementIds_AllExistInSpec001` | **Yes** | `string.Join(", ", unknown)` — names the retired-set entry that does not match any spec 001 requirement. |
 | `ValidSpec001RequirementSet_HasExactlyTwentySixEntries` | No | Static reason (`HaveCount` message names the expected count, but not which requirement ids were found); acceptable because this fact protects the *scan itself*, not a specific requirement — there is no single "offender" to name, only a count mismatch. |
-
-## TenantIsolationGates.cs (1 fact)
-
-| Fact | Interpolates offender? | What gets named |
-|---|---|---|
-| `IgnoreQueryFiltersCalls_NeverUseTheBareForm` | **Yes** | `string.Join(", ", violations.Select(v => $"{v.FilePath} / {v.MemberName}"))` — names the specific file and enclosing member of the offending bare `IgnoreQueryFilters()` call. |
 
 ## Findings
 

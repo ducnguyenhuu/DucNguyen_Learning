@@ -5,7 +5,7 @@ namespace ArchitectureTests.Support;
 /// <summary>
 /// Mechanically determines the set of "persistence port" interfaces — interfaces whose
 /// implementing class lives under a directory path containing a <c>Persistence</c> segment
-/// (e.g. <c>Tenancy.Infrastructure/Persistence/UserRepository.cs</c> implementing
+/// (e.g. <c>Identity.Infrastructure/Persistence/UserRepository.cs</c> implementing
 /// <c>IUserRepository</c>).
 /// </summary>
 /// <remarks>
@@ -19,12 +19,12 @@ namespace ArchitectureTests.Support;
 /// persistence access" — the thing FR-012 needs a background job's constructor to avoid.
 /// </para>
 /// <para>
-/// <b>Why <see cref="ITenantContext"/>-style abstractions fall outside this set without a
+/// <b>Why <c>ICallerContext</c>-style abstractions fall outside this set without a
 /// special case.</b> The rule only counts an interface if a class implementing it lives under
-/// a <c>Persistence</c> directory. Request-scoped abstractions like the tenant context are
+/// a <c>Persistence</c> directory. Request-scoped abstractions like the caller context are
 /// implemented under a <c>Security</c> directory in this codebase, not <c>Persistence</c>, so
 /// they are excluded by the rule itself — no explicit exclusion list is needed. If that ever
-/// stops being true (e.g. a tenant-context implementation moves under a <c>Persistence</c>
+/// stops being true (e.g. a caller-context implementation moves under a <c>Persistence</c>
 /// path), this comment's assumption should be revisited rather than silently trusted.
 /// </para>
 /// <para>

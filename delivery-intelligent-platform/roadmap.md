@@ -15,7 +15,7 @@ Full reasoning in [idea.md §46](idea.md) · rules in the
 | # | Slice | Spec folder | Status | Est. |
 |---|-------|-------------|--------|------|
 | **S1** | Constitution + ADRs + foundation | — | ✅ **done** | — |
-| **S2** | Auth + tenant + persistence (local) | [001](specs/001-auth-tenant-management/spec.md) | ✅ **done** | 2–3 w |
+| **S2** | Auth + membership + persistence (local) | [001](specs/001-auth-tenant-management/spec.md) | ✅ **done** (built multi-tenant; tenancy removed after S7, [ADR-025](docs/adr/ADR-025-single-organization.md)) | 2–3 w |
 | **S3** | Architecture tests | [002](specs/002-architecture-tests/spec.md) | ✅ **done** | 1 w |
 | **S4** | Observability | [003](specs/003-observability/spec.md) | ✅ **done** | 1.5–2 w |
 | **S5** | Containerization | [004](specs/004-containerization/spec.md) | ✅ **done** | 1 w |
@@ -38,6 +38,13 @@ Full reasoning in [idea.md §46](idea.md) · rules in the
 spec folder: S2 = 001, S3 = 002, … S7 = 006. 🟡 means the work is written but its *Done when*
 list is not yet proven.
 
+**Multi-tenancy was removed after S7** ([ADR-025](docs/adr/ADR-025-single-organization.md),
+2026-10-23). One deployment serves one organization; the service is `src/Identity`. The
+tenant items in the finished slices below record what was proven then — their tests were
+retired with the feature, and the single-organization equivalents (non-member and
+non-administrator refusal) replace them. Every unfinished slice below is written for one
+organization.
+
 ### → Next steps
 
 1. ✅ `/speckit.plan` — done 2026-08-09. Produced
@@ -46,7 +53,7 @@ list is not yet proven.
    [data model](specs/001-auth-tenant-management/data-model.md),
    [contracts](specs/001-auth-tenant-management/contracts/openapi.yaml),
    [quickstart](specs/001-auth-tenant-management/quickstart.md), and
-   [ADR-017](docs/adr/ADR-017-tenant-context-resolution.md) (Accepted)
+   [ADR-017](docs/adr/ADR-017-tenant-context-resolution.md) (Accepted; superseded by ADR-025 on 2026-10-23)
 2. ✅ Create the Entra app registrations ([quickstart](specs/001-auth-tenant-management/quickstart.md) §1)
    — done 2026-08-15, verified with a real access token against the running API
 3. ✅ `/speckit.tasks` — done, 97 tasks
@@ -60,7 +67,10 @@ list is not yet proven.
    2026-10-16), `terraform validate` passes, **never planned or applied** (no funded subscription yet)
 10. 🟡 S7 pipeline, scripts, load test, repository Terraform and the API authorization policy written on
     (merged to `main`); local checks pass (105 integration tests, gate self-tests, image scans)
-11. ⏭ **Next, one paid session:** pick a funded subscription → S6 apply and verification
+11. ✅ Multi-tenancy removed, service renamed Tenancy → Identity
+    ([ADR-025](docs/adr/ADR-025-single-organization.md), Constitution 2.0.0) — done 2026-10-23.
+    S8's spec moves from `TenantCreated` to `MemberInvited`
+12. ⏭ **Next, one paid session:** pick a funded subscription → S6 apply and verification
     ([tasks](specs/005-terraform-azure/tasks.md), T026 onward) → S7 [AZURE]/[GITHUB] tasks
     ([quickstart](specs/006-ci-cd/quickstart.md)) → tick the *Done when* lists
     → `terraform destroy`
@@ -94,7 +104,7 @@ behaviour from telemetry alone.*
 
 ---
 
-## S2 — Auth + tenant + persistence · 2–3 w
+## S2 — Auth + membership + persistence · 2–3 w
 
 Runs and is verifiable **on your machine**. No Azure needed.
 
@@ -121,7 +131,7 @@ Do this early. Retrofitting boundaries after violations accumulate is far more e
 
 **Build:** test projects (Unit / Integration / Contract / Architecture) · domain ≠
 infrastructure · no cross-service data access · no provider SDK outside AI Platform ·
-**raw SQL restricted to audited helpers** · **background jobs must set tenant context**
+**raw SQL restricted to audited helpers** · **background jobs must not hold scoped services captive**
 ([U12](docs/traceability.md#u12--enforcement-gaps-acknowledged-in-the-adrs))
 
 **Not:** E2E · performance · security test suites (all post-Gate-1)
@@ -236,9 +246,10 @@ the deployed dev environment** ([U6](docs/traceability.md#u6--22-lists-eight-tes
 - [ ] **A known-vulnerable dependency fails the build**
 - [ ] Production is impossible without explicit human approval
 - [ ] A non-conforming commit message fails the build
-- [ ] **Spec 001 SC-003 verified** — 95% of tenant reads under 1s at 50 concurrent users
-      across 20 tenants. Deferred here from S2 because this is the first slice with both a
-      pipeline to run the test and a real environment to run it against.
+- [ ] **Spec 001 SC-003 verified** — 95% of `GET /me` reads under 1s at 50 concurrent
+      callers (reinterpreted by ADR-025; was "tenant reads across 20 tenants"). Deferred here
+      from S2 because this is the first slice with both a pipeline to run the test and a real
+      environment to run it against.
 
 ---
 
@@ -246,7 +257,7 @@ the deployed dev environment** ([U6](docs/traceability.md#u6--22-lists-eight-tes
 
 One event is enough. The point is the failure handling around it, not the count.
 
-**Build:** Service Bus via Terraform · `TenantCreated` end to end · publisher using the
+**Build:** Service Bus via Terraform · `MemberInvited` end to end · publisher using the
 **outbox pattern** (no dual-write) · idempotent subscriber with a dedupe store · retry
 with backoff · circuit breaker · DLQ + your own replay tooling · correlation ID carried
 *through* the message
@@ -254,7 +265,7 @@ with backoff · circuit breaker · DLQ + your own replay tooling · correlation 
 **Not:** more events · sagas · event sourcing · schema registry
 
 **Done when**
-- [ ] `TenantCreated` flows publisher → Service Bus → subscriber
+- [ ] `MemberInvited` flows publisher → Service Bus → subscriber
 - [ ] **A duplicated message is handled idempotently — no double effect**
 - [ ] **A dead-lettered message is replayed using your own tooling**
 - [ ] One trace spans HTTP → publish → Service Bus → subscriber → database
@@ -270,7 +281,7 @@ multiplies problems rather than adding them.
 
 - [ ] A change reaches Azure through the pipeline in under 20 min, no manual step
 - [ ] An induced failure is diagnosed from telemetry alone in under 10 min
-- [ ] Cross-tenant access is refused for every tenant-scoped operation, proven by tests
+- [ ] Non-members and non-administrators are refused on every protected operation, proven by tests
 - [ ] A duplicate Service Bus message was handled idempotently
 - [ ] A dead-lettered message was replayed
 - [ ] An architectural boundary violation fails the build
@@ -288,16 +299,16 @@ already know.*
 ## S9 — Integration + one connector · 2–3 w
 
 **Build:** `Integration.Service` with its own database · connector abstraction · **one**
-connector (Jira **or** ADO — pick one) · per-tenant credentials in Key Vault · read-only
+connector (Jira **or** ADO — pick one) · credentials in Key Vault · read-only
 fetch of projects, work items, sprints, status history · raw landing store
 
 **Not:** write-back · a second connector · normalization (S11) · scheduling (S10) · webhooks
 
 **Done when**
 - [ ] A real project — ideally your own team's — is connected and fetched
-- [ ] Credentials stored per tenant in Key Vault, never logged
+- [ ] Credentials stored in Key Vault, never logged
 - [ ] Raw responses persisted and re-readable without re-fetching
-- [ ] Tenant A cannot see tenant B's connection or data
+- [ ] Only an Administrator can create, change, or remove a connection
 - [ ] **You have written down what surprised you about the real data**
 
 *That last item is not filler — it is the finding that shapes S11 and S12, and it is why
@@ -309,7 +320,7 @@ integration comes before native entities (idea.md §57.2).*
 
 **Build:** scheduled sync · incremental/delta · rate-limit backoff and resumption · auth
 expiry detection + re-auth path · partial-failure recovery · idempotent upsert · sync
-status and history per tenant
+status and history per connection
 
 **Not:** real-time webhooks · multi-connector orchestration · deep historical backfill
 
@@ -318,7 +329,7 @@ status and history per tenant
 - [ ] **An expired credential is surfaced, not silently swallowed**
 - [ ] **A sync killed halfway resumes without duplicating or losing data**
 - [ ] Incremental sync measurably transfers less than a full sync
-- [ ] Sync failures visible in telemetry with tenant and cause
+- [ ] Sync failures visible in telemetry with connection and cause
 
 ---
 
@@ -368,7 +379,7 @@ Stage 1 only ([ADR-008](docs/adr/ADR-008-ai-gateway-staged.md)). The seam is per
 the machinery behind it is minimal.
 
 **Build:** capability-based abstraction (callers ask for `ReleaseRiskAnalysis`, not a
-model name) · **one** provider · versioned prompts · token counting · cost per tenant and
+model name) · **one** provider · versioned prompts · token counting · cost per caller and
 capability · AI telemetry · structured output contract + validation · architecture test
 banning direct provider calls
 
@@ -378,9 +389,9 @@ agent runtime. **None has a consumer yet** (Principle IX).
 **Done when**
 - [ ] A capability request returns validated structured output
 - [ ] **A direct provider call from business logic fails the architecture test**
-- [ ] Every invocation records tenant, capability, model, tokens, cost, latency
+- [ ] Every invocation records caller, capability, model, tokens, cost, latency
 - [ ] **Malformed model output is rejected safely, not propagated**
-- [ ] Cost per invocation is queryable per tenant
+- [ ] Cost per invocation is queryable per caller and capability
 
 ---
 
@@ -448,7 +459,7 @@ at the start. Deliberately low detail — scoping these now would be guessing.
 | Track | Scope | Est. |
 |---|---|---|
 | **A — Model economics** | 2nd provider · routing · self-hosted Llama vs managed, measured across quality/GPU cost/utilization/latency (idea.md §11) | ~10–12 w |
-| **B — Knowledge / RAG** | Ingestion · embeddings · hybrid + vector search · **tenant-isolated indexes** (Principle IV) | ~12–14 w |
+| **B — Knowledge / RAG** | Ingestion · embeddings · hybrid + vector search · grounded responses | ~12–14 w |
 | **C — Agentic** | Tool calling · orchestration · human approval workflows · event-triggered agents | ~14 w |
 | **D — Engineering Intelligence** | 2nd connector (GitHub) · capacity · technical debt · reliability — **system-level only, never individual ranking** (Principle XI) | ~14 w |
 | **E — The engineering system itself** | Multi-agent workflows · agent verification · methodology measurement (idea.md §57.5) | ~10 w |

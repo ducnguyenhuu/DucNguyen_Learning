@@ -1,0 +1,70 @@
+name: gate-selftest
+
+# Negative proofs for the pipeline's gates (specs/006-ci-cd/research.md R11): plants one violation
+# per rejection category and asserts the gate fails. Also scans the full history for secrets, so
+# one merged before the scan existed is caught on the next run.
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+      - "delivery-intelligent-platform/.github/scripts/**"
+      - "delivery-intelligent-platform/infrastructure/scripts/validate-commit-messages.sh"
+      - "delivery-intelligent-platform/infrastructure/scripts/scan-image-*.sh"
+      - "delivery-intelligent-platform/Directory.Build.props"
+      - "delivery-intelligent-platform/Directory.Packages.props"
+      - "delivery-intelligent-platform/tests/ArchitectureTests/**"
+      - "delivery-intelligent-platform/tests/gate-selftest/**"
+  schedule:
+    - cron: "0 3 * * 1" # Mondays, 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+
+# Lives at the monorepo root because GitHub reads workflows only from there; everything it runs
+# lives in delivery-intelligent-platform/. `run` steps only, so `with:` paths carry the prefix.
+defaults:
+  run:
+    working-directory: delivery-intelligent-platform
+
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: delivery-intelligent-platform/global.json
+      - name: Install gitleaks
+        run: |
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+      - name: Every gate must reject its planted violation
+        run: tests/gate-selftest/run.sh
+      - if: always()
+        run: .github/scripts/job-summary.sh selftest "${{ job.status }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  full-history-secret-scan:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install gitleaks
+        run: |
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+      - name: Scan the whole history
+        run: gitleaks git --redact -v
+      - if: always()
+        run: .github/scripts/job-summary.sh full-history-secret-scan "${{ job.status }}"
+        env:
+          GH_TOKEN: ${{ github.token }}

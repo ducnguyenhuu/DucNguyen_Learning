@@ -14,10 +14,13 @@ namespace ArchitectureTests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Why an allow-list rather than an outright ban.</b> Raw SQL bypasses EF Core's tenant query
-/// filter, so it is the most direct path to a cross-tenant data leak. Banning it outright isn't
-/// possible today because one legitimate use exists — a row lock hint EF Core's LINQ surface has
-/// no operator for (the single seeded entry in <see cref="AllowList"/> below). An allow-list
+/// <b>Why an allow-list rather than an outright ban.</b> Raw SQL bypasses EF Core's model —
+/// its parameterization, its change tracking, its strongly-typed column mapping and its
+/// concurrency tokens — so every call is a place where a reviewer, not the compiler, has to check
+/// for injection, schema drift and silently skipped invariants. Banning it outright isn't
+/// possible today because one legitimate use exists — taking a SQL Server application lock
+/// (<c>sp_getapplock</c>), which EF Core's LINQ surface has no operator for (the single seeded
+/// entry in <see cref="AllowList"/> below). An allow-list
 /// keyed by (file, member) lets that one call exist while failing loudly the moment raw SQL shows
 /// up anywhere else, or the moment the audited call moves to a different member without the
 /// allow-list moving with it.
@@ -55,16 +58,19 @@ public sealed class RawSqlGates
     private static readonly AllowListEntry[] AllowList =
     {
         new(
-            "src/Tenancy/Tenancy.Infrastructure/Persistence/MembershipRepository.cs",
-            "RemoveMembershipAsync",
-            "Takes an exclusive UPDLOCK/HOLDLOCK row lock on the tenant row before counting " +
-            "active administrators, so a second concurrent removal targeting the same tenant " +
-            "blocks until this transaction commits or rolls back. No EF Core LINQ operator " +
-            "expresses a raw lock hint, so this is the one place raw SQL is the only tool " +
-            "available for the guarantee this method makes."),
+            "src/Identity/Identity.Infrastructure/Persistence/MembershipRepository.cs",
+            "AcquireAdministratorsLockAsync",
+            "Calls sp_getapplock for an exclusive, transaction-owned application lock on the " +
+            "Identity.Memberships.Administrators resource before RemoveMembershipAsync and " +
+            "TryAddFirstAdministratorAsync count active memberships, so two concurrent removals " +
+            "cannot both leave the organization without an administrator and two first sign-ins " +
+            "cannot both bootstrap (ADR-025). The invariant spans a set of rows, not one row, so " +
+            "there is no row to lock, and EF Core has no LINQ operator for an application lock. " +
+            "The call is ExecuteSqlInterpolatedAsync with the resource name passed as a " +
+            "parameter, never concatenated, and a negative return code is turned into an error."),
     };
 
-    // Matches the raw-SQL entry points that bypass EF Core's tenant query filter: FromSqlRaw and
+    // Matches the raw-SQL entry points that bypass EF Core's LINQ model: FromSqlRaw and
     // FromSqlInterpolated (queryable-returning), ExecuteSqlRaw/ExecuteSqlRawAsync and
     // ExecuteSqlInterpolated/ExecuteSqlInterpolatedAsync (command-executing), and Database.SqlQuery.
     // FromSqlRaw/FromSqlInterpolated have no Async-suffixed sibling in EF Core's actual API (they
@@ -93,7 +99,7 @@ public sealed class RawSqlGates
             .ToArray();
 
         violations.Should().BeEmpty(
-            "raw SQL bypasses EF Core's tenant query filter and must be confined to the " +
+            "raw SQL bypasses EF Core's model and parameterization and must be confined to the " +
             "checked-in allow-list in RawSqlGates.cs — found unlisted call(s): " +
             string.Join(", ", violations.Select(v => $"{v.FilePath} / {v.MemberName}")));
     }

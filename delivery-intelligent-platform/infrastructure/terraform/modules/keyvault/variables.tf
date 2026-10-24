@@ -22,7 +22,7 @@ variable "keyvault_private_dns_zone_id" {
   type = string
 }
 
-variable "tenancy_api_principal_id" {
+variable "identity_api_principal_id" {
   type = string
 }
 

@@ -18,7 +18,7 @@ public static class ProjectFile
 {
     /// <summary>
     /// Walks up from the test assembly's output directory to the repository root, identified by
-    /// the presence of src/Tenancy. Exposed publicly so callers that need to scan directories
+    /// the presence of src/Identity. Exposed publicly so callers that need to scan directories
     /// under the repo root directly (rather than through a project-name lookup) don't have to
     /// duplicate this walk themselves.
     /// </summary>
@@ -98,7 +98,7 @@ public static class ProjectFile
 
         while (directory is not null)
         {
-            if (Directory.Exists(Path.Combine(directory.FullName, "src", "Tenancy")))
+            if (Directory.Exists(Path.Combine(directory.FullName, "src", "Identity")))
             {
                 return directory.FullName;
             }
@@ -107,7 +107,7 @@ public static class ProjectFile
         }
 
         throw new InvalidOperationException(
-            "Could not locate repository root (a directory containing src/Tenancy) by walking " +
+            "Could not locate repository root (a directory containing src/Identity) by walking " +
             $"up from {AppContext.BaseDirectory}.");
     }
 }

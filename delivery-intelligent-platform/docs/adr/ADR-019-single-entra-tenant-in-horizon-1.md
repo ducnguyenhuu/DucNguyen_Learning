@@ -1,9 +1,14 @@
 # ADR-019: One Entra tenant in Horizon 1; multi-directory sign-in deferred
 
-**Status**: Accepted
+**Status**: Accepted — annotated by ADR-025
 **Date**: 2026-08-10
 **Deciders**: Project owner
 **Relates to**: Constitution → Principle IV, Principle X · ADR-013 · ADR-017 · `specs/001-auth-tenant-management` FR-001, FR-003, SC-005, Assumption 1 · roadmap S2
+**Annotated by**: [ADR-025](ADR-025-single-organization.md) (2026-10-23) — the decision stands: one
+Entra tenant, and `User` keeps its `(EntraTenantId, EntraObjectId)` key. What changed is around it.
+There are no platform tenants any more, so SC-005 is retired entirely, both its isolation half and
+its multi-directory half, and Principle IV is retired. "Entra tenant" in this ADR always meant the
+identity provider's directory, which is unaffected.
 
 ## Context
 

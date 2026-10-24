@@ -9,7 +9,7 @@ It does not replace those systems. It explains what they contain.
 ## Status
 
 **Pre-code.** Slice 1 of 15 (constitution, ADRs, repository foundation) is complete.
-Slice 2 — authentication, tenancy, and persistence — is specified and next. No
+Slice 2 — authentication, membership, and persistence — is specified and next. No
 application code exists yet.
 
 ## Start here
@@ -18,7 +18,7 @@ application code exists yet.
 |---|---|
 | **What to do next** | [roadmap.md](roadmap.md) — page 1 only |
 | The vision and the reasoning | [idea.md](idea.md) |
-| The rules all work must follow | [Constitution](.specify/memory/constitution.md) — 11 principles |
+| The rules all work must follow | [Constitution](.specify/memory/constitution.md) — 11 principles (IV retired, ADR-025) |
 | Why a technical choice was made | [docs/adr/](docs/adr/) — 10 decisions |
 | If anything from the blueprint was missed | [docs/traceability.md](docs/traceability.md) |
 | Instructions for an AI coding agent | [AGENTS.md](AGENTS.md) |
@@ -28,7 +28,7 @@ application code exists yet.
 **15 pieces of work, done one at a time**, in two groups separated by a gate that can be
 failed.
 
-**Foundation (8)** — login and tenancy, architecture tests, observability, containers,
+**Foundation (8)** — login and membership, architecture tests, observability, containers,
 Terraform to Azure, CI/CD, messaging.
 → *Gate 1: can a change reach Azure in under 20 minutes with no manual step?*
 

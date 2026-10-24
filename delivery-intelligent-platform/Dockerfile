@@ -11,19 +11,19 @@ WORKDIR /src
 # Copy only what `dotnet restore` needs first, so dependency restore is cached
 # independently of source changes.
 COPY global.json Directory.Build.props Directory.Packages.props DeliveryIntelligence.slnx ./
-COPY src/Tenancy/Tenancy.Api/Tenancy.Api.csproj src/Tenancy/Tenancy.Api/
-COPY src/Tenancy/Tenancy.Application/Tenancy.Application.csproj src/Tenancy/Tenancy.Application/
-COPY src/Tenancy/Tenancy.Domain/Tenancy.Domain.csproj src/Tenancy/Tenancy.Domain/
-COPY src/Tenancy/Tenancy.Infrastructure/Tenancy.Infrastructure.csproj src/Tenancy/Tenancy.Infrastructure/
-COPY src/Tenancy/Tenancy.HealthProbe/Tenancy.HealthProbe.csproj src/Tenancy/Tenancy.HealthProbe/
-RUN dotnet restore src/Tenancy/Tenancy.Api/Tenancy.Api.csproj \
-    && dotnet restore src/Tenancy/Tenancy.HealthProbe/Tenancy.HealthProbe.csproj
+COPY src/Identity/Identity.Api/Identity.Api.csproj src/Identity/Identity.Api/
+COPY src/Identity/Identity.Application/Identity.Application.csproj src/Identity/Identity.Application/
+COPY src/Identity/Identity.Domain/Identity.Domain.csproj src/Identity/Identity.Domain/
+COPY src/Identity/Identity.Infrastructure/Identity.Infrastructure.csproj src/Identity/Identity.Infrastructure/
+COPY src/Identity/Identity.HealthProbe/Identity.HealthProbe.csproj src/Identity/Identity.HealthProbe/
+RUN dotnet restore src/Identity/Identity.Api/Identity.Api.csproj \
+    && dotnet restore src/Identity/Identity.HealthProbe/Identity.HealthProbe.csproj
 
 COPY src/ src/
 
-RUN dotnet publish src/Tenancy/Tenancy.Api/Tenancy.Api.csproj \
+RUN dotnet publish src/Identity/Identity.Api/Identity.Api.csproj \
         -c Release -o /app/publish --no-restore \
-    && dotnet publish src/Tenancy/Tenancy.HealthProbe/Tenancy.HealthProbe.csproj \
+    && dotnet publish src/Identity/Identity.HealthProbe/Identity.HealthProbe.csproj \
         -c Release -o /app/probe --no-restore
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled-extra AS runtime
@@ -48,10 +48,10 @@ COPY --from=build /app/probe ./probe/
 
 # Exec form only: shell form would make /bin/sh PID 1, which does not forward SIGTERM, and
 # a chiseled image has no /bin/sh anyway (research.md R4).
-ENTRYPOINT ["dotnet", "Tenancy.Api.dll"]
+ENTRYPOINT ["dotnet", "Identity.Api.dll"]
 
 # Exec form, invoking the health probe against the existing readiness surface — a chiseled
 # image has no shell and no curl, so neither a shell-form HEALTHCHECK nor a curl-based
 # Compose healthcheck is possible (research.md R1, contracts/container-image.md).
 HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=3 \
-    CMD ["dotnet", "/app/probe/Tenancy.HealthProbe.dll", "http://localhost:8080/health/ready"]
+    CMD ["dotnet", "/app/probe/Identity.HealthProbe.dll", "http://localhost:8080/health/ready"]

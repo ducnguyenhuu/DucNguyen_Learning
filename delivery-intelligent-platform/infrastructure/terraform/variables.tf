@@ -49,19 +49,19 @@ variable "acr_name" {
 # Optional variables (with defaults) — see contracts/terraform-variables.md.
 
 variable "api_image_tag" {
-  description = "Tag of the tenancy-api image already pushed to ACR. Empty until deploy.sh has pushed one; the container app is not created without it."
+  description = "Tag of the identity-api image already pushed to ACR. Empty until deploy.sh has pushed one; the container app is not created without it."
   type        = string
   default     = ""
 }
 
 variable "api_min_replicas" {
-  description = "Minimum Tenancy API replicas. 1 is enough: in single revision mode the previous revision keeps serving until the new one is healthy (FR-014)."
+  description = "Minimum Identity API replicas. 1 is enough: in single revision mode the previous revision keeps serving until the new one is healthy (FR-014)."
   type        = number
   default     = 1
 }
 
 variable "api_max_replicas" {
-  description = "Maximum Tenancy API replicas."
+  description = "Maximum Identity API replicas."
   type        = number
   default     = 3
 }

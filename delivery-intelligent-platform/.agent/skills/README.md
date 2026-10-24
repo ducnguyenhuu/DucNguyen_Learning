@@ -30,7 +30,7 @@ implemented**, not in anticipation.
 | `azure-architecture` | Touching Azure resources or Terraform |
 | `distributed-systems` | Messaging, retries, idempotency, consistency |
 | `testing` | Writing tests, or deciding what to test |
-| `security` | Auth, tenancy, secrets, or any untrusted input |
+| `security` | Auth, membership, secrets, or any untrusted input |
 | `ai-engineering` | Anything involving a model (slice 13 onward) |
 
 **Load only what the task needs** (`idea.md` §41). Loading all seven wastes context and

@@ -3,5 +3,5 @@
 resource "azurerm_role_assignment" "acr_pull" {
   scope                = var.acr_id
   role_definition_name = "AcrPull"
-  principal_id         = var.tenancy_api_principal_id
+  principal_id         = var.identity_api_principal_id
 }

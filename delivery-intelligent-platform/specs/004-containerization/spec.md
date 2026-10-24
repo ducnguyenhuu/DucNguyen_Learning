@@ -1,5 +1,7 @@
 # Feature Specification: Containerization
 
+> **Historical — multi-tenancy was removed on 2026-10-23** ([ADR-025](../../docs/adr/ADR-025-single-organization.md)). This spec describes the system as built at the time and is not rewritten. Where it says tenant, the current code has one organization per deployment, and the service is `src/Identity`. The image, project and connection-string names changed from `Tenancy`/`tenancy-api` to `Identity`/`identity-api`.
+
 **Feature Branch**: `[004-containerization]`  
 **Created**: 2026-09-02  
 **Status**: Draft  

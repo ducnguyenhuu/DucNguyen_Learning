@@ -1,10 +1,12 @@
-# Container Image Baseline: `tenancy-api`
+# Container Image Baseline: `identity-api`
+
+> Measured when the image was named `tenancy-api`; renamed by ADR-025. The figures are unchanged by the rename.
 
 **Spec**: [specs/004-containerization/spec.md](../../specs/004-containerization/spec.md) ·
 **Contract**: [specs/004-containerization/contracts/baseline-record.md](../../specs/004-containerization/contracts/baseline-record.md)
 
 FR-010/SC-004's recorded baseline, produced by
-`infrastructure/scripts/measure-image-baseline.sh tenancy-api:rc 5` (see repeatability
+`infrastructure/scripts/measure-image-baseline.sh identity-api:rc 5` (see repeatability
 statement below for the exact commands). This is the **first** baseline for this slice —
 there is nothing yet to compare it against; that is the point of recording it.
 
@@ -22,11 +24,11 @@ there is nothing yet to compare it against; that is the point of recording it.
 
 | Field | Value | Command |
 |---|---|---|
-| Uncompressed | 69,149,703 bytes (≈65.9 MiB) | `docker image inspect --format '{{.Size}}' tenancy-api:rc` |
-| Compressed (approximate) | 84,350,590 bytes (≈80.4 MiB) | `docker save tenancy-api:rc \| gzip -9 -c \| wc -c` |
+| Uncompressed | 69,149,703 bytes (≈65.9 MiB) | `docker image inspect --format '{{.Size}}' identity-api:rc` |
+| Compressed (approximate) | 84,350,590 bytes (≈80.4 MiB) | `docker save identity-api:rc \| gzip -9 -c \| wc -c` |
 | Compressed (accurate) | not captured this run — the OCI export tarball was inspected only for its existence, not summed; re-run and sum `index.json`'s manifest layer sizes for the citable number | `docker buildx build --output type=oci,dest=img.tar .` |
 
-**Largest layers** (`docker history --no-trunc tenancy-api:rc`):
+**Largest layers** (`docker history --no-trunc identity-api:rc`):
 
 | Layer | Size |
 |---|---|
@@ -34,7 +36,7 @@ there is nothing yet to compare it against; that is the point of recording it.
 | `COPY /usr/share/dotnet /usr/share/dotnet` (base image runtime) | 89.2 MB* |
 | `COPY /dotnet /usr/share/dotnet` (ICU/tzdata, `-extra` variant) | 30.3 MB |
 | `COPY /app/publish ./` (this service's published output) | 55.4 MB |
-| `COPY /app/probe ./probe/` (`Tenancy.HealthProbe`) | 119 kB |
+| `COPY /app/probe ./probe/` (`Identity.HealthProbe`) | 119 kB |
 
 \* Base-image layer sizes shown by `docker history` are **uncompressed**; they do not sum
 directly to the compressed totals above.
@@ -81,10 +83,10 @@ cp .env.example .env   # fill in MSSQL_SA_PASSWORD
 docker compose up --wait sqlserver
 
 # 2. Build the release-candidate image
-docker build -t tenancy-api:rc .
+docker build -t identity-api:rc .
 
 # 3. Run the baseline script (requires step 1's sqlserver container to still be running)
-./infrastructure/scripts/measure-image-baseline.sh tenancy-api:rc 10
+./infrastructure/scripts/measure-image-baseline.sh identity-api:rc 10
 ```
 
 Re-run against a committed revision, with `--cpus`/`--memory` limits pinned and at least 10

@@ -33,7 +33,7 @@ variable "github_environment" {
 }
 
 variable "api_app_display_name" {
-  description = "Display name of the Tenancy API app registration created by infrastructure/scripts/create-entra-app-registrations.sh."
+  description = "Display name of the Identity API app registration created by infrastructure/scripts/create-entra-app-registrations.sh."
   type        = string
 }
 

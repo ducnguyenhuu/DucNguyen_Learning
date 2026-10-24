@@ -1,4 +1,44 @@
 <!--
+SYNC IMPACT REPORT — 1.0.1 → 2.0.0 (MAJOR)
+==========================================
+Date: 2026-10-23 · Approved by: project owner (chose "supersede and amend the
+Constitution, removing Principle IV" when the change was scoped)
+
+Reason: the project owner removed multi-tenancy (ADR-025). One deployment now serves
+one organization, so Principle IV no longer describes anything the system does.
+Removing a principle is a MAJOR change under step 4 of the Amendment Process.
+
+Changed:
+- Principle IV (Tenant Isolation) is RETIRED. Its heading is kept, marked retired
+  with a pointer to ADR-025, so Principles V–XI keep their numbers and every existing
+  "Principle VI" style reference stays valid.
+- Principle VI: telemetry is annotated with user identity (not tenant and user);
+  audit applies to security- and membership-significant events.
+- Principle IX: AI spend is attributable to a caller, a capability and a cost.
+- Quality Gates: the "Tenant isolation tests" gate is replaced by a "Membership
+  tests" gate (non-members and non-administrators refused), enforcing V. The
+  telemetry gate checks user identity, not tenant context.
+- Mapping from idea.md §44 and the Technology Constraints ADR list updated
+  (ADR-013 and ADR-017 superseded by ADR-025).
+- Principle Gate Checklist: IV marked retired.
+
+Deliberately NOT changed:
+- Principle V's rule that responses must not disclose whether a resource exists.
+  It is a general security rule, not a tenancy one.
+- Other stale Technology Constraints (AKS, API Management). ADRs 023 and 024 changed
+  those, which the section explicitly permits without an amendment.
+
+Impact assessment (Amendment Process step 3):
+- .specify/templates/*: ✅ no template names Principle IV.
+- AGENTS.md, README.md, roadmap.md, docs/architecture/*, docs/traceability.md and
+  the .agent/skills/* files: updated in the same change.
+- specs/001–006: historical. Each spec.md carries a banner pointing to ADR-025;
+  their bodies are not rewritten.
+- ADR-013 and ADR-017: Superseded by ADR-025. ADR-022: point 4 refined. ADR-019:
+  annotated.
+-->
+
+<!--
 SYNC IMPACT REPORT — 1.0.0 → 1.0.1 (PATCH)
 ==========================================
 Date: 2026-08-09 · Approved by: project owner
@@ -191,32 +231,16 @@ The final rule guards a failure specific to this product: idea.md §3 commits to
 being an intelligence layer over Jira and Azure DevOps, and the fastest way to
 betray that is to gradually reimplement them.
 
-### IV. Tenant Isolation Is Non-Negotiable
+### IV. (Retired) Tenant Isolation
 
-Every tenant-scoped operation resolves to exactly one tenant, and cross-tenant
-access is impossible rather than merely unlikely.
+**Retired in 2.0.0 (2026-10-23).** One deployment serves one organization
+(ADR-025), so there are no tenants to isolate. The heading is kept so that
+Principles V–XI keep their numbers.
 
-**Rules:**
-
-- Every request MUST resolve to exactly one active tenant context. A request
-  whose tenant context is absent, malformed, or not one the caller belongs to
-  MUST be rejected, never defaulted.
-- No response may ever contain data belonging to a tenant the caller is not a
-  member of.
-- A tenant the caller cannot access MUST be indistinguishable from a tenant that
-  does not exist, so tenant existence cannot be probed.
-- Isolation MUST hold across APIs, data, documents, vector indexes, AI context,
-  events, logs, and authorization — not data alone.
-- Every tenant-scoped capability MUST have automated tests proving cross-tenant
-  access is refused. Isolation MUST NOT rest on developer discipline.
-
-**Rationale:** This is a multi-tenant SaaS platform holding customers'
-engineering and delivery data — among the most commercially sensitive data an
-organisation has. A single cross-tenant leak is an existential event for the
-product, not a bug to be fixed in the next release. The explicit inclusion of
-vector indexes and AI context matters because those are where isolation is most
-often forgotten: an embedding index or a prompt context assembled across tenants
-leaks just as effectively as a missing SQL predicate, and far less visibly.
+If the platform ever serves more than one organization from one deployment, this
+principle MUST be reinstated by amendment *before* the first tenant-scoped
+change. Retrofitting isolation afterwards is exactly the failure it existed to
+prevent.
 
 ### V. Secure by Default
 
@@ -254,17 +278,17 @@ telemetry alone.
 - Every request MUST emit logs, metrics, and traces correlated by a single
   identifier spanning the entire request path, across process and messaging
   boundaries.
-- Telemetry MUST be annotated with tenant and user identity, and MUST NOT record
+- Telemetry MUST be annotated with user identity, and MUST NOT record
   unnecessary personal data or any secret.
 - Every service MUST expose health status covering itself and each critical
   dependency.
 - Every AI invocation MUST record token usage, cost, model, latency, and
   outcome.
-- Security- and tenancy-significant events MUST produce immutable audit records
+- Security- and membership-significant events MUST produce immutable audit records
   capturing actor, subject, action, time, source, and outcome.
 - A failure MUST be diagnosable from telemetry without local reproduction.
 
-**Rationale:** This is a distributed, event-driven, multi-tenant system where a
+**Rationale:** This is a distributed, event-driven system where a
 single user action crosses an API, a service, a message bus, an agent, a search
 index, and a model. Without correlated traces spanning that path, production
 debugging degrades into guesswork. The last rule is the testable form of this
@@ -341,7 +365,7 @@ attributable.
   be blocked by an architecture test.
 - Callers MUST request capabilities, not named models. Model selection is the
   abstraction's responsibility.
-- Every AI invocation MUST be attributable to a tenant, a capability, and a cost.
+- Every AI invocation MUST be attributable to a caller, a capability, and a cost.
 - Gateway capability MUST NOT be built before a named consumer requires it. The
   abstraction seam exists from the start; the machinery behind it grows on
   demand.
@@ -412,7 +436,7 @@ All fifteen items in idea.md §44 are accounted for. None were dropped.
 | 5. API/event-based service communication | Principle III |
 | 6. Observable-by-default | Principle VI |
 | 7. Terraform-managed infrastructure | Technology Constraints + Principle X |
-| 8. Secure-by-default | Principle V (tenancy split into Principle IV) |
+| 8. Secure-by-default | Principle V (tenancy was split into Principle IV, retired in 2.0.0) |
 | 9. AI-provider abstraction | Principle IX |
 | 10. Human approval for high-risk AI actions | Principle I |
 | 11. Automated testing | Principle VII |
@@ -421,11 +445,11 @@ All fifteen items in idea.md §44 are accounted for. None were dropped.
 | 14. Cost-aware AI usage | Principle IX |
 | 15. System-level engineering metrics | Principle XI |
 
-Two principles have no direct §44 counterpart and were promoted from elsewhere
+Two principles had no direct §44 counterpart and were promoted from elsewhere
 in idea.md because they are non-negotiable and testable: **Principle IV** (tenant
-isolation, from §19 — too important to remain a sub-clause of secure-by-default)
-and **Principle X** (vertical slices, from §29 — idea.md calls it "a core
-development principle" but §44 omitted it).
+isolation, from §19 — retired in 2.0.0 by ADR-025) and **Principle X** (vertical
+slices, from §29 — idea.md calls it "a core development principle" but §44
+omitted it).
 
 ## Technology Constraints
 
@@ -450,8 +474,8 @@ without amending this constitution.
 Corresponding ADRs — the index at [docs/adr/](../../docs/adr/README.md) is
 authoritative; this list is a convenience: ADR-001 (Azure), ADR-002 (.NET),
 ADR-003 (service boundaries), ADR-007 (AKS), ADR-011 (OpenTelemetry),
-ADR-012 (Terraform), ADR-013 (multi-tenancy), ADR-017 (tenant context),
-ADR-018 (telemetry backend).
+ADR-012 (Terraform), ADR-018 (telemetry backend), ADR-025 (single organization;
+supersedes ADR-013 and ADR-017).
 
 **Read the list above as the current default, not as immutable.** A Technology
 Constraint may be changed by an ADR without amending this document, per the note
@@ -469,11 +493,11 @@ implemented MUST be tracked as work, not treated as optional.
 | Unit tests | All pass | VII |
 | Integration tests | All pass | VII |
 | Architecture tests | All pass; boundary violations fail the build | II, III, VII, IX |
-| Tenant isolation tests | Cross-tenant access refused for every tenant-scoped operation | IV |
+| Membership tests | Every member-only route refuses non-members; every administrator-only route refuses Member and Reader | V |
 | Secret scanning | No secret in source, image, or history | V |
 | Vulnerability scan | No unresolved high or critical finding | V |
 | Container image scan | No unresolved high or critical finding | V |
-| Telemetry check | New request paths emit correlated traces with tenant context | VI |
+| Telemetry check | New request paths emit correlated traces with user identity | VI |
 | Requirement coverage | Every functional requirement has a test | VII |
 | Human approval | Required for production deployment | I |
 
@@ -518,7 +542,7 @@ not apply.
 - [ ] I — Human approval retained for production and for high-risk AI actions
 - [ ] II — Relevant ADRs identified; conflicts proposed rather than worked around
 - [ ] III — Service and data boundaries respected; no cross-service data access
-- [ ] IV — Tenant isolation enforced and tested for every tenant-scoped operation
+- [ ] IV — Retired (ADR-025); write "not applicable"
 - [ ] V — No stored credentials or secrets; authorization enforced per request
 - [ ] VI — Correlated telemetry, health, audit, and AI cost recording included
 - [ ] VII — Automated gates cover the boundaries and behaviours this work touches
@@ -527,4 +551,4 @@ not apply.
 - [ ] X — Delivered as a working, tested, deployed, end-to-end slice
 - [ ] XI — No individual-level measurement; personal data minimized
 
-**Version**: 1.0.1 | **Ratified**: 2026-08-08 | **Last Amended**: 2026-08-09
+**Version**: 2.0.0 | **Ratified**: 2026-08-08 | **Last Amended**: 2026-10-23

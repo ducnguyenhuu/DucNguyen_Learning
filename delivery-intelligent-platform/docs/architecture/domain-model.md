@@ -2,7 +2,7 @@
 
 **Status**: Initial — covers what Horizons 1–2 need
 **Date**: 2026-08-08
-**Relates to**: `idea.md` §6, §14, §15, §19 · ADR-003 · Constitution Principle III
+**Relates to**: `idea.md` §6, §14, §15, §19 · ADR-003 · ADR-025 · Constitution Principle III
 **Resolves**: [traceability U8](../traceability.md#u8--6s-14-delivery-entities-vs-46as-projections-not-native-entities)
 
 ## Bounded contexts
@@ -12,22 +12,25 @@ slice that needs them — not created up front.
 
 | Context | Owns | Introduced |
 |---------|------|-----------|
-| **Tenancy** | Tenant, User, Membership, Invitation, Role | Slice 2 |
+| **Identity** | User, Membership, Invitation, Role | Slice 2 |
 | **Integration** | Connection, Credential reference, Sync run, Raw payload | Slice 9 |
 | **Delivery** | Canonical work data, Health score, Risk | Slices 11–12 |
 | **AI Platform** | Capability, Prompt, Invocation, Cost record, Evaluation | Slice 13 |
 
 **Engineering Intelligence is not a context in the MVP.** It is Horizon 3 Track D.
 
-### Why Tenancy is separate from Delivery
+### Why Identity is separate from Delivery
 
-Tenancy is a security boundary, and every other context depends on it. Keeping it
-separate means the tenant-isolation rules (Principle IV) live in one place rather than
-being re-implemented per context.
+Identity is a security boundary, and every other context depends on it. Keeping it
+separate means the membership and role rules live in one place rather than being
+re-implemented per context.
 
-**Cross-context rule:** other contexts hold a `TenantId` **value**, not a reference to
-the Tenancy database. They never join to it. Tenant validity is established once per
-request, at the entry point.
+**Cross-context rule:** other contexts hold a `UserId` **value**, not a reference to the
+Identity database. They never join to it. Membership is established once per request, at
+the entry point.
+
+**One organization per deployment** ([ADR-025](../adr/ADR-025-single-organization.md)).
+There is no tenant to carry between contexts.
 
 ---
 
@@ -80,36 +83,31 @@ work tracker.
 
 ---
 
-## Tenancy context (slice 2)
+## Identity context (slice 2)
 
-The only context with a full specification today:
-[specs/001-auth-tenant-management](../../specs/001-auth-tenant-management/spec.md).
+Specified by
+[specs/001-auth-tenant-management](../../specs/001-auth-tenant-management/spec.md), as
+amended by [ADR-025](../adr/ADR-025-single-organization.md), which removed tenants.
 
 ### Aggregates
 
-**Tenant** *(aggregate root)* — the isolation boundary and the root of all
-tenant-scoped data.
+The organization itself is implicit: there is exactly one per deployment, and it has no
+entity, name or settings of its own.
 
-- Identity: `TenantId`, system-generated, globally unique
-- `DisplayName` — **not** globally unique; two unrelated companies may share a name
-- `Status`, settings, creation metadata
-- Invariant: **a Tenant always has at least one Administrator**
+**User** *(aggregate root)* — a person or a named application identity (ADR-022).
 
-**User** *(aggregate root)* — a person, existing independently of any tenant.
+- Identity: stable external identifier from Entra ID, the `(tid, oid)` pair
+- Email
+- Provisioned just-in-time on first authenticated request
 
-- Identity: stable external identifier from Entra ID
-- Email, display name
-- May belong to several tenants (`idea.md` §19)
-- Deliberately *not* inside the Tenant aggregate — a consultant is one person across
-  several tenants, and modelling them per-tenant would duplicate identity
-
-**Membership** *(aggregate root)* — binds one User to one Tenant with one Role.
+**Membership** *(aggregate root)* — grants one User one Role in the organization.
 
 - The unit that grants and revokes access, so it is the object authorization reads
-- Exactly one Role
-- Its own aggregate rather than part of Tenant, because it is contended: two
-  administrators may edit membership concurrently, and locking the whole Tenant for
-  that would be wrong
+- Exactly one Role; at most one active Membership per User
+- Never hard-deleted: removal is a status change, so who lost access and when stays visible
+- Invariant: **the organization always has at least one active Administrator**, enforced
+  under a lock because two administrators may change membership concurrently
+- The first Administrator bootstraps (`POST /members/bootstrap`) while no Membership exists
 
 **Invitation** *(aggregate root)* — a pending offer of Membership to an email address.
 
@@ -118,25 +116,24 @@ tenant-scoped data.
 
 ### Value objects
 
-`TenantId` · `UserId` · `Role` (Administrator, Member, Reader) · `EmailAddress`
+`UserId` · `Role` (Administrator, Member, Reader) · `EmailAddress`
 
 ### Relationships
 
 ```text
-Tenant ──1:N── Membership ──N:1── User
-   │
-   └──1:N── Invitation
+User ──1:N── Membership   (at most one active)
+Invitation ──(accepted)──▶ Membership
 
 Membership ──1:1── Role
 ```
 
 ### Domain events
 
-`TenantCreated` — published in slice 8. This is the platform's first event, chosen
-because it is the only one available in Horizon 1; every event in `idea.md` §16 depends
-on delivery data that does not exist until slice 11.
+`MemberInvited` — published in slice 8. This is the platform's first event, chosen
+because only Identity events are available in Horizon 1; every event in `idea.md` §16
+depends on delivery data that does not exist until slice 11.
 
-Later: `MemberInvited`, `MemberJoined`, `MemberRemoved`, `MemberRoleChanged`.
+Later: `MemberJoined`, `MemberRemoved`, `MemberRoleChanged`.
 
 ---
 
@@ -146,7 +143,7 @@ Sketched only, to confirm the boundaries hold. Each is specified by its own slic
 
 ### Integration (slice 9)
 
-`Connection` (aggregate root — one per tenant per external system), `SyncRun`,
+`Connection` (aggregate root — one per external system), `SyncRun`,
 `RawPayload`. Credentials are **references** to Key Vault, never values (Principle V).
 
 ### Delivery (slices 11–12)
@@ -158,7 +155,7 @@ without recomputation.
 ### AI Platform (slice 13)
 
 `Capability` (e.g. `ReleaseRiskAnalysis` — ADR-009), `Prompt` (versioned),
-`Invocation` (tenant, capability, model, tokens, cost, latency, outcome), `Evaluation`.
+`Invocation` (caller, capability, model, tokens, cost, latency, outcome), `Evaluation`.
 
 ---
 

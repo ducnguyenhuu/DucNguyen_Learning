@@ -6,8 +6,8 @@ using Xunit;
 namespace ArchitectureTests;
 
 /// <summary>
-/// Enforces that the innermost layers of the tenancy capability — <c>Tenancy.Domain</c> and
-/// <c>Tenancy.Application</c> — never take on a dependency on a specific infrastructure
+/// Enforces that the innermost layers of the identity capability — <c>Identity.Domain</c> and
+/// <c>Identity.Application</c> — never take on a dependency on a specific infrastructure
 /// technology (an ORM, a cloud SDK, or a web framework), regardless of whether that dependency
 /// arrives as a NuGet package or as a reference to another project that itself carries the
 /// technology in.
@@ -17,9 +17,9 @@ namespace ArchitectureTests;
 /// <b>Why both reference kinds are checked.</b> The technologies this gate forbids
 /// (Entity Framework Core, the Azure SDKs, ASP.NET Core) are all delivered as NuGet packages, so
 /// a direct <c>&lt;PackageReference&gt;</c> is the reference kind that would actually catch a
-/// real violation — this is exactly how <c>Tenancy.Application</c> once carried an EF Core
+/// real violation — this is exactly how <c>Identity.Application</c> once carried an EF Core
 /// package reference before it was removed. The <c>&lt;ProjectReference&gt;</c> check exists as a
-/// second line of defense: nothing under <c>src/Tenancy</c> is itself named after a forbidden
+/// second line of defense: nothing under <c>src/Identity</c> is itself named after a forbidden
 /// technology today, but if a future internal project acted as a thin wrapper around one of these
 /// technologies, a project reference to it would smuggle the same violation in indirectly. Both
 /// checks together mean the gate does not depend on assuming how the dependency would arrive.
@@ -45,15 +45,15 @@ public sealed class LayeringGates
     };
 
     [Fact]
-    public void TenancyDomain_DoesNotReferenceForbiddenTechnology()
+    public void IdentityDomain_DoesNotReferenceForbiddenTechnology()
     {
-        AssertNoForbiddenReferences("Tenancy.Domain");
+        AssertNoForbiddenReferences("Identity.Domain");
     }
 
     [Fact]
-    public void TenancyApplication_DoesNotReferenceForbiddenTechnology()
+    public void IdentityApplication_DoesNotReferenceForbiddenTechnology()
     {
-        AssertNoForbiddenReferences("Tenancy.Application");
+        AssertNoForbiddenReferences("Identity.Application");
     }
 
     private static void AssertNoForbiddenReferences(string projectName)

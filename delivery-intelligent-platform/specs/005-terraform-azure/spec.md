@@ -1,5 +1,7 @@
 # Feature Specification: Terraform → Azure Infrastructure
 
+> **Historical — multi-tenancy was removed on 2026-10-23** ([ADR-025](../../docs/adr/ADR-025-single-organization.md)). This spec describes the system as built at the time and is not rewritten. Where it says tenant, the current code has one organization per deployment, and the service is `src/Identity`. Terraform identifiers changed from `tenancy_api` to `identity_api`. Entra's `tenant_id` is the identity directory and is unaffected.
+
 **Feature Branch**: `005-terraform-azure`  
 **Created**: 2026-09-26  
 **Status**: Draft — compute revised from AKS to Azure Container Apps on 2026-10-16 ([ADR-023](../../docs/adr/ADR-023-azure-container-apps-for-compute.md))  

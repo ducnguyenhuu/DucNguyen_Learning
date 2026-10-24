@@ -1,9 +1,15 @@
 # ADR-022: A named application identity may be a tenant member, under an explicit token policy
 
-**Status**: Accepted
+**Status**: Accepted — point 4 refined by ADR-025
 **Date**: 2026-09-29
 **Deciders**: Project owner (accepted 2026-09-29)
 **Relates to**: Constitution → Principle I, IV, V · ADR-013 · ADR-017 · ADR-019 · `specs/006-ci-cd` research R7 · `specs/001-auth-tenant-management` SC-003 · roadmap S7
+**Refined by**: [ADR-025](ADR-025-single-organization.md) (2026-10-23) — there are no tenants. The
+token policy (points 1–3) is unchanged, including the app role value `Tenancy.Automation.Member`.
+Point 4 now reads: an application identity gets a member's powers and nothing more; it is
+provisioned just-in-time like a user, becomes a member only by being invited, and can never
+bootstrap the first administrator (`POST /members/bootstrap` requires a delegated user token).
+The S7 load test reads `GET /me`, which needs no membership, so no seeding is required.
 
 ## Context
 

@@ -46,7 +46,7 @@ echo "== Size =="
 UNCOMPRESSED_BYTES=$(docker image inspect --format '{{.Size}}' "${RC_IMAGE}")
 echo "uncompressed: ${UNCOMPRESSED_BYTES} bytes (docker image inspect --format '{{.Size}}')"
 
-OCI_TAR="$(mktemp -t tenancy-api-oci).tar"
+OCI_TAR="$(mktemp -t identity-api-oci).tar"
 docker buildx build --load=false --output "type=oci,dest=${OCI_TAR}" -t "${RC_IMAGE}" "${REPO_ROOT}" >/dev/null
 COMPRESSED_APPROX_BYTES=$(docker save "${RC_IMAGE}" | gzip -9 -c | wc -c | tr -d ' ')
 echo "compressed (approximate, docker save | gzip -9 | wc -c): ${COMPRESSED_APPROX_BYTES} bytes"
@@ -62,7 +62,7 @@ echo "== Cold start to ready (${RUNS} runs, first discarded as warm-up) =="
 TIMINGS=()
 for i in $(seq 1 "${RUNS}"); do
     CID=$(docker run -d --rm --network "${COMPOSE_NETWORK}" -p 18080:8080 \
-        -e ConnectionStrings__TenancyDb="Server=sqlserver;Database=TenancyDb;User Id=sa;Password=${SA_PASSWORD};Encrypt=True;TrustServerCertificate=True" \
+        -e ConnectionStrings__IdentityDb="Server=sqlserver;Database=IdentityDb;User Id=sa;Password=${SA_PASSWORD};Encrypt=True;TrustServerCertificate=True" \
         -e ASPNETCORE_ENVIRONMENT=Development \
         -e Https__RedirectionEnabled=false \
         -e AzureAd__Instance="https://login.microsoftonline.com/" \

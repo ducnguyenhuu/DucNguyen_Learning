@@ -1,5 +1,7 @@
 # Feature Specification: CI/CD Pipeline with Performance Verification
 
+> **Historical — multi-tenancy was removed on 2026-10-23** ([ADR-025](../../docs/adr/ADR-025-single-organization.md)). This spec describes the system as built at the time and is not rewritten. Where it says tenant, the current code has one organization per deployment, and the service is `src/Identity`. The load test reads `GET /me` with 50 callers instead of seeding 20 tenants.
+
 **Feature Branch**: `006-ci-cd`  
 **Created**: 2026-09-27  
 **Status**: Draft  

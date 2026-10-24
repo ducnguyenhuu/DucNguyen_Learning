@@ -9,9 +9,10 @@ namespace ArchitectureTests;
 /// <summary>
 /// Verifies that spec 001's declared requirement-coverage claims — the
 /// <see cref="CoversRequirementAttribute"/> usages scattered across
-/// <c>Tenancy.UnitTests</c> and <c>Tenancy.IntegrationTests</c> — stay true over time: every one
-/// of spec 001's twenty-six functional requirements still has at least one declaring test, and no
-/// declaration names a requirement identifier that does not actually exist in spec 001.
+/// <c>Identity.UnitTests</c> and <c>Identity.IntegrationTests</c> — stay true over time: every one
+/// of spec 001's twenty-six functional requirements that is still in force has at least one
+/// declaring test, no declaration names a requirement identifier that does not actually exist in
+/// spec 001, and no declaration still claims a requirement that has been retired.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -44,8 +45,20 @@ namespace ArchitectureTests;
 /// implication here.
 /// </para>
 /// <para>
+/// <b>Retired requirements.</b> ADR-025 (one organization per deployment) removed
+/// multi-tenancy and, with it, five of spec 001's requirements: FR-006 (tenant name and settings),
+/// FR-007 (tenant context), FR-008 (cross-tenant access), FR-009 (inaccessible looks like
+/// nonexistent) and FR-010 (membership in several tenants). Spec 001 is kept as history rather
+/// than rewritten, so those headings still exist and still parse. <see cref="RetiredRequirementIds"/>
+/// lists them by name: they are excluded from the "must be covered" check, and a
+/// <see cref="CoversRequirementAttribute"/> that still names one is a stale claim and fails
+/// <see cref="NoDeclaration_ClaimsARetiredRequirement"/>. Retiring another requirement means
+/// adding it to that set, citing the decision record that retired it — never just deleting its
+/// last declaring test and letting the coverage check go red.
+/// </para>
+/// <para>
 /// <b>Why two sibling test assemblies are loaded by file path rather than by project
-/// reference.</b> Both <c>Tenancy.UnitTests</c> and <c>Tenancy.IntegrationTests</c> carry a
+/// reference.</b> Both <c>Identity.UnitTests</c> and <c>Identity.IntegrationTests</c> carry a
 /// <c>ProjectReference</c> to this project (added so their test methods can use
 /// <see cref="CoversRequirementAttribute"/> itself), so a <c>ProjectReference</c> in the other
 /// direction would be circular. Instead, this gate loads their already-built output assemblies
@@ -69,6 +82,19 @@ public sealed class RequirementCoverageGates
 {
     private const int ExpectedRequirementCount = 26;
 
+    /// <summary>
+    /// Spec 001 requirements retired by ADR-025 (<c>docs/adr/ADR-025-single-organization.md</c>,
+    /// decision point 10). See the class remarks.
+    /// </summary>
+    private static readonly IReadOnlySet<string> RetiredRequirementIds = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "FR-006",
+        "FR-007",
+        "FR-008",
+        "FR-009",
+        "FR-010",
+    };
+
     private static readonly Regex Spec001FrHeadingPattern = new(
         pattern: @"^-\s+\*\*(FR-0\d\d)\*\*:",
         options: RegexOptions.Compiled | RegexOptions.Multiline);
@@ -89,12 +115,14 @@ public sealed class RequirementCoverageGates
             .ToHashSet();
 
         var missing = ValidSpec001RequirementIds.Value
+            .Where(requirementId => !RetiredRequirementIds.Contains(requirementId))
             .Where(requirementId => !declaredIds.Contains(requirementId))
             .OrderBy(requirementId => requirementId)
             .ToArray();
 
         missing.Should().BeEmpty(
-            "every functional requirement in spec 001 must have at least one test carrying " +
+            "every functional requirement in spec 001 that ADR-025 did not retire must have at " +
+            "least one test carrying " +
             $"[CoversRequirement(\"FR-0NN\")], but no declaring test remains for: " +
             $"{string.Join(", ", missing)}");
     }
@@ -115,6 +143,36 @@ public sealed class RequirementCoverageGates
             string.Join(", ", bogusDeclarations.Select(coverage =>
                 $"\"{coverage.RequirementId}\" on {coverage.AssemblyName}!" +
                 $"{coverage.DeclaringType}.{coverage.MethodName}")));
+    }
+
+    [Fact]
+    public void NoDeclaration_ClaimsARetiredRequirement()
+    {
+        var staleDeclarations = DeclaredCoverages.Value
+            .Where(coverage => RetiredRequirementIds.Contains(coverage.RequirementId))
+            .ToArray();
+
+        staleDeclarations.Should().BeEmpty(
+            "a retired requirement (ADR-025) has nothing left to cover, so a test still claiming " +
+            "it is a stale claim — remove the attribute, or move the test to the requirement it " +
+            "now actually exercises: " +
+            string.Join(", ", staleDeclarations.Select(coverage =>
+                $"\"{coverage.RequirementId}\" on {coverage.AssemblyName}!" +
+                $"{coverage.DeclaringType}.{coverage.MethodName}")));
+    }
+
+    [Fact]
+    public void RetiredRequirementIds_AllExistInSpec001()
+    {
+        // A typo in the retired set would silently retire nothing while the real requirement
+        // keeps being demanded (or, worse, excuse a requirement nobody meant to retire).
+        var unknown = RetiredRequirementIds
+            .Where(requirementId => !ValidSpec001RequirementIds.Value.Contains(requirementId))
+            .ToArray();
+
+        unknown.Should().BeEmpty(
+            "every retired requirement id must name a real spec 001 requirement, but these do " +
+            $"not: {string.Join(", ", unknown)}");
     }
 
     [Fact]
@@ -151,10 +209,10 @@ public sealed class RequirementCoverageGates
 
         var assemblyPaths = new[]
         {
-            Path.Combine(repoRoot, "tests", "Tenancy.UnitTests", "bin", configuration,
-                frameworkFolderName, "Tenancy.UnitTests.dll"),
-            Path.Combine(repoRoot, "tests", "Tenancy.IntegrationTests", "bin", configuration,
-                frameworkFolderName, "Tenancy.IntegrationTests.dll"),
+            Path.Combine(repoRoot, "tests", "Identity.UnitTests", "bin", configuration,
+                frameworkFolderName, "Identity.UnitTests.dll"),
+            Path.Combine(repoRoot, "tests", "Identity.IntegrationTests", "bin", configuration,
+                frameworkFolderName, "Identity.IntegrationTests.dll"),
         };
 
         var coverages = new List<DeclaredCoverage>();
@@ -168,7 +226,7 @@ public sealed class RequirementCoverageGates
                 throw new InvalidOperationException(
                     $"Expected to find a built test assembly at {assemblyPath}, but it does " +
                     "not exist. Build the whole solution (or at least " +
-                    "Tenancy.UnitTests and Tenancy.IntegrationTests) before running this gate.");
+                    "Identity.UnitTests and Identity.IntegrationTests) before running this gate.");
             }
 
             assemblies.Add(Assembly.LoadFrom(assemblyPath));

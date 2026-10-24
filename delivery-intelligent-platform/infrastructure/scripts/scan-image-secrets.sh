@@ -16,7 +16,7 @@ fi
 
 RC_IMAGE="$1"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-BAIT_IMAGE="tenancy-api:bait"
+BAIT_IMAGE="identity-api:bait"
 BAIT_KEY="${REPO_ROOT}/secretbait.pem"
 
 if ! command -v trivy >/dev/null 2>&1; then

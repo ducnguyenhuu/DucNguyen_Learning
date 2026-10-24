@@ -1,5 +1,5 @@
 # Azure AD-only authentication (research.md R6): no SQL auth login exists at all, so
-# there is no SA password to manage, rotate, or leak. The Tenancy API authenticates via
+# there is no SA password to manage, rotate, or leak. The Identity API authenticates via
 # its managed identity's Azure AD token (Authentication=Active Directory Default in the
 # connection string), never a connection-string secret (FR-004, Constitution Principle V).
 resource "azurerm_mssql_server" "main" {
